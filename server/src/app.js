@@ -1,15 +1,18 @@
 import express from "express";
 import cors from "cors";
+import authRoutes from "./routes/auth.routes.js";
 
 const app = express();
 
-/* ---------- Middlewares ---------- */
 app.use(cors());
 app.use(express.json());
 
-/* ---------- Health Check ---------- */
+// Auth routes
+app.use("/auth", authRoutes);
+
+// Health check
 app.get("/", (req, res) => {
-  res.json({ message: "Backend is running 🚀" });
+  res.json({ message: "HireScope backend running 🚀" });
 });
 
 export default app;
