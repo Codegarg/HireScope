@@ -1,21 +1,26 @@
-import dotenv from "dotenv";
-import app from "./app.js";
-import connectDB from "./config/db.js";
+import express from "express";
+import cors from "cors";
 import passport from "passport";
-import "./config/passport.js";
 
-// Load environment variables
-dotenv.config();
+import connectDB from "./config/db.js";
+import "./config/passport.js"; // strategies load themselves
+import authRoutes from "./routes/auth.routes.js";
 
-// Connect to MongoDB
-connectDB();
+const app = express();
 
-// Initialize Passport (for OAuth)
+app.use(cors());
+app.use(express.json());
 app.use(passport.initialize());
 
-// Start server
-const PORT = process.env.PORT || 5000;
+app.use("/auth", authRoutes);
 
+app.get("/", (req, res) => {
+  res.json({ message: "HireScope backend running 🚀" });
+});
+
+connectDB();
+
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

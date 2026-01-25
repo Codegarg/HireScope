@@ -7,10 +7,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Auth routes
+// 🔥 THIS LINE IS CRITICAL
 app.use("/auth", authRoutes);
 
-// Health check
 app.get("/", (req, res) => {
   res.json({ message: "HireScope backend running 🚀" });
 });
