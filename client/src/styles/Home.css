@@ -1,0 +1,65 @@
+.home-container {
+  max-width: 900px;
+  margin: 40px auto;
+  font-family: sans-serif;
+}
+
+.section-card {
+  margin-top: 30px;
+  padding: 20px;
+  border-radius: 10px;
+  background-color: #f9f9f9;
+}
+
+.progress-bar {
+  width: 100%;
+  background: #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-fill {
+  padding: 6px;
+  color: #fff;
+  text-align: center;
+  font-weight: bold;
+}
+
+.progress-good {
+  background-color: #4caf50;
+}
+
+.progress-mid {
+  background-color: #ff9800;
+}
+
+.progress-bad {
+  background-color: #f44336;
+}
+
+.skill-chip {
+  display: inline-block;
+  padding: 6px 12px;
+  margin: 6px;
+  border-radius: 16px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.skill-match {
+  background-color: #4caf50;
+}
+
+.skill-missing {
+  background-color: #f44336;
+}
+
+.error-text {
+  color: red;
+  margin-top: 10px;
+}
+
+.logout-btn {
+  margin-top: 20px;
+}

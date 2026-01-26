@@ -3,8 +3,9 @@ import cors from "cors";
 import passport from "passport";
 
 import connectDB from "./config/db.js";
-import "./config/passport.js"; // strategies load themselves
+import "./config/passport.js";
 import authRoutes from "./routes/auth.routes.js";
+import analysisRoutes from "./routes/analysis.routes.js";
 
 const app = express();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 app.use(passport.initialize());
 
 app.use("/auth", authRoutes);
+app.use("/analysis", analysisRoutes);
 
 app.get("/", (req, res) => {
   res.json({ message: "HireScope backend running 🚀" });
