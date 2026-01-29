@@ -1,27 +1,91 @@
-export const calculateATS = (resumeSkills, jdSkills) => {
-  if (!jdSkills || jdSkills.length === 0) {
-    return {
-      atsScore: 0,
-      matchedSkills: [],
-      missingSkills: [],
-    };
+import { cleanText } from "../utils/textCleaner.util.js";
+import { extractSkills } from "../utils/skillExtractor.util.js";
+import {
+  EXPERIENCE_KEYWORDS,
+  RESUME_SECTIONS
+} from "../utils/skillDictionary.util.js";
+
+const BASELINE_SKILLS = ["java", "sql", "rest api", "git"];
+
+export const calculateATSScore = (resumeText, jdText) => {
+  const cleanResume = cleanText(resumeText);
+  const cleanJD = cleanText(jdText);
+
+  // Extract skills
+  let jdSkills = extractSkills(cleanJD);
+  const resumeSkills = extractSkills(cleanResume);
+
+  // 🔥 NEW: Handle vague JD (no skills mentioned)
+  const hasExperienceSignals = EXPERIENCE_KEYWORDS.some(word =>
+    cleanJD.includes(word)
+  );
+
+  let usingBaselineSkills = false;
+
+  if (jdSkills.length === 0 && hasExperienceSignals) {
+    jdSkills = BASELINE_SKILLS;
+    usingBaselineSkills = true;
   }
 
-  const matchedSkills = resumeSkills.filter((skill) =>
-    jdSkills.includes(skill)
+  // Skill matching
+  const matchedSkills = jdSkills.filter(skill =>
+    resumeSkills.includes(skill)
   );
 
   const missingSkills = jdSkills.filter(
-    (skill) => !resumeSkills.includes(skill)
+    skill => !resumeSkills.includes(skill)
   );
 
-  const atsScore = Math.round(
-    (matchedSkills.length / jdSkills.length) * 100
+  // Skill score (60%)
+  const skillScore =
+    jdSkills.length === 0
+      ? 0
+      : Math.round((matchedSkills.length / jdSkills.length) * 100);
+
+  // Experience score (20%)
+  let experienceCount = 0;
+  EXPERIENCE_KEYWORDS.forEach(word => {
+    if (cleanResume.includes(word)) experienceCount++;
+  });
+
+  const experienceScore = Math.min(
+    Math.round((experienceCount / EXPERIENCE_KEYWORDS.length) * 100),
+    100
   );
+
+  // Resume structure score (20%)
+  let sectionCount = 0;
+  RESUME_SECTIONS.forEach(section => {
+    if (cleanResume.includes(section)) sectionCount++;
+  });
+
+  const structureScore = Math.round(
+    (sectionCount / RESUME_SECTIONS.length) * 100
+  );
+
+  // Final ATS score
+  let atsScore = Math.round(
+    skillScore * 0.6 +
+      experienceScore * 0.2 +
+      structureScore * 0.2
+  );
+
+  // 🔥 NEW: Cap score for vague JD
+  if (usingBaselineSkills && atsScore > 50) {
+    atsScore = 50;
+  }
 
   return {
     atsScore,
     matchedSkills,
     missingSkills,
+    breakdown: {
+      skillScore,
+      experienceScore,
+      structureScore
+    },
+    meta: {
+      vagueJDHandled: usingBaselineSkills
+    }
   };
 };

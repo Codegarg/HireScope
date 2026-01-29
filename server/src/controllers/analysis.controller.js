@@ -1,48 +1,46 @@
-import { extractText } from "../services/textExtractor.service.js";
-import { extractSkills } from "../utils/skillExtractor.util.js";
-import { calculateATS } from "../services/atsScorer.js";
+import { calculateATSScore } from "../services/atsScorer.js";
+import { extractTextFromFile } from "../services/textExtractor.service.js";
 
 export const analyzeResume = async (req, res) => {
   try {
     const resumeFile = req.files?.resume?.[0];
-    const jdFile = req.files?.jdFile?.[0];
-    const jdText = req.body.jdText;
+    const jdFile = req.files?.jd?.[0];
+    const jdTextInput = req.body.jdText;
 
+    let resumeText = "";
+    let jdText = "";
+
+    // Resume file is mandatory
     if (!resumeFile) {
-      return res
-        .status(400)
-        .json({ message: "Resume file is required" });
-    }
-
-    if (!jdFile && !jdText) {
       return res.status(400).json({
-        message: "Job description file or text is required",
+        message: "Resume file is required"
       });
     }
 
-    // Extract texts
-    const resumeText = await extractText(resumeFile);
+    // Extract resume text
+    resumeText = await extractTextFromFile(resumeFile);
 
-    let finalJDText = jdText;
-    if (jdFile) {
-      finalJDText = await extractText(jdFile);
+    // JD can be text OR file
+    if (jdTextInput && jdTextInput.trim() !== "") {
+      jdText = jdTextInput;
+    } else if (jdFile) {
+      jdText = await extractTextFromFile(jdFile);
+    } else {
+      return res.status(400).json({
+        message: "Job Description text or file is required"
+      });
     }
 
-    // Skill extraction
-    const resumeSkills = extractSkills(resumeText);
-    const jdSkills = extractSkills(finalJDText);
+    const result = calculateATSScore(resumeText, jdText);
 
-    // ATS calculation
-    const result = calculateATS(resumeSkills, jdSkills);
-
-    res.json({
-      resumeSkills,
-      jdSkills,
-      ...result,
+    return res.status(200).json({
+      success: true,
+      data: result
     });
   } catch (error) {
-    res.status(500).json({
-      message: error.message || "Resume analysis failed",
+    console.error("ATS Analysis Error:", error);
+    return res.status(500).json({
+      message: "Error analyzing resume"
     });
   }
 };

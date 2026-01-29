@@ -1,43 +1,16 @@
-// A starter, extensible skill dictionary.
-// We will expand/refine this later or replace with AI.
-const SKILL_DICTIONARY = [
-  "javascript",
-  "typescript",
-  "react",
-  "next.js",
-  "node",
-  "express",
-  "mongodb",
-  "sql",
-  "postgres",
-  "mysql",
-  "html",
-  "css",
-  "tailwind",
-  "python",
-  "java",
-  "c++",
-  "aws",
-  "docker",
-  "kubernetes",
-  "git",
-  "github",
-  "rest",
-  "api",
-  "graphql",
-  "redis",
-  "linux",
-];
+// server/src/utils/skillExtractor.util.js
 
-export const extractSkills = (text) => {
-  if (!text) return [];
+import { SKILLS } from "./skillDictionary.util.js";
 
-  const normalized = text.toLowerCase();
+export const extractSkills = (text = "") => {
+  const foundSkills = new Set();
 
-  const foundSkills = SKILL_DICTIONARY.filter((skill) =>
-    normalized.includes(skill)
-  );
+  SKILLS.forEach((skill) => {
+    const pattern = new RegExp(`\\b${skill}\\b`, "i");
+    if (pattern.test(text)) {
+      foundSkills.add(skill);
+    }
+  });
 
-  // Remove duplicates just in case
-  return [...new Set(foundSkills)];
+  return Array.from(foundSkills);
 };

@@ -1,67 +1,70 @@
 import { useState } from "react";
-import api from "../services/api";
-import { useNavigate, Link } from "react-router-dom";
+import API from "../services/api";
+import { useNavigate } from "react-router-dom";
 
 const Signup = () => {
-  const navigate = useNavigate();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const navigate = useNavigate();
+
+  const handleSignup = async () => {
     setError("");
+    setLoading(true);
+
     try {
-      await api.post("/auth/signup", { email, password });
+      await API.post("/auth/signup", {
+        name,
+        email,
+        password
+      });
+
+      // Clear form & error state
+      setName("");
+      setEmail("");
+      setPassword("");
+      setError("");
+
+      // Redirect to login
       navigate("/login");
     } catch (err) {
-      setError(err?.response?.data?.message || "Signup failed");
+      setError(err.response?.data?.message || "Signup failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: 360, margin: "120px auto" }}>
-      <h2>Signup</h2>
+    <div>
+      <h1>Signup</h1>
+
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <br /><br />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <br /><br />
-        <button type="submit">Create Account</button>
-      </form>
+      <input
+        placeholder="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
 
-      <hr style={{ margin: "20px 0" }} />
+      <input
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
 
-      {/* OAuth = Signup OR Login */}
-      <a href="http://localhost:5000/auth/google">
-        <button style={{ width: "100%", marginBottom: 8 }}>
-          Continue with Google
-        </button>
-      </a>
+      <input
+        placeholder="Password"
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
 
-      <a href="http://localhost:5000/auth/github">
-        <button style={{ width: "100%" }}>
-          Continue with GitHub
-        </button>
-      </a>
-
-      <p style={{ marginTop: 16 }}>
-        Already have an account? <Link to="/login">Login</Link>
-      </p>
+      <button onClick={handleSignup} disabled={loading}>
+        {loading ? "Creating Account..." : "Create Account"}
+      </button>
     </div>
   );
 };
