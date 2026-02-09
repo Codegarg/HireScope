@@ -66,9 +66,17 @@ export const calculateATSScore = (resumeText, jdText) => {
   // Final ATS score
   let atsScore = Math.round(
     skillScore * 0.6 +
-      experienceScore * 0.2 +
-      structureScore * 0.2
+    experienceScore * 0.2 +
+    structureScore * 0.2
   );
+
+  // 🔥 NEW: Frequency boost (Bonus points if matched skills appear multiple times)
+  let frequencyBonus = 0;
+  matchedSkills.forEach(skill => {
+    const occurrences = (cleanResume.match(new RegExp(`\\b${skill}\\b`, "g")) || []).length;
+    if (occurrences > 2) frequencyBonus += 2; // +2 points per heavily mentioned skill
+  });
+  atsScore = Math.min(atsScore + frequencyBonus, 100);
 
   // 🔥 NEW: Cap score for vague JD
   if (usingBaselineSkills && atsScore > 50) {

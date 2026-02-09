@@ -1,5 +1,6 @@
 import { calculateATSScore } from "../services/atsScorer.js";
 import { extractTextFromFile } from "../services/textExtractor.service.js";
+import { generateSuggestions } from "../services/ai.service.js";
 
 export const analyzeResume = async (req, res) => {
   try {
@@ -31,11 +32,19 @@ export const analyzeResume = async (req, res) => {
       });
     }
 
-    const result = calculateATSScore(resumeText, jdText);
+    const atsResult = calculateATSScore(resumeText, jdText);
+
+    // Generate AI suggestions
+    const aiSuggestions = await generateSuggestions(resumeText, jdText, atsResult);
 
     return res.status(200).json({
       success: true,
-      data: result
+      data: {
+        ...atsResult,
+        aiSuggestions,
+        resumeText: resumeText.substring(0, 5000), // Return snippet for frontend context
+        jdText: jdText.substring(0, 5000)
+      }
     });
   } catch (error) {
     console.error("ATS Analysis Error:", error);

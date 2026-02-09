@@ -5,6 +5,7 @@ import connectDB from "./config/db.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import analysisRoutes from "./routes/analysis.routes.js";
+import chatRoutes from "./routes/chat.routes.js";
 
 dotenv.config();
 connectDB();
@@ -12,7 +13,7 @@ connectDB();
 const app = express();
 
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: ["http://localhost:5173", "http://localhost:5174"],
   credentials: true
 }));
 
@@ -20,6 +21,7 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/analysis", analysisRoutes);
+app.use("/api/chat", chatRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

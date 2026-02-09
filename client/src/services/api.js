@@ -11,4 +11,7 @@ export const analyzeResume = (formData) =>
     }
   });
 
+export const sendChatMessage = (message, context) =>
+  API.post("/chat", { message, context });
+
 export default API;

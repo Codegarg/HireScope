@@ -6,7 +6,10 @@ const router = express.Router();
 
 router.post(
   "/analyze",
-  upload.fields([{ name: "resume" }]),
+  upload.fields([
+    { name: "resume", maxCount: 1 },
+    { name: "jd", maxCount: 1 }
+  ]),
   analyzeResume
 );
 
