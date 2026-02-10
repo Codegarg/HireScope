@@ -4,9 +4,9 @@ import mammoth from "mammoth";
 
 export const extractTextFromFile = async (file) => {
   try {
-    if (!file || !file.path) return "";
+    if (!file || !file.buffer) return "";
 
-    const buffer = fs.readFileSync(file.path);
+    const buffer = file.buffer;
     const extension = file.originalname.split(".").pop().toLowerCase();
 
     if (extension === "pdf") {

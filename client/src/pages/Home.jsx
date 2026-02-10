@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
 import { analyzeResume, sendChatMessage } from "../services/api";
+import { AuthContext } from "../context/AuthContext";
 import "../styles/Home.css";
 
 const Home = () => {
+  const { user, logout } = useContext(AuthContext);
   const [resume, setResume] = useState(null);
   const [jdFile, setJdFile] = useState(null);
   const [jdText, setJdText] = useState("");
@@ -82,6 +84,25 @@ const Home = () => {
 
   return (
     <div className="container">
+      <nav style={{ display: "flex", justifyContent: "flex-end", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+          <span>Welcome, <strong>{user?.name}</strong></span>
+          <button
+            onClick={logout}
+            style={{
+              background: "rgba(239, 68, 68, 0.1)",
+              color: "#f87171",
+              border: "1px solid rgba(239, 68, 68, 0.2)",
+              padding: "6px 12px",
+              borderRadius: "8px",
+              cursor: "pointer"
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </nav>
+
       <header style={{ textAlign: "center", marginBottom: "60px" }}>
         <h1 className="gradient-text" style={{ fontSize: "3.5rem", margin: "0" }}>HireScope</h1>
         <p style={{ color: "#94a3b8", fontSize: "1.2rem" }}>Precision ATS Analysis & AI Career Guidance</p>

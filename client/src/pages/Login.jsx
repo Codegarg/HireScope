@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
@@ -8,6 +8,16 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
+  // Handle OAuth landing
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
+      localStorage.setItem("token", token);
+      window.location.href = "/"; // Direct refresh to trigger context update
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,13 +58,13 @@ const Login = () => {
       <hr style={{ margin: "20px 0" }} />
 
       {/* OAuth buttons */}
-      <a href="http://localhost:5000/auth/google">
-        <button style={{ width: "100%", marginBottom: 8 }}>
+      <a href="http://localhost:5000/api/auth/google">
+        <button style={{ width: "100%", marginBottom: 8, cursor: "pointer" }}>
           Continue with Google
         </button>
       </a>
-      <a href="http://localhost:5000/auth/github">
-        <button style={{ width: "100%" }}>
+      <a href="http://localhost:5000/api/auth/github">
+        <button style={{ width: "100%", cursor: "pointer" }}>
           Continue with GitHub
         </button>
       </a>
