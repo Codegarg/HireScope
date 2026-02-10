@@ -1,5 +1,5 @@
 import Resume from "../models/resume.model.js";
-import { rewriteResumeSection, generateInterviewPrep } from "../services/ai.service.js";
+import { rewriteResumeSection, generateInterviewPrep, improveResumeContent } from "../services/ai.service.js";
 
 export const saveResume = async (req, res) => {
     try {
@@ -67,5 +67,25 @@ export const addVersion = async (req, res) => {
         res.status(200).json({ success: true, data: resume });
     } catch (error) {
         res.status(500).json({ message: "Error adding version" });
+    }
+};
+export const getUserResumeById = async (req, res) => {
+    try {
+        const resume = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+        if (!resume) return res.status(404).json({ message: "Resume not found" });
+        res.status(200).json({ success: true, data: resume });
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching resume" });
+    }
+};
+
+export const improveResume = async (req, res) => {
+    try {
+        const { resumeId, content } = req.body;
+        const improvedContent = await improveResumeContent(content);
+
+        res.status(200).json({ success: true, data: improvedContent });
+    } catch (error) {
+        res.status(500).json({ message: "Error improving resume" });
     }
 };

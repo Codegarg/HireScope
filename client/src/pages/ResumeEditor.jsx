@@ -1,40 +1,95 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import AIAssistant from '../components/AIAssistant';
+import Navbar from '../components/Navbar';
 
 const ResumeEditor = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { search } = useLocation();
+    const queryParams = new URLSearchParams(search);
+    const shouldImprove = queryParams.get('improve');
+
     const [resume, setResume] = useState(null);
     const [currentContent, setCurrentContent] = useState('');
     const [activeVersion, setActiveVersion] = useState(0);
     const [isRewriting, setIsRewriting] = useState(false);
+    const [isImproving, setIsImproving] = useState(false);
     const [rewriteInstructions, setRewriteInstructions] = useState('');
     const [selectedText, setSelectedText] = useState('');
+    const [lastSavedContent, setLastSavedContent] = useState('');
+    const saveTimeoutRef = useRef(null);
 
-    // Fetch resume on load
+    const theme = {
+        primary: '#7c3aed',
+        primaryLight: '#a78bfa',
+        secondary: '#4f46e5',
+        glassBg: 'rgba(255, 255, 255, 0.03)',
+        glassBorder: 'rgba(255, 255, 255, 0.08)',
+        textMuted: '#94a3b8',
+        radius: '1.5rem',
+    };
+
+    const glassCardStyle = {
+        background: theme.glassBg,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${theme.glassBorder}`,
+        borderRadius: theme.radius,
+        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+    };
+
     useEffect(() => {
         const fetchResume = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.get(`http://localhost:5000/api/resumes`, {
+                const res = await axios.get(`http://localhost:5000/api/resumes/${id}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                // For demo simplicity, find by ID from the list
-                const found = res.data.data.find(r => r._id === id);
+                const found = res.data.data;
                 if (found) {
                     setResume(found);
-                    setCurrentContent(found.versions[found.currentVersionIndex].content);
+                    const content = found.versions[found.currentVersionIndex].content;
+                    setCurrentContent(content);
+                    setLastSavedContent(content);
                     setActiveVersion(found.currentVersionIndex);
                 }
-            } catch (err) {
-                console.error("Error fetching resume", err);
-            }
+            } catch (err) { console.error("Error fetching", err); }
         };
         fetchResume();
     }, [id]);
+
+    useEffect(() => {
+        if (shouldImprove === 'true' && resume && !isImproving && currentContent === lastSavedContent) {
+            handleMagicImprove();
+            navigate(`/editor/${id}`, { replace: true });
+        }
+    }, [resume, shouldImprove, isImproving, currentContent, lastSavedContent, id, navigate]);
+
+    useEffect(() => {
+        if (currentContent && currentContent !== lastSavedContent) {
+            if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = setTimeout(() => { autoSave(); }, 3000);
+        }
+        return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
+    }, [currentContent, lastSavedContent]);
+
+    const autoSave = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post('http://localhost:5000/api/resumes/version', {
+                resumeId: id,
+                content: currentContent,
+                feedback: "Auto-saved"
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            if (res.data.success) {
+                setLastSavedContent(currentContent);
+                setResume(res.data.data);
+            }
+        } catch (err) { console.error("Auto-save error", err); }
+    };
 
     const handleRewrite = async () => {
         if (!selectedText || !rewriteInstructions) return;
@@ -44,10 +99,7 @@ const ResumeEditor = () => {
             const res = await axios.post('http://localhost:5000/api/resumes/rewrite', {
                 sectionText: selectedText,
                 instructions: rewriteInstructions
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
+            }, { headers: { Authorization: `Bearer ${token}` } });
             if (res.data.success) {
                 const newContent = currentContent.replace(selectedText, res.data.data);
                 setCurrentContent(newContent);
@@ -55,172 +107,149 @@ const ResumeEditor = () => {
                 setRewriteInstructions('');
                 setSelectedText('');
             }
-        } catch (err) {
-            console.error("Rewrite error", err);
-            setIsRewriting(false);
-        }
+        } catch (err) { console.error("Rewrite error", err); setIsRewriting(false); }
     };
 
-    const saveNewVersion = async () => {
+    const handleMagicImprove = async () => {
+        setIsImproving(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post('http://localhost:5000/api/resumes/version', {
+            const res = await axios.post('http://localhost:5000/api/resumes/improve', {
                 resumeId: id,
-                content: currentContent,
-                feedback: "Improved by AI"
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+                content: currentContent
+            }, { headers: { Authorization: `Bearer ${token}` } });
             if (res.data.success) {
-                alert("New version saved successfully!");
-                setResume(res.data.data);
-                setActiveVersion(res.data.data.versions.length - 1);
+                setCurrentContent(res.data.data);
             }
-        } catch (err) {
-            console.error("Save error", err);
-        }
+        } catch (err) { console.error("Improvement error", err); }
+        finally { setIsImproving(false); }
     };
 
-    const handleTextSelection = () => {
-        const selection = window.getSelection().toString();
-        if (selection) {
-            setSelectedText(selection);
-        }
-    };
-
-    if (!resume) return <div className="p-20 text-center dark:text-white">Loading Editor...</div>;
+    if (!resume) return <div style={{ minHeight: '100vh', backgroundColor: '#030014', color: '#fff', display: 'grid', placeItems: 'center' }}>Loading Premium Editor...</div>;
 
     return (
-        <div className="editor-layout">
-            {/* Editor Main Area */}
-            <div className="editor-main">
-                <header className="dashboard-header">
-                    <div>
-                        <h1>{resume.title}</h1>
-                        <p style={{ color: 'var(--text-muted)' }}>Version {activeVersion + 1} of {resume.versions.length}</p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button
-                            onClick={saveNewVersion}
-                            className="premium-btn"
-                            style={{ backgroundColor: '#16a34a', color: 'white' }}
-                        >
-                            Save Version
-                        </button>
-                        <button
-                            onClick={() => window.print()}
-                            className="premium-btn btn-blue no-print"
-                        >
-                            Download PDF
-                        </button>
-                    </div>
-                </header>
+        <div style={{ minHeight: '100vh', backgroundColor: '#030014', color: '#f8fafc' }}>
+            <Navbar />
 
-                <div className="editor-paper">
-                    <div
-                        className="focus:outline-none whitespace-pre-wrap"
-                        style={{ fontSize: '1.125rem', lineHeight: '1.75', outline: 'none', color: 'inherit' }}
-                        onMouseUp={handleTextSelection}
-                        contentEditable
-                        onInput={(e) => setCurrentContent(e.currentTarget.textContent)}
-                        suppressContentEditableWarning={true}
-                    >
-                        {currentContent}
-                    </div>
+            <div style={{ display: 'flex', height: '100vh', paddingTop: '6rem' }}>
+                <main style={{ flex: 1, padding: '3rem', overflowY: 'auto' }}>
+                    <header style={{ margin: '0 auto 3rem auto', maxWidth: '800px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.4rem' }}>{resume.title}</h1>
+                            <p style={{ color: theme.textMuted, fontSize: '1rem', fontWeight: '500' }}>
+                                Version {activeVersion + 1} of {resume.versions.length} • {currentContent === lastSavedContent ? 'Saved' : 'Editing...'}
+                            </p>
+                        </div>
+                        <div className="no-print" style={{ display: 'flex', gap: '1rem' }}>
+                            <button
+                                onClick={handleMagicImprove}
+                                disabled={isImproving}
+                                style={{
+                                    padding: '0.75rem 1.5rem', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white',
+                                    borderRadius: '999px', border: 'none', fontWeight: '700', cursor: 'pointer', transition: 'all 0.3s'
+                                }}
+                            >
+                                {isImproving ? 'Improving...' : '✨ Magic Improve'}
+                            </button>
+                            <button
+                                onClick={() => window.print()}
+                                style={{
+                                    padding: '0.75rem 1.5rem', background: theme.primary, color: 'white',
+                                    borderRadius: '999px', border: 'none', fontWeight: '700', cursor: 'pointer'
+                                }}
+                            >
+                                Download PDF
+                            </button>
+                        </div>
+                    </header>
+
+                    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} style={{
+                        background: '#fff', color: '#1e293b', borderRadius: '0.5rem', padding: '4rem 5rem',
+                        minHeight: '1000px', margin: '0 auto', maxWidth: '800px', boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.6)'
+                    }}>
+                        <div
+                            style={{ fontSize: '1.1rem', lineHeight: '1.7', outline: 'none', whiteSpace: 'pre-wrap' }}
+                            onMouseUp={() => setSelectedText(window.getSelection().toString())}
+                            contentEditable
+                            onInput={(e) => setCurrentContent(e.currentTarget.textContent)}
+                            suppressContentEditableWarning={true}
+                        >
+                            {currentContent}
+                        </div>
+                    </motion.div>
 
                     <AnimatePresence>
                         {selectedText && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 20 }}
+                            <motion.div initial={{ opacity: 0, y: 50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 50, x: '-50%' }}
                                 style={{
-                                    position: 'fixed',
-                                    bottom: '2.5rem',
-                                    left: '50%',
-                                    transform: 'translateX(-50%)',
-                                    backgroundColor: 'var(--bg-card)',
-                                    padding: '1.5rem',
-                                    borderRadius: '1.5rem',
-                                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                                    border: '1px solid #3b82f6',
-                                    width: '100%',
-                                    maxWidth: '32rem',
-                                    zIndex: 50
+                                    ...glassCardStyle, position: 'fixed', bottom: '4rem', left: '50%', padding: '2rem', width: '90%', maxWidth: '600px',
+                                    zIndex: 100, border: `1px solid ${theme.primaryLight}`
                                 }}
                             >
-                                <h4 style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Rewrite Selection?</h4>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'italic' }}>
-                                    "{selectedText.substring(0, 100)}..."
-                                </p>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <h4 style={{ fontWeight: '800', marginBottom: '1.25rem', fontSize: '1.1rem' }}>Optimize Selection</h4>
+                                <div style={{ display: 'flex', gap: '1rem' }}>
                                     <input
                                         type="text"
                                         value={rewriteInstructions}
                                         onChange={(e) => setRewriteInstructions(e.target.value)}
                                         placeholder="E.g. Make it more professional..."
-                                        className="premium-input"
-                                        style={{ flex: 1 }}
+                                        style={{
+                                            flex: 1, background: 'rgba(255,255,255,0.06)', border: `1px solid ${theme.glassBorder}`,
+                                            borderRadius: '0.75rem', padding: '0.75rem 1.25rem', color: 'white', outline: 'none'
+                                        }}
                                     />
-                                    <button
-                                        onClick={handleRewrite}
-                                        disabled={isRewriting}
-                                        className="premium-btn btn-blue"
-                                        style={{ fontSize: '0.875rem' }}
-                                    >
-                                        {isRewriting ? 'Rewriting...' : 'Rewrite'}
+                                    <button onClick={handleRewrite} disabled={isRewriting} style={{
+                                        padding: '0.75rem 1.75rem', background: theme.primary, color: 'white', border: 'none', borderRadius: '0.75rem', fontWeight: '700', cursor: 'pointer'
+                                    }}>
+                                        {isRewriting ? '...' : 'Rewrite'}
                                     </button>
-                                    <button
-                                        onClick={() => setSelectedText('')}
-                                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.875rem' }}
-                                    >
-                                        Cancel
-                                    </button>
+                                    <button onClick={() => setSelectedText('')} style={{ color: theme.textMuted, background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem' }}>✕</button>
                                 </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </div>
-            </div>
+                </main>
 
-            {/* Sidebar Area */}
-            <div className="sidebar-right">
-                <div style={{ background: 'var(--bg-page)', padding: '1.5rem', borderRadius: '1.5rem', border: '1px solid var(--border-color)' }}>
-                    <h3 style={{ fontWeight: 'bold', marginBottom: '1rem' }}>Career Assistant</h3>
-                    <AIAssistant context={{ resumeText: currentContent }} />
-                </div>
+                <aside className="no-print" style={{ width: '450px', padding: '3rem', display: 'flex', flexDirection: 'column', gap: '2rem', overflowY: 'auto' }}>
+                    <div style={{ ...glassCardStyle, padding: '2rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <h3 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '1.5rem' }}>AI Career Guide</h3>
+                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                            <AIAssistant context={{ resumeText: currentContent }} />
+                        </div>
+                    </div>
 
-                <div style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', padding: '1.5rem', borderRadius: '1.5rem', color: 'white' }}>
-                    <h3 style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Interview Prep</h3>
-                    <p style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '1rem' }}>Get tailored questions for any company based on this resume.</p>
-                    <input
-                        type="text"
-                        id="companyNameInput"
-                        placeholder="Enter Company Name..."
-                        className="premium-input"
-                        style={{ background: 'rgba(255, 255, 255, 0.1)', border: 'none', color: 'white', marginBottom: '0.75rem' }}
-                    />
-                    <button
-                        onClick={async () => {
-                            const company = document.getElementById('companyNameInput').value;
-                            if (!company) return alert("Please enter a company name");
-                            const token = localStorage.getItem('token');
-                            try {
+                    <div style={{ padding: '2rem', background: `linear-gradient(135deg, ${theme.secondary}, ${theme.primary})`, borderRadius: theme.radius, color: 'white', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
+                        <h3 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.5rem' }}>Interview Prep</h3>
+                        <p style={{ fontSize: '0.9rem', opacity: 0.85, marginBottom: '1.5rem' }}>Generate custom questions for a specific role.</p>
+                        <input
+                            type="text"
+                            id="companyNameInput"
+                            placeholder="Target Company Name..."
+                            style={{
+                                width: '100%', background: 'rgba(255, 255, 255, 0.12)', border: 'none', color: 'white',
+                                borderRadius: '0.75rem', padding: '1rem', marginBottom: '1rem', outline: 'none'
+                            }}
+                        />
+                        <button
+                            onClick={async () => {
+                                const company = document.getElementById('companyNameInput').value;
+                                if (!company) return alert("Please enter a company name.");
+                                const token = localStorage.getItem('token');
                                 const res = await axios.post('http://localhost:5000/api/resumes/interview-prep',
                                     { resumeText: currentContent, companyName: company },
                                     { headers: { Authorization: `Bearer ${token}` } }
                                 );
                                 alert(res.data.data);
-                            } catch (err) {
-                                console.error(err);
-                            }
-                        }}
-                        className="premium-btn"
-                        style={{ width: '100%', backgroundColor: 'white', color: '#4f46e5' }}
-                    >
-                        Generate Prep
-                    </button>
-                </div>
+                            }}
+                            style={{
+                                width: '100%', padding: '1rem', background: 'white', color: theme.primary, border: 'none',
+                                borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                        >
+                            Generate Prep
+                        </button>
+                    </div>
+                </aside>
             </div>
         </div>
     );

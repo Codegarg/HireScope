@@ -23,4 +23,7 @@ export const analyzeResume = (formData) =>
 export const sendChatMessage = (message, context) =>
   API.post("/chat", { message, context });
 
+export const improveResume = (resumeId, content) =>
+  API.post("/resumes/improve", { resumeId, content });
+
 export default API;

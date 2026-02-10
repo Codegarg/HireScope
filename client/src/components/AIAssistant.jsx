@@ -10,6 +10,15 @@ const AIAssistant = ({ context }) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const chatEndRef = useRef(null);
 
+    const theme = {
+        primary: '#7c3aed',
+        primaryLight: '#a78bfa',
+        secondary: '#4f46e5',
+        glassBg: 'rgba(255, 255, 255, 0.05)',
+        glassBorder: 'rgba(255, 255, 255, 0.1)',
+        textMuted: '#94a3b8',
+    };
+
     const scrollToBottom = () => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
@@ -26,14 +35,10 @@ const AIAssistant = ({ context }) => {
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setIsLoading(true);
-
-        // Initial assistant message placeholder for streaming
         setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
         try {
-            // Send existing messages as history (exclude current user msg and placeholder)
             const history = messages.slice(0, -1).filter(m => m.content && m.content.trim() !== '');
-
             const response = await fetch('http://localhost:5000/api/chat', {
                 method: 'POST',
                 headers: {
@@ -51,12 +56,9 @@ const AIAssistant = ({ context }) => {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-
                 const chunk = decoder.decode(value, { stream: true });
                 buffer += chunk;
-
                 const lines = buffer.split('\n');
-                // Keep the last partial line in the buffer
                 buffer = lines.pop() || '';
 
                 for (const line of lines) {
@@ -71,47 +73,75 @@ const AIAssistant = ({ context }) => {
                                     return newMsgs;
                                 });
                             }
-                        } catch (e) {
-                            // Incomplete or non-JSON
-                        }
+                        } catch (e) { }
                     }
                 }
             }
         } catch (error) {
             console.error("Chat error:", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error.' }]);
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className={`ai-assistant-card ${isCollapsed ? 'collapsed' : ''}`}
-            style={{ height: isCollapsed ? 'auto' : '500px' }}>
-            <div className="ai-header" style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }} onClick={() => setIsCollapsed(!isCollapsed)}>
+        <div style={{
+            height: isCollapsed ? 'auto' : '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'transparent'
+        }}>
+            <div
+                style={{
+                    padding: '1rem',
+                    background: `linear-gradient(to right, ${theme.primary}, ${theme.secondary})`,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontWeight: 'bold',
+                    color: 'white'
+                }}
+                onClick={() => setIsCollapsed(!isCollapsed)}
+            >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', backgroundColor: '#4ade80', borderRadius: '50%' }}></div>
-                    HireScope AI Assistant
+                    <div style={{ width: '8px', height: '8px', backgroundColor: '#4ade80', borderRadius: '50%', boxShadow: '0 0 8px #4ade80' }}></div>
+                    AI Assistant
                 </div>
-                <button
-                    style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                    {isCollapsed ? '+' : '—'}
-                </button>
+                <span>{isCollapsed ? '+' : '—'}</span>
             </div>
 
             {!isCollapsed && (
                 <>
-                    <div className="ai-messages">
+                    <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '1.5rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1rem',
+                        background: 'rgba(0,0,0,0.2)'
+                    }}>
                         {messages.map((msg, idx) => (
                             <motion.div
                                 key={idx}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="msg-wrapper"
-                                style={{ justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
+                                style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
                             >
-                                <div className={`msg-bubble ${msg.role === 'user' ? 'msg-user' : 'msg-assistant'}`}>
+                                <div style={{
+                                    maxWidth: '85%',
+                                    padding: '0.8rem 1.25rem',
+                                    borderRadius: '1rem',
+                                    fontSize: '0.95rem',
+                                    lineHeight: '1.5',
+                                    backgroundColor: msg.role === 'user' ? theme.primary : 'rgba(255,255,255,0.08)',
+                                    color: 'white',
+                                    border: msg.role === 'user' ? 'none' : `1px solid ${theme.glassBorder}`,
+                                    borderBottomRightRadius: msg.role === 'user' ? '0.2rem' : '1rem',
+                                    borderBottomLeftRadius: msg.role === 'user' ? '1rem' : '0.2rem',
+                                }}>
                                     {msg.content || (isLoading && idx === messages.length - 1 ? '...' : '')}
                                 </div>
                             </motion.div>
@@ -119,20 +149,36 @@ const AIAssistant = ({ context }) => {
                         <div ref={chatEndRef} />
                     </div>
 
-                    <form onSubmit={handleSendMessage} className="ai-input-form">
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                    <form onSubmit={handleSendMessage} style={{ padding: '1.25rem', background: 'rgba(0,0,0,0.3)', borderTop: `1px solid ${theme.glassBorder}` }}>
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
                             <input
                                 type="text"
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
-                                placeholder="Ask anything..."
-                                className="premium-input"
+                                placeholder="Ask about your resume..."
+                                style={{
+                                    flex: 1,
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: `1px solid ${theme.glassBorder}`,
+                                    borderRadius: '0.75rem',
+                                    padding: '0.75rem 1.25rem',
+                                    color: 'white',
+                                    outline: 'none'
+                                }}
                             />
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="premium-btn btn-blue"
-                                style={{ opacity: isLoading ? 0.5 : 1 }}
+                                style={{
+                                    padding: '0.75rem 1.5rem',
+                                    background: theme.primary,
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '0.75rem',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    opacity: isLoading ? 0.5 : 1
+                                }}
                             >
                                 Send
                             </button>

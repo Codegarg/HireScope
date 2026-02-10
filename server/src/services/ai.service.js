@@ -139,3 +139,21 @@ export const generateInterviewPrep = async (resumeText, companyName) => {
     `;
     return await callCloudflareAI(prompt, "You are an expert interview coach.");
 };
+
+export const improveResumeContent = async (resumeText) => {
+    const prompt = `
+    Task: Rewrite the following resume for maximum impact, professional tone, and ATS compatibility.
+    
+    Resume Content:
+    "${resumeText}"
+    
+    Requirements:
+    - Use strong action verbs (e.g., "Led", "Developed", "Optimized").
+    - Highlight achievements with quantifiable metrics where possible.
+    - Ensure a clean, structured, and professional layout in plain text.
+    - Keep it ATS-friendly by using standard headings.
+    
+    Output: Only the improved resume content.
+    `;
+    return await callCloudflareAI(prompt, "You are a Master Resume Writer and ATS Strategist.");
+};
