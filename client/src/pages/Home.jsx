@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useContext } from "react";
-import { analyzeResume, sendChatMessage } from "../services/api";
+import { useState, useContext } from "react";
+import { analyzeResume } from "../services/api";
 import { AuthContext } from "../context/AuthContext";
+import AIAssistant from "../components/AIAssistant";
 import "../styles/Home.css";
 
 const Home = () => {
@@ -14,20 +15,6 @@ const Home = () => {
 
   // Chat state
   const [showChat, setShowChat] = useState(false);
-  const [chatInput, setChatInput] = useState("");
-  const [messages, setMessages] = useState([
-    { role: "ai", content: "Hi! I'm your HireScope Assistant. Once you analyze your resume, I can help you with interview prep or improvements." }
-  ]);
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef(null);
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   const handleAnalyze = async () => {
     setError("");
@@ -60,27 +47,6 @@ const Home = () => {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-
-    const userMsg = chatInput;
-    setChatInput("");
-    setMessages(prev => [...prev, { role: "user", content: userMsg }]);
-
-    try {
-      setChatLoading(true);
-      const res = await sendChatMessage(userMsg, {
-        resumeText: result?.resumeText,
-        jdText: result?.jdText,
-        atsResult: result
-      });
-      setMessages(prev => [...prev, { role: "ai", content: res.data.data }]);
-    } catch (err) {
-      setMessages(prev => [...prev, { role: "ai", content: "Sorry, I'm having trouble connecting right now." }]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
 
   return (
     <div className="container">
@@ -206,36 +172,11 @@ const Home = () => {
       {/* Floating Chat Assistant */}
       {showChat && (
         <div className="chat-container">
-          <div className="chat-box">
-            <div className="chat-header">
-              Career Assistant Chat
-            </div>
-            <div className="chat-messages">
-              {messages.map((m, i) => (
-                <div key={i} className={`message message-${m.role}`}>
-                  {m.content}
-                </div>
-              ))}
-              {chatLoading && <div className="message message-ai">Analyzing...</div>}
-              <div ref={chatEndRef} />
-            </div>
-            <div className="chat-input">
-              <input
-                type="text"
-                placeholder="Ask about your resume..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-              />
-              <button
-                className="btn-primary"
-                style={{ width: "auto", padding: "8px 16px" }}
-                onClick={handleSendMessage}
-              >
-                Send
-              </button>
-            </div>
-          </div>
+          <AIAssistant context={{
+            resumeText: result?.resumeText,
+            jdText: result?.jdText,
+            atsResult: result
+          }} />
         </div>
       )}
 

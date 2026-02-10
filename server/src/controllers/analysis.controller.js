@@ -1,6 +1,7 @@
 import { calculateATSScore } from "../services/atsScorer.js";
 import { extractTextFromFile } from "../services/textExtractor.service.js";
 import { generateSuggestions } from "../services/ai.service.js";
+import Resume from "../models/resume.model.js";
 
 export const analyzeResume = async (req, res) => {
   try {
@@ -37,11 +38,25 @@ export const analyzeResume = async (req, res) => {
     // Generate AI suggestions
     const aiSuggestions = await generateSuggestions(resumeText, jdText, atsResult);
 
+    // Auto-save resume if user is logged in
+    let savedResumeId = null;
+    if (req.user) {
+      const newResume = new Resume({
+        userId: req.user.id,
+        title: `Resume for JD: ${jdText.substring(0, 30)}...`,
+        originalContent: resumeText,
+        versions: [{ content: resumeText, feedback: "Initial Analysis" }]
+      });
+      const saved = await newResume.save();
+      savedResumeId = saved._id;
+    }
+
     return res.status(200).json({
       success: true,
       data: {
         ...atsResult,
         aiSuggestions,
+        resumeId: savedResumeId,
         resumeText: resumeText.substring(0, 5000), // Return snippet for frontend context
         jdText: jdText.substring(0, 5000)
       }
