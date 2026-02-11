@@ -17,8 +17,7 @@ const RoutesConfig = () => {
       <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
       <Route path="/signup" element={!user ? <Signup /> : <Navigate to="/" />} />
 
-      {/* Protected Routes */}
-      <Route path="/" element={user ? <Home /> : <Navigate to="/login" />} />
+      <Route path="/" element={<Home />} />
       <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
       <Route path="/editor/:id" element={user ? <ResumeEditor /> : <Navigate to="/login" />} />
 

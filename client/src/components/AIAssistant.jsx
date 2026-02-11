@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const AIAssistant = ({ context }) => {
+const AIAssistant = ({ context, hideHeader = false }) => {
     const [messages, setMessages] = useState([
         { role: 'assistant', content: 'Hello! I am your HireScope Career Assistant. How can I help you today?' }
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isCollapsed, setIsCollapsed] = useState(false);
     const chatEndRef = useRef(null);
 
     const theme = {
@@ -87,105 +86,100 @@ const AIAssistant = ({ context }) => {
 
     return (
         <div style={{
-            height: isCollapsed ? 'auto' : '100%',
+            height: '100%',
             display: 'flex',
             flexDirection: 'column',
             background: 'transparent'
         }}>
-            <div
-                style={{
-                    padding: '1rem',
-                    background: `linear-gradient(to right, ${theme.primary}, ${theme.secondary})`,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontWeight: 'bold',
-                    color: 'white'
-                }}
-                onClick={() => setIsCollapsed(!isCollapsed)}
-            >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', backgroundColor: '#4ade80', borderRadius: '50%', boxShadow: '0 0 8px #4ade80' }}></div>
-                    AI Assistant
+            {!hideHeader && (
+                <div
+                    style={{
+                        padding: '1.25rem 1.5rem',
+                        background: `linear-gradient(to right, ${theme.primary}, ${theme.secondary})`,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        fontWeight: '800',
+                        color: 'white',
+                        fontSize: '1rem',
+                        letterSpacing: '0.05em',
+                        textTransform: 'uppercase'
+                    }}
+                >
+                    AI Career Assistant
                 </div>
-                <span>{isCollapsed ? '+' : '—'}</span>
+            )}
+
+            <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+                background: 'rgba(0,0,0,0.2)'
+            }}>
+                {messages.map((msg, idx) => (
+                    <motion.div
+                        key={idx}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
+                    >
+                        <div style={{
+                            maxWidth: '85%',
+                            padding: '0.8rem 1.25rem',
+                            borderRadius: '1rem',
+                            fontSize: '0.95rem',
+                            lineHeight: '1.5',
+                            backgroundColor: msg.role === 'user' ? theme.primary : 'rgba(255,255,255,0.08)',
+                            color: 'white',
+                            border: msg.role === 'user' ? 'none' : `1px solid ${theme.glassBorder}`,
+                            borderBottomRightRadius: msg.role === 'user' ? '0.2rem' : '1rem',
+                            borderBottomLeftRadius: msg.role === 'user' ? '1rem' : '0.2rem',
+                        }}>
+                            {msg.content || (isLoading && idx === messages.length - 1 ? '...' : '')}
+                        </div>
+                    </motion.div>
+                ))}
+                <div ref={chatEndRef} />
             </div>
 
-            {!isCollapsed && (
-                <>
-                    <div style={{
-                        flex: 1,
-                        overflowY: 'auto',
-                        padding: '1.5rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '1rem',
-                        background: 'rgba(0,0,0,0.2)'
-                    }}>
-                        {messages.map((msg, idx) => (
-                            <motion.div
-                                key={idx}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
-                            >
-                                <div style={{
-                                    maxWidth: '85%',
-                                    padding: '0.8rem 1.25rem',
-                                    borderRadius: '1rem',
-                                    fontSize: '0.95rem',
-                                    lineHeight: '1.5',
-                                    backgroundColor: msg.role === 'user' ? theme.primary : 'rgba(255,255,255,0.08)',
-                                    color: 'white',
-                                    border: msg.role === 'user' ? 'none' : `1px solid ${theme.glassBorder}`,
-                                    borderBottomRightRadius: msg.role === 'user' ? '0.2rem' : '1rem',
-                                    borderBottomLeftRadius: msg.role === 'user' ? '1rem' : '0.2rem',
-                                }}>
-                                    {msg.content || (isLoading && idx === messages.length - 1 ? '...' : '')}
-                                </div>
-                            </motion.div>
-                        ))}
-                        <div ref={chatEndRef} />
-                    </div>
-
-                    <form onSubmit={handleSendMessage} style={{ padding: '1.25rem', background: 'rgba(0,0,0,0.3)', borderTop: `1px solid ${theme.glassBorder}` }}>
-                        <div style={{ display: 'flex', gap: '0.75rem' }}>
-                            <input
-                                type="text"
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                placeholder="Ask about your resume..."
-                                style={{
-                                    flex: 1,
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: `1px solid ${theme.glassBorder}`,
-                                    borderRadius: '0.75rem',
-                                    padding: '0.75rem 1.25rem',
-                                    color: 'white',
-                                    outline: 'none'
-                                }}
-                            />
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                style={{
-                                    padding: '0.75rem 1.5rem',
-                                    background: theme.primary,
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '0.75rem',
-                                    fontWeight: 'bold',
-                                    cursor: 'pointer',
-                                    opacity: isLoading ? 0.5 : 1
-                                }}
-                            >
-                                Send
-                            </button>
-                        </div>
-                    </form>
-                </>
-            )}
+            <form onSubmit={handleSendMessage} style={{ padding: '1.25rem', background: 'rgba(0,0,0,0.3)', borderTop: `1px solid ${theme.glassBorder}` }}>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <input
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        placeholder="Ask about your resume..."
+                        style={{
+                            flex: 1,
+                            background: 'rgba(255,255,255,0.05)',
+                            border: `1px solid ${theme.glassBorder}`,
+                            borderRadius: '0.75rem',
+                            padding: '0.75rem 1.25rem',
+                            color: 'white',
+                            outline: 'none'
+                        }}
+                    />
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        style={{
+                            padding: '0.75rem 1.5rem',
+                            background: theme.primary,
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '0.75rem',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            opacity: isLoading ? 0.5 : 1
+                        }}
+                    >
+                        Send
+                    </button>
+                </div>
+            </form>
         </div>
     );
 };

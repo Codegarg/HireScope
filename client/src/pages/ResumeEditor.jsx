@@ -43,6 +43,16 @@ const ResumeEditor = () => {
 
     useEffect(() => {
         const fetchResume = async () => {
+            // Priority: Check if state was passed from Home.jsx
+            if (location.state?.initialResume) {
+                const initial = location.state.initialResume;
+                setResume(initial);
+                setCurrentContent(initial.content);
+                setLastSavedContent(initial.content);
+                setActiveVersion(initial.currentVersionIndex || 0);
+                return; // Skip loading if we have the data
+            }
+
             try {
                 const token = localStorage.getItem('token');
                 const res = await axios.get(`http://localhost:5000/api/resumes/${id}`, {
@@ -59,7 +69,7 @@ const ResumeEditor = () => {
             } catch (err) { console.error("Error fetching", err); }
         };
         fetchResume();
-    }, [id]);
+    }, [id, location.state]);
 
     useEffect(() => {
         if (shouldImprove === 'true' && resume && !isImproving && currentContent === lastSavedContent) {
@@ -92,37 +102,105 @@ const ResumeEditor = () => {
     };
 
     const handleRewrite = async () => {
-        if (!selectedText || !rewriteInstructions) return;
+        if (!selectedText || !rewriteInstructions || isRewriting) return;
         setIsRewriting(true);
+        const originalContent = currentContent;
+
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post('http://localhost:5000/api/resumes/rewrite', {
-                sectionText: selectedText,
-                instructions: rewriteInstructions
-            }, { headers: { Authorization: `Bearer ${token}` } });
-            if (res.data.success) {
-                const newContent = currentContent.replace(selectedText, res.data.data);
-                setCurrentContent(newContent);
-                setIsRewriting(false);
-                setRewriteInstructions('');
-                setSelectedText('');
+            const response = await fetch('http://localhost:5000/api/resumes/rewrite', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ sectionText: selectedText, instructions: rewriteInstructions, resumeId: id })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullContent = '';
+            let buffer = '';
+
+            const placeholder = ` [Optimization in progress...] `;
+            const tempContent = originalContent.replace(selectedText, placeholder);
+            setCurrentContent(tempContent);
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.trim().startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.substring(line.indexOf('{')));
+                            if (data.response) {
+                                fullContent += data.response;
+                                setCurrentContent(tempContent.replace(placeholder, fullContent));
+                            }
+                        } catch (e) { }
+                    }
+                }
             }
-        } catch (err) { console.error("Rewrite error", err); setIsRewriting(false); }
+            setSelectedText('');
+            setRewriteInstructions('');
+        } catch (err) {
+            console.error("Rewrite error", err);
+            setCurrentContent(originalContent);
+        } finally {
+            setIsRewriting(false);
+        }
     };
 
     const handleMagicImprove = async () => {
+        if (isImproving) return;
         setIsImproving(true);
+
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post('http://localhost:5000/api/resumes/improve', {
-                resumeId: id,
-                content: currentContent
-            }, { headers: { Authorization: `Bearer ${token}` } });
-            if (res.data.success) {
-                setCurrentContent(res.data.data);
+            const response = await fetch('http://localhost:5000/api/resumes/improve', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ resumeId: id, content: currentContent })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullContent = '';
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.trim().startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.substring(line.indexOf('{')));
+                            if (data.response) {
+                                fullContent += data.response;
+                                setCurrentContent(fullContent);
+                            }
+                        } catch (e) { }
+                    }
+                }
             }
-        } catch (err) { console.error("Improvement error", err); }
-        finally { setIsImproving(false); }
+        } catch (err) {
+            console.error("Improvement error", err);
+        } finally {
+            setIsImproving(false);
+        }
     };
 
     if (!resume) return <div style={{ minHeight: '100vh', backgroundColor: '#030014', color: '#fff', display: 'grid', placeItems: 'center' }}>Loading Premium Editor...</div>;
@@ -214,7 +292,7 @@ const ResumeEditor = () => {
                     <div style={{ ...glassCardStyle, padding: '2rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
                         <h3 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '1.5rem' }}>AI Career Guide</h3>
                         <div style={{ flex: 1, overflowY: 'auto' }}>
-                            <AIAssistant context={{ resumeText: currentContent }} />
+                            <AIAssistant context={{ resumeText: currentContent }} hideHeader={true} />
                         </div>
                     </div>
 

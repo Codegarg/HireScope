@@ -1,5 +1,5 @@
 import Resume from "../models/resume.model.js";
-import { rewriteResumeSection, generateInterviewPrep, improveResumeContent } from "../services/ai.service.js";
+import { rewriteResumeSection, generateInterviewPrep, improveResumeContent, callCloudflareAIStreaming } from "../services/ai.service.js";
 
 export const saveResume = async (req, res) => {
     try {
@@ -31,14 +31,20 @@ export const getUserResumes = async (req, res) => {
 
 export const rewriteSection = async (req, res) => {
     try {
-        const { sectionText, instructions, resumeId } = req.body;
+        const { sectionText, instructions } = req.body;
 
-        const rewrittenContent = await rewriteResumeSection(sectionText, instructions);
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
 
-        // If resumeId provided, we can optionally auto-save it as a new version
-        // For now, just return the AI output literal
-        res.status(200).json({ success: true, data: rewrittenContent });
+        const messages = [
+            { role: "system", content: "You are an expert resume writer." },
+            { role: "user", content: `Task: Rewrite the following resume section.\nOriginal Content: "${sectionText}"\nInstructions: "${instructions}"\nRequirement: Maintain a professional tone, use strong action verbs, and ensure it is ATS-friendly.\nOutput: Only the rewritten content.` }
+        ];
+
+        await callCloudflareAIStreaming(messages, res);
     } catch (error) {
+        console.error("Rewrite error:", error);
         res.status(500).json({ message: "Error rewriting section" });
     }
 };
@@ -81,11 +87,20 @@ export const getUserResumeById = async (req, res) => {
 
 export const improveResume = async (req, res) => {
     try {
-        const { resumeId, content } = req.body;
-        const improvedContent = await improveResumeContent(content);
+        const { content } = req.body;
 
-        res.status(200).json({ success: true, data: improvedContent });
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const messages = [
+            { role: "system", content: "You are a Master Resume Writer and ATS Strategist." },
+            { role: "user", content: `Task: Rewrite the following resume for maximum impact, professional tone, and ATS compatibility.\n\nResume Content:\n"${content}"\n\nRequirements:\n- Use strong action verbs (e.g., "Led", "Developed", "Optimized").\n- Highlight achievements with quantifiable metrics where possible.\n- Ensure a clean, structured, and professional layout in plain text.\n- Keep it ATS-friendly by using standard headings.\n\nOutput: Only the improved resume content.` }
+        ];
+
+        await callCloudflareAIStreaming(messages, res);
     } catch (error) {
+        console.error("Improvement error:", error);
         res.status(500).json({ message: "Error improving resume" });
     }
 };

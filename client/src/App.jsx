@@ -36,11 +36,32 @@ function App() {
             box-sizing: border-box;
         }
 
+        /* Global Autofill Override - Force dark theme consistency */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active {
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: #f8fafc !important;
+            box-shadow: 0 0 0 1000px #030014 inset !important;
+            -webkit-box-shadow: 0 0 0 1000px #030014 inset !important;
+            transition: background-color 5000s ease-in-out 0s;
+            caret-color: #f8fafc;
+        }
+
         .gradient-text {
             background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
+        }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
         }
 
         @media print {

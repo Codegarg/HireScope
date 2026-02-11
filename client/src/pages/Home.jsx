@@ -1,4 +1,5 @@
 import { useState, useContext } from "react";
+import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { analyzeResume } from "../services/api";
@@ -108,49 +109,173 @@ const Home = () => {
             <motion.div layout style={{ ...glassCardStyle, padding: '3.5rem' }}>
               <h2 style={{ fontSize: '2.25rem', marginBottom: '2.5rem', fontWeight: '800' }}>Analyze Your Fit</h2>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-                <div>
-                  <label style={{ display: 'block', color: theme.textMuted, marginBottom: '1rem', fontSize: '0.9rem', fontWeight: '600', letterSpacing: '0.05em' }}>RESUME (PDF, DOCX)</label>
-                  <label style={{
-                    display: 'block', padding: '2.5rem', textAlign: 'center', cursor: 'pointer', borderRadius: '1rem',
-                    border: `2px dashed ${resume ? theme.primary : 'rgba(255,255,255,0.1)'}`, background: 'rgba(255,255,255,0.02)', transition: 'all 0.2s'
-                  }}>
-                    <input type="file" style={{ display: 'none' }} accept=".pdf,.docx,.doc" onChange={(e) => setResume(e.target.files[0])} />
-                    <div style={{ color: resume ? '#fff' : theme.textMuted, fontSize: '1.1rem' }}>
-                      {resume ? `📄 ${resume.name}` : "Click or drop your resume here"}
-                    </div>
-                  </label>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', color: theme.textMuted, marginBottom: '1rem', fontSize: '0.9rem', fontWeight: '600', letterSpacing: '0.05em' }}>JOB DESCRIPTION</label>
-                  <textarea
-                    rows="6"
-                    style={{
-                      width: '100%', background: 'rgba(255,255,255,0.05)', border: `1px solid ${theme.glassBorder}`, borderRadius: '1rem',
-                      padding: '1.25rem', color: 'white', fontSize: '1rem', outline: 'none', transition: 'all 0.2s'
-                    }}
-                    placeholder="Paste the job description here..."
-                    value={jdText}
-                    onChange={(e) => setJdText(e.target.value)}
-                    onFocus={(e) => e.target.style.borderColor = theme.primary}
-                    onBlur={(e) => e.target.style.borderColor = theme.glassBorder}
-                  />
-                </div>
-
-                <button
-                  onClick={handleAnalyze}
-                  disabled={loading}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '3rem', cursor: user ? 'default' : 'pointer' }} onClick={() => !user && navigate('/login')}>
+                {/* Resume Upload */}
+                <div
+                  className="glass-panel"
                   style={{
-                    width: '100%', padding: '1.5rem', fontSize: '1.1rem', fontWeight: '700', borderRadius: '1rem', border: 'none',
-                    background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 100%)`, color: 'white', cursor: 'pointer', transition: 'all 0.3s'
+                    padding: '2rem', borderRadius: '1.25rem', border: '1px solid rgba(255,255,255,0.05)',
+                    background: 'rgba(255,255,255,0.02)', transition: 'all 0.3s',
+                    position: 'relative', overflow: 'hidden'
                   }}
-                  onMouseEnter={(e) => e.target.style.opacity = '0.9'}
-                  onMouseLeave={(e) => e.target.style.opacity = '1'}
                 >
-                  {loading ? "AI Processing..." : "Run ATS Analysis"}
-                </button>
-                {error && <p style={{ color: '#f87171', fontSize: '0.9rem', textAlign: 'center' }}>{error}</p>}
+                  {!user && (
+                    <div style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(124, 58, 237, 0.2)', padding: '0.25rem 0.75rem', borderRadius: '2rem', fontSize: '0.7rem', fontWeight: '700', color: theme.primaryLight, border: '1px solid rgba(124, 58, 237, 0.3)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Lock size={12} /> LOCKED
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div style={{ width: '48px', height: '48px', background: 'rgba(124, 58, 237, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.primary }}>
+                      <FileText size={24} />
+                    </div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Your Resume</h3>
+                  </div>
+                  <div
+                    style={{
+                      border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '2rem', textAlign: 'center',
+                      background: 'rgba(255,255,255,0.01)', transition: 'all 0.2s', cursor: user ? 'pointer' : 'pointer'
+                    }}
+                    onMouseOver={(e) => user && (e.currentTarget.style.borderColor = theme.primary)}
+                    onMouseOut={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                    onClick={(e) => {
+                      if (!user) return;
+                      e.stopPropagation();
+                      document.getElementById('resume-upload').click();
+                    }}
+                  >
+                    <input
+                      type="file"
+                      id="resume-upload"
+                      hidden
+                      disabled={!user}
+                      onChange={(e) => setResume(e.target.files[0])}
+                      accept=".pdf,.doc,.docx"
+                    />
+                    <Upload size={32} style={{ color: theme.textMuted, marginBottom: '1rem', opacity: user ? 1 : 0.5 }} />
+                    <p style={{ fontSize: '0.9rem', color: theme.textMuted }}>
+                      {resume ? <span style={{ color: '#fff' }}>{resume.name}</span> : "Drop your PDF/Word here"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* JD Upload */}
+                <div
+                  className="glass-panel"
+                  style={{
+                    padding: '2rem', borderRadius: '1.25rem', border: '1px solid rgba(255,255,255,0.05)',
+                    background: 'rgba(255,255,255,0.02)', position: 'relative'
+                  }}
+                >
+                  {!user && (
+                    <div style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(124, 58, 237, 0.2)', padding: '0.25rem 0.75rem', borderRadius: '2rem', fontSize: '0.7rem', fontWeight: '700', color: theme.primaryLight, border: '1px solid rgba(124, 58, 237, 0.3)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Lock size={12} /> LOCKED
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div style={{ width: '48px', height: '48px', background: 'rgba(79, 70, 229, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.secondary }}>
+                      <Briefcase size={24} />
+                    </div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Job Description</h3>
+                  </div>
+                  <div
+                    style={{
+                      border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '2rem', textAlign: 'center',
+                      background: 'rgba(255,255,255,0.01)', cursor: 'pointer', marginBottom: '1.5rem'
+                    }}
+                    onMouseOver={(e) => user && (e.currentTarget.style.borderColor = theme.secondary)}
+                    onMouseOut={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                    onClick={(e) => {
+                      if (!user) return;
+                      e.stopPropagation();
+                      document.getElementById('jd-upload').click();
+                    }}
+                  >
+                    <input
+                      type="file"
+                      id="jd-upload"
+                      hidden
+                      disabled={!user}
+                      onChange={(e) => setJdFile(e.target.files[0])}
+                      accept=".pdf,.doc,.docx"
+                    />
+                    <FileUp size={32} style={{ color: theme.textMuted, marginBottom: '1rem', opacity: user ? 1 : 0.5 }} />
+                    <p style={{ fontSize: '0.9rem', color: theme.textMuted }}>
+                      {jdFile ? <span style={{ color: '#fff' }}>{jdFile.name}</span> : "Upload Target JD"}
+                    </p>
+                  </div>
+
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem', color: theme.textMuted, fontWeight: '600' }}>
+                      <span style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></span>
+                      OR PASTE TEXT
+                      <span style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></span>
+                    </div>
+                    <textarea
+                      placeholder="Paste job description here..."
+                      disabled={!user}
+                      value={jdText}
+                      onChange={(e) => setJdText(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: '120px',
+                        background: 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${theme.glassBorder}`,
+                        borderRadius: '0.75rem',
+                        padding: '1rem',
+                        color: 'white',
+                        fontSize: '0.9rem',
+                        outline: 'none',
+                        resize: 'none',
+                        transition: 'all 0.2s',
+                        cursor: user ? 'text' : 'pointer'
+                      }}
+                      onFocus={(e) => user && (e.target.style.borderColor = theme.secondary)}
+                      onBlur={(e) => (e.target.style.borderColor = theme.glassBorder)}
+                      onClick={(e) => !user && navigate('/login')}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* CTA Section */}
+              <div style={{ textAlign: 'center' }}>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!user) {
+                      navigate('/login');
+                    } else {
+                      handleAnalyze();
+                    }
+                  }}
+                  disabled={user && (loading || !resume || (!jdFile && !jdText))}
+                  style={{
+                    padding: '1.25rem 3.5rem',
+                    borderRadius: '1rem',
+                    background: user ? `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 100%)` : 'rgba(255,255,255,0.05)',
+                    color: 'white',
+                    fontSize: '1.1rem',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    margin: '0 auto',
+                    boxShadow: user ? '0 10px 30px -10px rgba(124, 58, 237, 0.5)' : 'none',
+                    border: !user ? '1px solid rgba(255,255,255,0.1)' : 'none'
+                  }}
+                >
+                  {loading ? "Analyzing..." : (
+                    <>
+                      {user ? "Run ATS Analysis" : "Login to Unlock Analysis"}
+                      {user ? <Sparkles size={20} /> : <ArrowRight size={20} />}
+                    </>
+                  )}
+                </motion.button>
+                {error && <p style={{ color: '#f87171', fontSize: '0.9rem', marginTop: '1.5rem', fontWeight: '600' }}>{error}</p>}
+                {!user && <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '1.25rem' }}>Create a free account to get detailed matching scores and AI feedback.</p>}
               </div>
             </motion.div>
 
@@ -193,7 +318,7 @@ const Home = () => {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginTop: '1rem' }}>
                       <button
-                        onClick={() => navigate(`/editor/${result.resumeId}?improve=true`)}
+                        onClick={() => navigate(`/editor/${result.resumeId}?improve=true`, { state: { initialResume: { ...result, content: result.resumeText } } })}
                         style={{
                           padding: '1.25rem', borderRadius: '1rem', border: 'none', fontWeight: '700', cursor: 'pointer',
                           background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white'
@@ -202,7 +327,7 @@ const Home = () => {
                         ✨ Magic AI Improve
                       </button>
                       <button
-                        onClick={() => navigate(`/editor/${result.resumeId}`)}
+                        onClick={() => navigate(`/editor/${result.resumeId}`, { state: { initialResume: { ...result, content: result.resumeText } } })}
                         style={{
                           padding: '1.25rem', borderRadius: '1rem', border: 'none', fontWeight: '700', cursor: 'pointer',
                           background: theme.primary, color: 'white'
@@ -219,25 +344,86 @@ const Home = () => {
         </section>
       </main>
 
-      {/* Floating Chat */}
+      {/* Floating AI Assistant Trigger */}
       <AnimatePresence>
-        {showChat && (
+        {result && (
           <motion.div
-            initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }}
-            style={{ position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000, width: '420px' }}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            style={{ position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000 }}
           >
-            <div style={{ ...glassCardStyle, height: '550px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: `1px solid ${theme.primaryLight}` }}>
-              <div style={{ padding: '1.25rem 2rem', background: `linear-gradient(to right, ${theme.primary}, ${theme.secondary})`, fontWeight: '800', fontSize: '1.1rem' }}>
-                HireScope AI Assistant
-              </div>
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                <AIAssistant context={{ resumeText: result?.resumeText, jdText: result?.jdText, atsResult: result }} />
-              </div>
-            </div>
+            <AnimatePresence mode="wait">
+              {!showChat ? (
+                <motion.button
+                  key="chat-trigger"
+                  initial={{ opacity: 0, rotate: -45 }}
+                  animate={{ opacity: 1, rotate: 0 }}
+                  exit={{ opacity: 0, rotate: 45 }}
+                  whileHover={{ scale: 1.1, boxShadow: `0 0 20px ${theme.primary}66` }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowChat(true)}
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 100%)`,
+                    border: 'none',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                  }}
+                >
+                  <MessageSquare size={28} />
+                </motion.button>
+              ) : (
+                <motion.div
+                  key="chat-window"
+                  initial={{ opacity: 0, y: 20, scale: 0.95, transformOrigin: 'bottom right' }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                  style={{
+                    width: '420px',
+                    height: '600px',
+                    background: 'rgba(10, 10, 20, 0.85)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    borderRadius: '1.5rem',
+                    border: `1px solid ${theme.primary}55`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+                  }}
+                >
+                  <div style={{
+                    padding: '1rem 1.5rem',
+                    background: 'rgba(255,255,255,0.02)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderBottom: '1px solid rgba(255,255,255,0.05)'
+                  }}>
+                    <span style={{ fontWeight: '700', fontSize: '0.9rem', color: theme.primaryLight }}>AI ASSISTANT</span>
+                    <button
+                      onClick={() => setShowChat(false)}
+                      style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: '4px' }}
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <AIAssistant context={{ resumeText: result?.resumeText, jdText: result?.jdText, atsResult: result }} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </div >
   );
 };
 
