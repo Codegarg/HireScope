@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Mail, Lock, UserPlus, AlertCircle, Github, Chrome, Eye, EyeOff } from "lucide-react";
+import { User as UserIcon, Mail, Lock, UserPlus, AlertCircle, Github, Chrome, Eye, EyeOff } from "lucide-react";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
 
 const Signup = () => {
-  const [name, setName] = useState("");
+  // Use "username" to match the Backend Schema requirements
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -30,7 +31,8 @@ const Signup = () => {
     setError("");
     setLoading(true);
     try {
-      await API.post("/auth/signup", { name, email, password });
+      // Sending "username" instead of "name" to satisfy backend validation
+      await API.post("/auth/signup", { username, email, password });
       navigate("/login");
     } catch (err) {
       setError(err.response?.data?.message || "Signup failed. Please try again.");
@@ -118,9 +120,9 @@ const Signup = () => {
 
           <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             <div style={{ position: 'relative' }}>
-              <User style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} size={16} />
+              <UserIcon style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} size={16} />
               <input
-                placeholder="Full Name"
+                placeholder="Username"
                 style={{
                   width: '100%', background: 'rgba(255,255,255,0.03)', border: `1px solid ${theme.glassBorder}`,
                   borderRadius: '0.85rem', padding: '0.85rem 0.85rem 0.85rem 2.75rem', color: 'white', outline: 'none', transition: 'all 0.2s',
@@ -134,8 +136,8 @@ const Signup = () => {
                   e.target.style.border = `1px solid ${theme.glassBorder}`;
                   e.target.style.background = 'rgba(255,255,255,0.03)';
                 }}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
               />
             </div>
