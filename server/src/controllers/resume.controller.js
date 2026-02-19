@@ -13,6 +13,18 @@ export const analyzeResumeATS = async (req, res) => {
 
         const analysisResults = calculateATSScore(resume, jobDescription);
 
+        // Update the resume with the new score so it reflects in Dashboard
+        if (analysisResults && typeof analysisResults.score === 'number') {
+            resume.atsScore = analysisResults.score;
+            // Also update suggestions count if we have findings
+            if (analysisResults.analysis) {
+                const issuesCount = (analysisResults.analysis.missingKeywords?.length || 0) +
+                    (analysisResults.analysis.formattingIssues?.length || 0);
+                resume.suggestionsCount = issuesCount;
+            }
+            await resume.save();
+        }
+
         res.status(200).json({
             success: true,
             data: analysisResults
@@ -98,7 +110,7 @@ export const rewriteSection = async (req, res) => {
         { role: "system", content: "Expert resume writer." },
         { role: "user", content: `Rewrite: ${sectionText}. Focus: ${instructions}` }
     ];
-    await callCloudflareAIStreaming(messages, res);
+    await callCloudflareAIStreaming(messages, res, { temperature: 0.1 });
 };
 
 export const getInterviewPrep = async (req, res) => {
@@ -131,18 +143,45 @@ export const improveResume = async (req, res) => {
 
         res.setHeader('Content-Type', 'text/event-stream');
 
-        const messages = [
-            {
-                role: "system",
-                content: "You are a Master Resume Writer and ATS Strategist. Rewrite resumes for maximum impact."
-            },
-            {
-                role: "user",
-                content: `Rewrite this resume for maximum impact, professional tone, and ATS compatibility. Use strong action verbs and quantifiable metrics:\n\n${content}`
+        let systemPrompt = "You are a Master Resume Writer. Your task is to rewrite the user's resume for maximum impact while STRICTLY maintaining its plain-text structure and ensuring it fits on A SINGLE A4 PAGE.\n\nCRITICAL RULES:\n1. Output ONLY the improved resume text first.\n2. NO conversational filler (e.g., 'Here is your resume').\n3. NO intro text.\n4. NO Markdown formatting (do NOT use **, __, #).\n5. Use standard plain-text headings (EDUCATION, EXPERIENCE, SKILLS, etc.).\n6. The very last part of your response MUST BE a concise list of improvements made, prefixed ONLY by the exact delimiter: [CHANGES_DONE]\n7. Ensure the total resume text is concise enough for one page.";
+
+        let userPrompt = `Improve this resume for professional tone and ATS compatibility. Keep it concise for ONE PAGE. After the resume, add [CHANGES_DONE] followed by a short bulleted list of what you changed:`;
+
+        // ATS Keyword Injection
+        const { jobDescription, atsAnalysis } = req.body;
+
+        if (atsAnalysis && atsAnalysis.analysis) {
+            // Use pre-calculated analysis from frontend if available
+            const { missingKeywords, formattingIssues } = atsAnalysis.analysis;
+
+            if (missingKeywords && missingKeywords.length > 0) {
+                userPrompt += `\n\nCRITICAL INSTRUCTION: The following ATS keywords are missing from the resume but required by the job. Seamlessly integrate them into the Experience or Skills sections where contextually appropriate: ${missingKeywords.join(', ')}.`;
             }
+
+            if (formattingIssues && formattingIssues.length > 0) {
+                userPrompt += `\n\nALSO FIX THESE FORMATTING ISSUES: ${formattingIssues.join(', ')}`;
+            }
+        } else if (jobDescription) {
+            // Fallback: Simple keyword extraction if no full analysis provided
+            const jdWords = jobDescription.toLowerCase().match(/\b[a-z]{2,}\b/g) || [];
+            const contentLower = content.toLowerCase();
+            const missingKeywords = [...new Set(jdWords)].filter(w =>
+                w.length > 3 && !contentLower.includes(w) && !['with', 'that', 'have', 'from', 'this', 'will', 'your', 'their'].includes(w)
+            ).slice(0, 8); // Top 8 missing words
+
+            if (missingKeywords.length > 0) {
+                userPrompt += `\n\nCRITICAL INSTRUCTION: The following ATS keywords are missing from the resume but required by the job. Seamlessly integrate them into the Experience or Skills sections where contextually appropriate: ${missingKeywords.join(', ')}.`;
+            }
+        }
+
+        userPrompt += `\n\n${content}`;
+
+        const messages = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
         ];
 
-        await callCloudflareAIStreaming(messages, res);
+        await callCloudflareAIStreaming(messages, res, { temperature: 0.1 });
     } catch (error) {
         console.error("Improvement error:", error);
         res.write(`data: ${JSON.stringify({ error: "Error improving resume" })}\n\n`);

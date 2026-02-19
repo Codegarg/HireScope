@@ -6,6 +6,7 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
 import analysisRoutes from "./routes/analysis.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
+import resumeRoutes from "./routes/resume.routes.js";
 import passport from "./config/passport.js";
 
 dotenv.config();
@@ -24,6 +25,7 @@ app.use(passport.initialize());
 app.use("/api/auth", authRoutes);
 app.use("/api/analysis", analysisRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/resumes", resumeRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

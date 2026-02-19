@@ -41,7 +41,7 @@ const callCloudflareAI = async (prompt, systemPrompt = "You are an expert career
 /**
  * Enhanced streaming call for Cloudflare AI
  */
-export const callCloudflareAIStreaming = async (messages, res) => {
+export const callCloudflareAIStreaming = async (messages, res, options = {}) => {
     if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_API_TOKEN) {
         res.write(`data: ${JSON.stringify({ error: "Cloudflare credentials missing" })}\n\n`);
         res.end();
@@ -60,22 +60,52 @@ export const callCloudflareAIStreaming = async (messages, res) => {
                 body: JSON.stringify({
                     messages,
                     stream: true,
-                    max_tokens: 512,
+                    max_tokens: options.max_tokens || 2048,
+                    temperature: options.temperature || 0.6
                 }),
             }
         );
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let fullResponse = "";
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
-            // Cloudflare streams data in event: message format usually
+
+            // Cloudflare returns "data: { ... }" lines. We need to parse them to accumulate text, 
+            // but we pass the raw chunk to the client which expects SSE or raw text?
+            // "Fix SSE chunk parser" implies SSE.
+            // But here we can just pass the chunk through if the client can handle it.
+            // HOWEVER, to save to DB, we MUST parse the response.
+            // Cloudflare stream format: `data: {"response":"H"}` ... `data: {"response":"ello"}`
+
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const dataStr = line.slice(6);
+                    if (dataStr.trim() === '[DONE]') continue;
+                    try {
+                        const json = JSON.parse(dataStr);
+                        if (json.response) {
+                            fullResponse += json.response;
+                        }
+                    } catch (e) {
+                        // ignore parse errors for partial chunks
+                    }
+                }
+            }
+
             res.write(chunk);
         }
+
+        if (options.onComplete) {
+            await options.onComplete(fullResponse);
+        }
+
         res.end();
     } catch (error) {
         console.error("Cloudflare Streaming Error:", error);
@@ -103,19 +133,7 @@ export const generateSuggestions = async (resumeText, jdText, atsResult) => {
     return await callCloudflareAI(prompt, "You are an ATS parser. Provide only essential pointers. Max 100 words.");
 };
 
-export const generateChatResponse = async (userMessage, context) => {
-    const prompt = `
-    Context:
-    Resume: ${context.resumeText?.substring(0, 1000)}
-    JD: ${context.jdText?.substring(0, 1000)}
-    ATS Score: ${context.atsResult?.atsScore}
 
-    User Question: ${userMessage}
-
-    Provide helpful career advice, interview preparation tips, or resume guidance based on the context provided.
-  `;
-    return await callCloudflareAI(prompt);
-};
 
 export const rewriteResumeSection = async (sectionText, instructions) => {
     const prompt = `
@@ -156,4 +174,59 @@ export const improveResumeContent = async (resumeText) => {
     Output: Only the improved resume content.
     `;
     return await callCloudflareAI(prompt, "You are a Master Resume Writer and ATS Strategist.");
+};
+
+/**
+ * Generate a response for a multi-turn chat conversation
+ * @param {string} userMessage - The latest user message
+ * @param {Object} context - Context object { history: [], resumeId, jobDescription }
+ */
+export const generateChatResponse = async (userMessage, context = {}) => {
+    if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_API_TOKEN) {
+        return "AI service is currently unavailable.";
+    }
+
+    try {
+        const history = context.history || [];
+        const systemPrompt = `You are an expert Career Coach and Resume Strategist.
+        
+Context:
+${context.jobDescription ? `Target Job Description: ${context.jobDescription.substring(0, 500)}...` : ''}
+
+Your Goal: Provide actionable, encouraging, and specific advice. Keep responses concise (under 200 words) unless asked for detailed rewriting.
+        `;
+
+        const messages = [
+            { role: "system", content: systemPrompt },
+            ...history,
+            { role: "user", content: userMessage }
+        ];
+
+        const response = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/${MODEL}`,
+            {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    messages,
+                    max_tokens: 1024,
+                    temperature: 0.7, // Higher temp for more natural conversation
+                }),
+            }
+        );
+
+        const data = await response.json();
+        return data.result?.response || "I'm having trouble thinking right now. Please try again.";
+    } catch (error) {
+        console.error("Chat Generation Error:", error);
+        return "Error generating response.";
+    }
+};
+
+export default {
+    callCloudflareAI,
+    callCloudflareAIStreaming
 };

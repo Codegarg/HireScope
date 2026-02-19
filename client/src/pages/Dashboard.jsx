@@ -2,9 +2,87 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { FileText, Sparkles, Clock, ArrowRight, TrendingUp, Briefcase, Plus, Search, ExternalLink } from 'lucide-react';
+import { FileText, Sparkles, Clock, ArrowRight, TrendingUp, Briefcase, Plus, Target, Zap, ChevronRight, Star, MoreHorizontal, Trash2, Copy, Download } from 'lucide-react';
 import Navbar from '../components/Navbar';
-import BackButton from '../components/BackButton';
+
+// Improved Trend Chart with smooth curves and gradient fill
+const TrendChart = ({ data }) => {
+    if (!data || data.length < 2) return (
+        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '0.9rem', fontStyle: 'italic' }}>
+            Not enough data for trend analysis
+        </div>
+    );
+
+    const height = 120;
+    const width = 400;
+    const padding = 15;
+
+    // Normalize data
+    const scores = data.map(d => d.score);
+    const minScore = Math.min(...scores, 0);
+    const maxScore = 100;
+
+    const points = data.map((d, i) => {
+        const x = (i / (data.length - 1)) * (width - padding * 2) + padding;
+        const y = height - ((d.score - minScore) / (maxScore - minScore)) * (height - padding * 2) - padding;
+        return `${x},${y}`;
+    }).join(' ');
+
+    return (
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+                <defs>
+                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#818cf8" />
+                        <stop offset="50%" stopColor="#c084fc" />
+                        <stop offset="100%" stopColor="#f472b6" />
+                    </linearGradient>
+                    <linearGradient id="fillGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="rgba(192, 132, 252, 0.2)" />
+                        <stop offset="100%" stopColor="rgba(192, 132, 252, 0)" />
+                    </linearGradient>
+                </defs>
+
+                {/* Area Fill */}
+                <path
+                    d={`M${padding},${height} L${points.split(' ')[0]} ${points} L${width - padding},${height} Z`}
+                    fill="url(#fillGradient)"
+                    stroke="none"
+                />
+
+                {/* Grid Lines */}
+                {[0, 25, 50, 75, 100].map(p => {
+                    const y = height - ((p - minScore) / (maxScore - minScore)) * (height - padding * 2) - padding;
+                    return (y > 0 && y < height) ? (
+                        <line key={p} x1={padding} y1={y} x2={width - padding} y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                    ) : null;
+                })}
+
+                {/* Main Line */}
+                <polyline
+                    points={points}
+                    fill="none"
+                    stroke="url(#lineGradient)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ filter: 'drop-shadow(0 4px 6px rgba(192, 132, 252, 0.3))' }}
+                />
+
+                {/* Data Points */}
+                {data.map((d, i) => {
+                    const x = (i / (data.length - 1)) * (width - padding * 2) + padding;
+                    const y = height - ((d.score - minScore) / (maxScore - minScore)) * (height - padding * 2) - padding;
+                    return (
+                        <g key={i}>
+                            <circle cx={x} cy={y} r="4" fill="#0f172a" stroke="#c084fc" strokeWidth="2" />
+                        </g>
+                    );
+                })}
+            </svg>
+        </div>
+    );
+};
 
 const Dashboard = () => {
     const [resumes, setResumes] = useState([]);
@@ -12,23 +90,14 @@ const Dashboard = () => {
     const navigate = useNavigate();
 
     const theme = {
-        primary: '#7c3aed',
-        primaryLight: '#a78bfa',
-        secondary: '#4f46e5',
-        accent: '#f59e0b',
-        glassBg: 'rgba(255, 255, 255, 0.03)',
-        glassBorder: 'rgba(255, 255, 255, 0.08)',
+        bg: '#030014',
+        cardBg: 'rgba(255, 255, 255, 0.03)',
+        cardBorder: 'rgba(255, 255, 255, 0.08)',
+        primary: '#8b5cf6',
+        success: '#10b981',
+        warning: '#f59e0b',
+        textMain: '#f8fafc',
         textMuted: '#94a3b8',
-        radius: '1.25rem',
-    };
-
-    const glassCardStyle = {
-        background: theme.glassBg,
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        border: `1px solid ${theme.glassBorder}`,
-        borderRadius: theme.radius,
-        boxShadow: '0 4px 24px 0 rgba(0, 0, 0, 0.2)',
     };
 
     useEffect(() => {
@@ -48,148 +117,260 @@ const Dashboard = () => {
         fetchResumes();
     }, []);
 
-    // Calculate dynamic stats from resumes
+    // Calculate dynamic stats
     const stats = {
         totalResumes: resumes.length,
-        topAtsScore: resumes.length > 0
-            ? Math.max(...resumes.map(r => r.atsScore || 0))
-            : 0,
-        totalSuggestions: resumes.reduce((sum, r) => sum + (r.suggestionsCount || 0), 0),
-        averageScore: resumes.length > 0
-            ? Math.round(resumes.reduce((sum, r) => sum + (r.atsScore || 0), 0) / resumes.length)
-            : 0
+        topAtsScore: resumes.length > 0 ? Math.max(...resumes.map(r => r.atsScore || 0)) : 0,
+        averageScore: resumes.length > 0 ? Math.round(resumes.reduce((sum, r) => sum + (r.atsScore || 0), 0) / resumes.length) : 0,
+        interviewsPrep: 0 // Placeholder
     };
 
-    return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#030014', color: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
-            {/* Aurora Background */}
-            <div style={{
-                position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1,
-                background: 'radial-gradient(circle at 10% 10%, rgba(124, 58, 237, 0.08) 0%, transparent 40%), radial-gradient(circle at 90% 90%, rgba(79, 70, 229, 0.08) 0%, transparent 40%)'
-            }}></div>
+    // Prepare trend data
+    const trendData = [...resumes]
+        .sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt))
+        .map(r => ({ date: r.updatedAt, score: r.atsScore || 0 }))
+        .slice(-10);
 
+    const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
+        <motion.div
+            whileHover={{ y: -5 }}
+            style={{
+                background: theme.cardBg,
+                border: `1px solid ${theme.cardBorder}`,
+                borderRadius: '1.5rem',
+                padding: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+                position: 'relative',
+                overflow: 'hidden',
+                backdropFilter: 'blur(10px)'
+            }}
+        >
+            <div style={{
+                position: 'absolute', top: '-10%', right: '-10%',
+                width: '100px', height: '100px',
+                background: color,
+                filter: 'blur(60px)',
+                opacity: 0.15,
+                borderRadius: '50%'
+            }} />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                <div style={{
+                    padding: '0.75rem',
+                    background: `rgba(255,255,255,0.05)`,
+                    borderRadius: '1rem',
+                    color: color
+                }}>
+                    <Icon size={24} />
+                </div>
+            </div>
+
+            <div>
+                <div style={{ fontSize: '2.5rem', fontWeight: '800', color: theme.textMain, lineHeight: 1 }}>{value}</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: '600', color: theme.textMuted, marginTop: '0.25rem' }}>{title}</div>
+            </div>
+
+            {subtext && (
+                <div style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    {subtext}
+                </div>
+            )}
+        </motion.div>
+    );
+
+    return (
+        <div style={{ minHeight: '100vh', backgroundColor: theme.bg, color: theme.textMain, fontFamily: 'Plus Jakarta Sans, Inter, sans-serif' }}>
             <Navbar />
 
-            <div style={{ padding: '7rem 2rem 5rem 2rem' }}>
-                <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-                    {/* Back Button */}
-                    <div style={{ marginBottom: '2rem' }}>
-                        <BackButton />
-                    </div>
+            {/* Background Gradients */}
+            <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}>
+                <div style={{ position: 'absolute', top: '10%', left: '20%', width: '400px', height: '400px', background: '#7c3aed', filter: 'blur(120px)', opacity: 0.1 }} />
+                <div style={{ position: 'absolute', bottom: '10%', right: '20%', width: '300px', height: '300px', background: '#ec4899', filter: 'blur(100px)', opacity: 0.1 }} />
+            </div>
+
+            <div style={{ padding: '7rem 2rem 4rem', position: 'relative', zIndex: 1 }}>
+                <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
 
                     {/* Header */}
-                    <header style={{ marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', marginBottom: '3rem' }}>
                         <div>
-                            <h1 style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '0.4rem', letterSpacing: '-0.02em' }}>
-                                Dashboard
+                            <h1 style={{ fontSize: '3rem', fontWeight: '800', letterSpacing: '-0.03em', background: 'linear-gradient(to right, #fff, #cbd5e1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '0.5rem' }}>
+                                Good Evening, Creator
                             </h1>
-                            <p style={{ color: theme.textMuted, fontSize: '0.95rem', fontWeight: '500' }}>Review and optimize your career journey.</p>
+                            <p style={{ color: theme.textMuted, fontSize: '1.1rem' }}>Here's what's happening with your job search today.</p>
                         </div>
+
                         <Link to="/" style={{
-                            padding: '0.75rem 1.5rem', background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 100%)`,
-                            color: 'white', borderRadius: '0.75rem', textDecoration: 'none', fontWeight: '700', fontSize: '0.9rem',
-                            display: 'flex', alignItems: 'center', gap: '0.6rem', boxShadow: '0 10px 20px rgba(124, 58, 237, 0.2)', transition: 'all 0.2s'
+                            padding: '1rem 2rem',
+                            background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                            color: 'white',
+                            borderRadius: '1rem',
+                            textDecoration: 'none',
+                            fontWeight: '700',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            boxShadow: '0 8px 20px rgba(124, 58, 237, 0.3)',
+                            fontSize: '0.95rem',
+                            transition: 'transform 0.2s'
                         }}>
-                            <Plus size={18} />
-                            New Analysis
+                            <Plus size={20} strokeWidth={3} /> New Resume
                         </Link>
-                    </header>
+                    </div>
 
-                    {/* Quick Stats */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '4rem' }}>
-                        <div style={{ ...glassCardStyle, padding: '1.5rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <div style={{ background: 'rgba(124, 58, 237, 0.15)', padding: '0.5rem', borderRadius: '0.5rem', color: theme.primaryLight }}>
-                                    <FileText size={20} />
-                                </div>
-                                <span style={{ fontSize: '0.85rem', fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Resumes</span>
-                            </div>
-                            <p style={{ fontSize: '2rem', fontWeight: '800', margin: 0 }}>{stats.totalResumes}</p>
+                    {/* Stats Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
+                        <div style={{ gridColumn: 'span 3' }}>
+                            <StatCard
+                                title="Active Resumes"
+                                value={stats.totalResumes}
+                                icon={FileText}
+                                color="#8b5cf6"
+                                subtext={`Updated recently`}
+                            />
                         </div>
-
-                        <div style={{ ...glassCardStyle, padding: '1.5rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '0.5rem', borderRadius: '0.5rem', color: '#10b981' }}>
-                                    <TrendingUp size={20} />
-                                </div>
-                                <span style={{ fontSize: '0.85rem', fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Top ATS Score</span>
-                            </div>
-                            <p style={{ fontSize: '2rem', fontWeight: '800', margin: 0, color: '#10b981' }}>
-                                {stats.topAtsScore > 0 ? `${stats.topAtsScore}%` : 'N/A'}
-                            </p>
+                        <div style={{ gridColumn: 'span 3' }}>
+                            <StatCard
+                                title="Top ATS Score"
+                                value={`${stats.topAtsScore}%`}
+                                icon={Star}
+                                color="#10b981"
+                                subtext="Optimize to reach 100%"
+                            />
                         </div>
-
-                        <div style={{ ...glassCardStyle, padding: '1.5rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <div style={{ background: 'rgba(245, 158, 11, 0.15)', padding: '0.5rem', borderRadius: '0.5rem', color: theme.accent }}>
-                                    <Sparkles size={20} />
+                        <div style={{ gridColumn: 'span 6', background: theme.cardBg, border: `1px solid ${theme.cardBorder}`, borderRadius: '1.5rem', padding: '1.5rem', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                <div>
+                                    <div style={{ fontSize: '1.1rem', fontWeight: '700' }}>Performance Trend</div>
+                                    <div style={{ fontSize: '0.8rem', color: theme.textMuted }}>ATS Score improvement over time</div>
                                 </div>
-                                <span style={{ fontSize: '0.85rem', fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Suggestions</span>
+                                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: theme.textMain }}>{stats.averageScore}% <span style={{ fontSize: '0.8rem', color: theme.textMuted, fontWeight: '600' }}>AVG</span></div>
                             </div>
-                            <p style={{ fontSize: '2rem', fontWeight: '800', margin: 0 }}>{stats.totalSuggestions}</p>
+                            <div style={{ flex: 1 }}>
+                                <TrendChart data={trendData} />
+                            </div>
                         </div>
                     </div>
 
-                    <section>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.75rem' }}>
-                            <h2 style={{ fontSize: '1.25rem', fontWeight: '700', letterSpacing: '-0.01em' }}>Recent Activity</h2>
-                            <div style={{ color: theme.textMuted, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <Clock size={14} />
-                                Last updated just now
+                    {/* Recent Resumes Section */}
+                    <div style={{ marginBottom: '2rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>Recent Resumes</h2>
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                {/* Filter buttons could go here */}
                             </div>
                         </div>
 
                         {isLoading ? (
-                            <div style={{ padding: '6rem', textAlign: 'center', color: theme.textMuted, ...glassCardStyle }}>
-                                <div style={{ marginBottom: '1rem' }}>Loading workspace...</div>
+                            <div style={{ textAlign: 'center', padding: '4rem', color: theme.textMuted }}>
+                                <Sparkles className="animate-spin" size={32} style={{ marginBottom: '1rem', color: theme.primary }} />
+                                <p>Loading your career assets...</p>
                             </div>
                         ) : resumes.length === 0 ? (
-                            <div style={{ ...glassCardStyle, padding: '6rem', textAlign: 'center' }}>
-                                <div style={{ color: theme.textMuted, marginBottom: '2rem', fontSize: '1rem' }}>Your history is empty. Start your career optimization today!</div>
-                                <Link to="/" style={{
-                                    padding: '0.8rem 2.5rem', background: 'rgba(255,255,255,0.05)', color: 'white', borderRadius: '0.75rem', textDecoration: 'none', fontWeight: '700', border: `1px solid ${theme.glassBorder}`, fontSize: '0.9rem'
-                                }}>Begin Analysis</Link>
+                            <div style={{
+                                padding: '4rem',
+                                border: `2px dashed ${theme.cardBorder}`,
+                                borderRadius: '1.5rem',
+                                textAlign: 'center'
+                            }}>
+                                <FileText size={48} color={theme.textMuted} style={{ marginBottom: '1rem', opacity: 0.5 }} />
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '0.5rem' }}>No resumes created yet</h3>
+                                <p style={{ color: theme.textMuted, marginBottom: '2rem' }}>Create your first ATS-optimized resume to get started.</p>
+                                <Link to="/" style={{ color: theme.primary, textDecoration: 'none', fontWeight: '700' }}>Create New Resume →</Link>
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
                                 {resumes.map(resume => (
                                     <motion.div
                                         key={resume._id}
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        whileHover={{ background: 'rgba(255,255,255,0.05)', borderColor: theme.primaryLight + '44' }}
-                                        style={{ ...glassCardStyle, padding: '1.25rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s', cursor: 'pointer' }}
+                                        whileHover={{ y: -5, borderColor: theme.primary }}
                                         onClick={() => navigate(`/editor/${resume._id}`)}
+                                        style={{
+                                            background: theme.cardBg,
+                                            border: `1px solid ${theme.cardBorder}`,
+                                            borderRadius: '1.25rem',
+                                            padding: '1.5rem',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'space-between',
+                                            height: '220px',
+                                            position: 'relative',
+                                            transition: 'border-color 0.2s'
+                                        }}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                                            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${theme.glassBorder}` }}>
-                                                <FileText size={22} color={theme.primaryLight} />
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                                            <div style={{
+                                                width: '40px', height: '40px',
+                                                background: 'rgba(255,255,255,0.05)',
+                                                borderRadius: '0.75rem',
+                                                display: 'grid', placeItems: 'center'
+                                            }}>
+                                                <FileText size={20} color={theme.textMuted} />
                                             </div>
-                                            <div>
-                                                <h4 style={{ fontSize: '1.05rem', fontWeight: '700', marginBottom: '0.25rem' }}>{resume.title}</h4>
-                                                <div style={{ display: 'flex', gap: '1.25rem', color: theme.textMuted, fontSize: '0.8rem', fontWeight: '500' }}>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Clock size={12} /> {new Date(resume.updatedAt).toLocaleDateString()}</span>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Briefcase size={12} /> {resume.versions?.length || 1} Versions</span>
+                                            {resume.atsScore > 0 && (
+                                                <div style={{
+                                                    padding: '0.25rem 0.75rem',
+                                                    background: resume.atsScore >= 70 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                                    color: resume.atsScore >= 70 ? '#10b981' : '#f59e0b',
+                                                    borderRadius: '2rem',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: '700',
+                                                    border: `1px solid ${resume.atsScore >= 70 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
+                                                }}>
+                                                    {resume.atsScore}% Score
                                                 </div>
-                                            </div>
+                                            )}
                                         </div>
 
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                            <div style={{ textAlign: 'right', marginRight: '1.5rem' }}>
-                                                <div style={{ fontSize: '0.7rem', color: theme.textMuted, textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.05em' }}>ATS Compatibility</div>
-                                                <div style={{ fontSize: '1rem', fontWeight: '800', color: resume.atsScore >= 70 ? '#10b981' : resume.atsScore >= 50 ? '#f59e0b' : '#ef4444' }}>
-                                                    {resume.atsScore ? `${resume.atsScore}%` : 'N/A'}
-                                                </div>
+                                        <div>
+                                            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.25rem', color: theme.textMain }}>{resume.title}</h3>
+                                            <p style={{ fontSize: '0.8rem', color: theme.textMuted }}>Last edited {new Date(resume.updatedAt).toLocaleDateString()}</p>
+                                        </div>
+
+                                        <div style={{ paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div style={{ fontSize: '0.75rem', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <Sparkles size={12} color={theme.warning} /> AI Optimized
                                             </div>
-                                            <div style={{ padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(255,255,255,0.05)' }}>
-                                                <ArrowRight size={18} color={theme.textMuted} />
+                                            <div style={{
+                                                width: '32px', height: '32px',
+                                                background: theme.primary,
+                                                borderRadius: '50%',
+                                                display: 'grid', placeItems: 'center',
+                                                boxShadow: '0 4px 10px rgba(124, 58, 237, 0.4)'
+                                            }}>
+                                                <ArrowRight size={16} color="white" />
                                             </div>
                                         </div>
                                     </motion.div>
                                 ))}
+
+                                <motion.div
+                                    whileHover={{ scale: 1.02, background: 'rgba(255,255,255,0.05)' }}
+                                    onClick={() => navigate('/')}
+                                    style={{
+                                        border: `2px dashed ${theme.cardBorder}`,
+                                        borderRadius: '1.25rem',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        color: theme.textMuted,
+                                        height: '220px'
+                                    }}
+                                >
+                                    <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '50%', marginBottom: '1rem' }}>
+                                        <Plus size={24} />
+                                    </div>
+                                    <span style={{ fontWeight: '600' }}>Create New</span>
+                                </motion.div>
                             </div>
                         )}
-                    </section>
+                    </div>
+
                 </div>
             </div>
         </div>

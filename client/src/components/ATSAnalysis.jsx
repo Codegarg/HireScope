@@ -3,22 +3,55 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, AlertTriangle, CheckCircle, BarChart3, Loader2 } from 'lucide-react';
 import API from '../services/api';
 
-const ATSAnalysis = ({ resumeId }) => {
-  const [jobDescription, setJobDescription] = useState("");
+const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value }) => {
+  const [jobDescription, setJobDescription] = useState(value || "");
   const [analysis, setAnalysis] = useState(null);
-  const [loading, setLoading] = useState(false);
+  // Initialize loading to true if we have a JD, to prevent flash of input fields
+  const [loading, setLoading] = useState(!!(value && value.trim().length > 20));
+  const [error, setError] = useState(null);
 
-  const handleAnalyze = async () => {
-    if (!jobDescription.trim()) return;
+  // Auto-analyze when JD is provided (on mount or update)
+  React.useEffect(() => {
+    if (value && value !== jobDescription) {
+      setJobDescription(value);
+    }
+
+    // Trigger analysis if we have a valid JD, no analysis yet, and not loading
+    if (value && value.trim().length > 20 && !analysis && !loading && !error) {
+      handleAnalyze(value);
+    } else if (!value && !loading) {
+      // If no JD, ensure loading is false so inputs show
+      setLoading(false);
+    }
+  }, [value]); // Depend on value prop to catch updates
+
+  const handleJdChange = (e) => {
+    const newVal = e.target.value;
+    setJobDescription(newVal);
+    if (onJobDescriptionChange) onJobDescriptionChange(newVal);
+  };
+
+  const handleAnalyze = async (jdText = jobDescription) => {
+    if (!jdText.trim()) return;
     setLoading(true);
+    setError(null);
     try {
-      const res = await API.post(`/resumes/${resumeId}/analyze`, { jobDescription });
-      setAnalysis(res.data.data);
+      const res = await API.post(`/resumes/${resumeId}/analyze`, { jobDescription: jdText });
+      const data = res.data.data;
+      setAnalysis(data);
+      if (onAnalysisComplete) onAnalysisComplete(data);
     } catch (err) {
       console.error("Analysis failed", err);
+      setError("Failed to analyze. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetAnalysis = () => {
+    setAnalysis(null);
+    setError(null);
+    // Optional: Clear JD? No, keep it.
   };
 
   return (
@@ -30,58 +63,86 @@ const ATSAnalysis = ({ resumeId }) => {
       color: '#f8fafc',
       backdropFilter: 'blur(10px)'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-        <BarChart3 color="#7c3aed" />
-        <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>ATS Optimizer</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <BarChart3 color="#7c3aed" />
+          <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>ATS Optimizer</h3>
+        </div>
+        {analysis && (
+          <button
+            onClick={resetAnalysis}
+            style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8', fontSize: '0.75rem', padding: '0.3rem 0.8rem', borderRadius: '0.5rem', cursor: 'pointer' }}
+          >
+            New Analysis
+          </button>
+        )}
       </div>
 
-      <textarea
-        placeholder="Paste the Job Description here to analyze your match rate..."
-        value={jobDescription}
-        onChange={(e) => setJobDescription(e.target.value)}
-        style={{
-          width: '100%',
-          height: '150px',
-          background: 'rgba(0, 0, 0, 0.2)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '0.75rem',
-          padding: '1rem',
-          color: 'white',
-          fontSize: '0.9rem',
-          resize: 'none',
-          marginBottom: '1rem',
-          outline: 'none'
-        }}
-      />
+      {error && (
+        <div style={{ padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '0.5rem', color: '#fca5a5', marginBottom: '1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <AlertTriangle size={16} />
+          {error}
+        </div>
+      )}
 
-      <button
-        onClick={handleAnalyze}
-        disabled={loading}
-        style={{
-          width: '100%',
-          padding: '0.8rem',
-          background: '#7c3aed',
-          border: 'none',
-          borderRadius: '0.75rem',
-          color: 'white',
-          fontWeight: '700',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.5rem',
-          transition: 'opacity 0.2s'
-        }}
-      >
-        {loading ? <Loader2 className="animate-spin" size={20} /> : "Run Analysis"}
-      </button>
+      {!analysis && !loading && (
+        <>
+          <textarea
+            placeholder="Paste the Job Description here to analyze your match rate..."
+            value={jobDescription}
+            onChange={handleJdChange}
+            style={{
+              width: '100%',
+              height: '150px',
+              background: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              color: 'white',
+              fontSize: '0.9rem',
+              resize: 'none',
+              marginBottom: '1rem',
+              outline: 'none'
+            }}
+          />
+
+          <button
+            onClick={() => handleAnalyze()}
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '0.8rem',
+              background: '#7c3aed',
+              border: 'none',
+              borderRadius: '0.75rem',
+              color: 'white',
+              fontWeight: '700',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              transition: 'opacity 0.2s'
+            }}
+          >
+            Run Analysis
+          </button>
+        </>
+      )}
+
+      {loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0', color: '#94a3b8' }}>
+          <Loader2 className="animate-spin" size={32} style={{ marginBottom: '1rem', color: '#7c3aed' }} />
+          <p>Analyzing relevance...</p>
+        </div>
+      )}
 
       <AnimatePresence>
         {analysis && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            style={{ marginTop: '2rem' }}
+            style={{ marginTop: '0' }}
           >
             {/* Score Circle */}
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
