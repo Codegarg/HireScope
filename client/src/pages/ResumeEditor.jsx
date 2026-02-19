@@ -5,7 +5,7 @@ import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
-import { ArrowLeft, Download, Sparkles, Save, Edit3, Check, X, MessageSquare, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Download, Sparkles, Save, Edit3, Check, X, MessageSquare, BarChart3, Bot } from 'lucide-react';
 import ATSAnalysis from '../components/ATSAnalysis';
 
 // ─── Templates Configuration ──────────────────────────────────────────────────
@@ -116,7 +116,9 @@ function isHeadingLine(line, prevLine, nextLine, strictOnly = false) {
     const prevBlank = !prevLine || prevLine.trim() === '';
     const nextBlank = !nextLine || nextLine.trim() === '';
     if (isTitleCase && raw.length <= 45 && (prevBlank || nextBlank) && raw.split(/\s+/).length <= 6) {
-        if (!raw.includes(',') && !raw.match(/\b(19|20)\d{2}\b/)) {
+        // Exclude lines with hyphens/dashes (likely project titles e.g. "Project - Tech")
+        // unless it's a known format like "Leadership / Extracurricular"
+        if (!raw.includes(',') && !raw.match(/\b(19|20)\d{2}\b/) && !raw.includes(' - ') && !raw.includes(' – ')) {
             return true;
         }
     }
@@ -431,14 +433,19 @@ const ResumeEditor = () => {
     const queryParams = new URLSearchParams(search);
     const shouldImprove = queryParams.get('improve');
 
-    const [resume, setResume] = useState(null);
+    const [resume, setResume] = useState(location.state?.initialResume || null);
     const [sections, setSections] = useState([]);
+    // Initialize ATS analysis from state if available
+    const [atsAnalysis, setAtsAnalysis] = useState(location.state?.analysisResults || null);
+    const [jobDescription, setJobDescription] = useState(location.state?.analysisResults?.jdText || '');
+
     const [currentContent, setCurrentContent] = useState('');
     const [activeVersion, setActiveVersion] = useState(0);
     const [isImproving, setIsImproving] = useState(false);
     const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'unsaved' | 'saving'
     const [isDownloading, setIsDownloading] = useState(false);
     const [showChat, setShowChat] = useState(false);
+    const [showATS, setShowATS] = useState(false); // Make sure this state exists if used below
     const [selectedText, setSelectedText] = useState('');
     const [rewriteInstructions, setRewriteInstructions] = useState('');
     const [isRewriting, setIsRewriting] = useState(false);
@@ -462,6 +469,18 @@ const ResumeEditor = () => {
                 lastSavedRef.current = content;
                 setSections(parseResumeIntoSections(content));
                 setActiveVersion(initial.currentVersionIndex || 0);
+
+                // Handle passed-in analysis results (e.g. from Home page)
+                if (location.state.analysisResults) {
+                    setAtsAnalysis(location.state.analysisResults);
+                    if (location.state.analysisResults.jdText) {
+                        setJobDescription(location.state.analysisResults.jdText);
+                        // Persist to localStorage immediately
+                        if (initial._id) {
+                            localStorage.setItem(`ats_jd_${initial._id}`, location.state.analysisResults.jdText);
+                        }
+                    }
+                }
                 return;
             }
             if (!id || id === 'null' || id === 'undefined') return;
@@ -501,15 +520,6 @@ const ResumeEditor = () => {
     const [improvementsSummary, setImprovementsSummary] = useState([]);
 
     // ATS Integration State
-    // ATS Integration State
-    const [showATS, setShowATS] = useState(false);
-    const [jobDescription, setJobDescription] = useState(() => {
-        // Try to load from localStorage on init
-        if (id) {
-            return localStorage.getItem(`ats_jd_${id}`) || "";
-        }
-        return "";
-    });
     const [isComparing, setIsComparing] = useState(false);
 
     // Persist JD when it changes
@@ -519,12 +529,7 @@ const ResumeEditor = () => {
         }
     }, [id, jobDescription]);
 
-    // Store the latest analysis result here to use in "Magic Improve"
-    const [atsAnalysis, setAtsAnalysis] = useState(null);
-
-    // Load JD when ID becomes available (fix for initial load)
-
-    // Load JD when ID becomes available (fix for initial load)
+    // Load JD when ID becomes available (fix for initial load) or from localStorage if not passed via state
     useEffect(() => {
         if (id) {
             const savedJD = localStorage.getItem(`ats_jd_${id}`);
@@ -533,6 +538,7 @@ const ResumeEditor = () => {
             }
         }
     }, [id]);
+
 
     const autoSave = useCallback(async (content) => {
         if (!id || id === 'null' || id === 'undefined') {
@@ -558,7 +564,9 @@ const ResumeEditor = () => {
         const newText = sectionsToText(newSections);
         setCurrentContent(newText);
         setSections(newSections);
+        // Clear ATS analysis when content changes, so user knows score is stale
         if (newText !== lastSavedRef.current) {
+            setAtsAnalysis(null);
             setSaveStatus('unsaved');
             if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
             saveTimeoutRef.current = setTimeout(() => autoSave(newText), 3000);
@@ -837,6 +845,7 @@ const ResumeEditor = () => {
         setSections(parseResumeIntoSections(improvedContent));
         setImprovedContent('');
         setIsComparing(false);
+        setAtsAnalysis(null); // Clear old analysis
         setSaveStatus('unsaved');
         autoSave(improvedContent);
     };
@@ -848,6 +857,16 @@ const ResumeEditor = () => {
 
     // ── Magic Improve ────────────────────────────────────────────────────────────
     const handleMagicImprove = async () => {
+        // Fallback: use resume.content or resume.resumeText if currentContent is empty
+        const contentToUse = currentContent && currentContent.trim().length >= 50
+            ? currentContent
+            : (resume?.content || resume?.resumeText || '');
+
+        if (!contentToUse || contentToUse.trim().length < 50) {
+            alert("We couldn't extract enough text from your resume to improve it. Please paste your resume content manually first.");
+            return;
+        }
+
         if (isImproving) return;
         setIsImproving(true);
         setIsComparing(false);
@@ -868,7 +887,7 @@ const ResumeEditor = () => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    content: currentContent,
+                    content: contentToUse,
                     jobDescription: jobDescription, // Send JD for targeted improvements
                     atsAnalysis: atsAnalysis // Send detailed analysis (missing keywords, etc.)
                 })
@@ -882,7 +901,11 @@ const ResumeEditor = () => {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
 
-            while (true) {
+            let streamFinished = false;
+            let lastUpdate = Date.now();
+            let accumulatedResponse = ""; // Local accumulator for the raw response
+
+            while (!streamFinished) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
@@ -896,43 +919,74 @@ const ResumeEditor = () => {
                     const trimmed = line.trim();
                     if (!trimmed) continue;
 
-                    // Handle both "data: {...}" and raw "{...}" cases (just in case)
                     let jsonPart = trimmed;
                     if (trimmed.startsWith('data: ')) {
                         jsonPart = trimmed.slice(6).trim();
                     }
 
-                    if (jsonPart === '[DONE]') continue;
+                    if (jsonPart === '[DONE]') {
+                        streamFinished = true;
+                        break;
+                    }
 
                     try {
                         const data = JSON.parse(jsonPart);
                         if (data.response) {
                             fullContent += data.response;
+                            accumulatedResponse += data.response; // Update local accumulator
 
-                            // Split by delimiter to separate resume from summary
-                            const parts = fullContent.split('[CHANGES_DONE]');
-                            const cleanResume = parts[0].trim();
-                            setImprovedContent(cleanResume);
-
-                            if (parts[1]) {
-                                const summaryLines = parts[1].split('\n')
-                                    .map(l => l.trim())
-                                    .filter(l => l.startsWith('-') || l.startsWith('*') || l.length > 5)
-                                    .map(l => l.replace(/^[-*]\s*/, '').trim());
-                                setImprovementsSummary(summaryLines);
+                            // THROTTLE UI UPDATES: Only update React state every 500ms to prevent lag
+                            const now = Date.now();
+                            if (now - lastUpdate > 500) {
+                                // Split logic to keep cleanResume logic consistent
+                                const parts = fullContent.split('[CHANGES_DONE]');
+                                setImprovedContent(parts[0].trim());
+                                lastUpdate = now;
                             }
 
-                            if (!startedComparing && cleanResume.length > 5) {
+                            if (!startedComparing && fullContent.length > 50) { // Increased threshold slightly for stability
                                 setIsComparing(true);
                                 startedComparing = true;
                             }
                         } else if (data.error) {
                             throw new Error(data.error);
                         }
-                    } catch (e) {
-                        // Silent catch for partial JSON or non-JSON lines
-                    }
+                    } catch (e) { }
                 }
+            }
+
+            // Final update to ensure everything is shown
+            const finalParts = fullContent.split('[CHANGES_DONE]');
+            let finalResume = finalParts[0].trim();
+
+            // ATS FAIL-SAFE: Force-inject Header if missing to prevent score drop
+            // The AI sometimes forgets the header even with strict prompts.
+            // We check for Email/Phone and prepending the stored profile data if missing.
+            const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
+            const phoneRegex = /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/; // Simple check
+
+            const hasEmail = emailRegex.test(finalResume);
+            const hasPhone = phoneRegex.test(finalResume);
+
+            if ((!hasEmail || !hasPhone) && resume?.personalInfo) {
+                console.warn("[ATS Fail-Safe] AI dropped contact info. Injecting manually.");
+                const { firstName, lastName, email, phone, city, country, linkedin, github, portfolio } = resume.personalInfo;
+                const name = `${firstName || ''} ${lastName || ''}`.trim();
+                const contacts = [email, phone, city, country, linkedin, github, portfolio].filter(Boolean).join(' | ');
+
+                if (name && contacts) {
+                    finalResume = `**${name}**\n${contacts}\n\n${finalResume}`;
+                }
+            }
+
+            setImprovedContent(finalResume);
+
+            if (finalParts[1]) {
+                const summaryLines = finalParts[1].split('\n')
+                    .map(l => l.trim())
+                    .filter(l => l.startsWith('-') || l.startsWith('*') || l.length > 5)
+                    .map(l => l.replace(/^[-*]\s*/, '').trim());
+                setImprovementsSummary(summaryLines);
             }
 
             if (!fullContent) {
@@ -1063,7 +1117,14 @@ const ResumeEditor = () => {
 
                 {/* ATS Optimizer Button */}
                 <button
-                    onClick={() => setShowATS(true)}
+                    onClick={() => {
+                        // Ensure saved before analyzing
+                        if (saveStatus !== 'saved') {
+                            autoSave(currentContent);
+                            setSaveStatus('saved');
+                        }
+                        setShowATS(true);
+                    }}
                     style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                         background: 'rgba(124, 58, 237, 0.1)', border: '1px solid rgba(124, 58, 237, 0.2)',
@@ -1073,7 +1134,7 @@ const ResumeEditor = () => {
                     }}
                 >
                     <BarChart3 size={15} /> ATS Match
-                    {jobDescription && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80' }} />}
+                    {atsAnalysis && jobDescription && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80' }} />}
                 </button>
 
                 {/* Save manually */}
@@ -1369,14 +1430,20 @@ const ResumeEditor = () => {
                                     maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(124,58,237,0.1)',
                                     fontFamily: templateConfig.fontFamily
                                 }}>
-                                    {parseResumeIntoSections(improvedContent).map((s, i) => (
-                                        <SectionCard
-                                            key={i}
-                                            section={s}
-                                            templateConfig={templateConfig}
-                                            readOnly={true}
-                                        />
-                                    ))}
+                                    {isImproving ? (
+                                        <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', color: '#1e293b' }}>
+                                            {improvedContent}
+                                        </div>
+                                    ) : (
+                                        parseResumeIntoSections(improvedContent).map((s, i) => (
+                                            <SectionCard
+                                                key={i}
+                                                section={s}
+                                                templateConfig={templateConfig}
+                                                readOnly={true}
+                                            />
+                                        ))
+                                    )}
                                     {isImproving && (
                                         <div style={{ marginTop: '2rem', textAlign: 'center' }}>
                                             <div style={{
@@ -1418,7 +1485,7 @@ const ResumeEditor = () => {
                             cursor: 'pointer', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                         }}
                     >
-                        <MessageSquare size={26} />
+                        <Bot size={26} />
                     </motion.button>
                 ) : (
                     <motion.div
@@ -1485,8 +1552,15 @@ const ResumeEditor = () => {
                             <ATSAnalysis
                                 resumeId={id}
                                 value={jobDescription}
+                                initialData={atsAnalysis}
+                                resumeContent={currentContent} // Pass latest content for real-time analysis
                                 onJobDescriptionChange={setJobDescription}
-                                onAnalysisComplete={setAtsAnalysis} // Capture analysis results
+                                onAnalysisComplete={(data) => {
+                                    setAtsAnalysis(data);
+                                    if (data && typeof data.score === 'number') {
+                                        setResume(prev => ({ ...prev, atsScore: data.score }));
+                                    }
+                                }}
                             />
                         </motion.div>
                     </div>

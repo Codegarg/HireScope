@@ -1,18 +1,31 @@
 import { useContext, useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, LogIn, AlertCircle, Eye, EyeOff, Github, Chrome } from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 
 const Login = () => {
-  const { login, user } = useContext(AuthContext);
+  const { login, user, checkUserStatus } = useContext(AuthContext);
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Handle OAuth Redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+
+    if (token) {
+      localStorage.setItem("token", token);
+      checkUserStatus().then(() => {
+        navigate("/");
+      });
+    }
+  }, [checkUserStatus, navigate]);
 
   useEffect(() => {
     if (user) {
@@ -40,6 +53,24 @@ const Login = () => {
     glassBorder: 'rgba(255, 255, 255, 0.08)',
     textMuted: '#94a3b8',
     radius: '1.25rem',
+  };
+
+  const socialButtonStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.75rem',
+    width: '100%',
+    padding: '0.875rem',
+    borderRadius: '1rem',
+    border: `1px solid ${theme.glassBorder}`,
+    background: 'rgba(255,255,255,0.02)',
+    color: 'white',
+    textDecoration: 'none',
+    fontSize: '0.95rem',
+    fontWeight: '500',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    cursor: 'pointer'
   };
 
   return (
@@ -101,6 +132,31 @@ const Login = () => {
               {isLoading ? "Authenticating..." : <><LogIn size={18} /> <span>Login to Account</span></>}
             </motion.button>
           </form>
+
+          <div style={{ margin: '1.5rem 0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></div>
+            <span style={{ color: theme.textMuted, fontSize: '0.75rem', fontWeight: '600' }}>OR</span>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.05)' }}></div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <motion.a
+              whileHover={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.2)' }}
+              href="http://localhost:5000/api/auth/google"
+              style={{ ...socialButtonStyle, padding: '0.75rem', fontSize: '0.85rem' }}
+            >
+              <Chrome size={18} />
+              <span>Google</span>
+            </motion.a>
+            <motion.a
+              whileHover={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.2)' }}
+              href="http://localhost:5000/api/auth/github"
+              style={{ ...socialButtonStyle, padding: '0.75rem', fontSize: '0.85rem' }}
+            >
+              <Github size={18} />
+              <span>GitHub</span>
+            </motion.a>
+          </div>
 
           <p style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.85rem', color: theme.textMuted }}>
             Don't have an account? <Link to="/signup" style={{ color: 'white', fontWeight: '600', textDecoration: 'none', borderBottom: `2px solid ${theme.primary}` }}>Join Now</Link>

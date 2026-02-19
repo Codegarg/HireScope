@@ -6,12 +6,17 @@ import { generateInterviewPrep, callCloudflareAIStreaming } from "../services/ai
 export const analyzeResumeATS = async (req, res) => {
     try {
         const { id } = req.params;
-        const { jobDescription } = req.body;
+        const { jobDescription, resumeContent: manualContent } = req.body;
 
         const resume = await Resume.findOne({ _id: id, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
 
-        const analysisResults = calculateATSScore(resume, jobDescription);
+        // Fix: Extract actual text content from the resume object
+        // The scorer expects a string, not the whole mongoose document
+        // PRIORITIZE manualContent if sent (for real-time analysis before save)
+        const resumeContent = manualContent || resume.versions?.[resume.currentVersionIndex]?.content || resume.originalContent || "";
+
+        const analysisResults = calculateATSScore(resumeContent, jobDescription);
 
         // Update the resume with the new score so it reflects in Dashboard
         if (analysisResults && typeof analysisResults.score === 'number') {
@@ -143,9 +148,9 @@ export const improveResume = async (req, res) => {
 
         res.setHeader('Content-Type', 'text/event-stream');
 
-        let systemPrompt = "You are a Master Resume Writer. Your task is to rewrite the user's resume for maximum impact while STRICTLY maintaining its plain-text structure and ensuring it fits on A SINGLE A4 PAGE.\n\nCRITICAL RULES:\n1. Output ONLY the improved resume text first.\n2. NO conversational filler (e.g., 'Here is your resume').\n3. NO intro text.\n4. NO Markdown formatting (do NOT use **, __, #).\n5. Use standard plain-text headings (EDUCATION, EXPERIENCE, SKILLS, etc.).\n6. The very last part of your response MUST BE a concise list of improvements made, prefixed ONLY by the exact delimiter: [CHANGES_DONE]\n7. Ensure the total resume text is concise enough for one page.";
+        let systemPrompt = "You are a Master Resume Writer & ATS Optimization Expert. Your goal is to rewrite the user's resume (provided below) to maximize their ATS Match Score for the target job while maintaining their original factual content.\n\nCRITICAL RULES:\n1. **HEADER IS MANDATORY**: You MUST start with the user's Name, Email, and Phone Number. Do NOT omit these. If you are rewriting the whole resume, these must be at the very top.\n2. **NO PLACEHOLDERS**: Do NOT use brackets like [Date], [Company], or [Your Name]. Use the ACTUAL, ORIGINAL data from the resume. If a date or company is missing, omit it or use 'Present'.\n3. **PRESERVE FACTS**: Do not invent companies, degrees, or job titles. You may only rephrase the bullet points to be more impactful.\n4. Output ONLY the improved resume text first.\n5. NO conversational filler. Start directly with the resume header.\n6. NO Markdown formatting (do NOT use **, __, #).\n7. Use standard plain-text headings (EDUCATION, EXPERIENCE, SKILLS, etc.).\n8. PRIORITY 1: SEAMLESSLY INTEGRATE MISSING KEYWORDS. Do not just list them; weave them into bullet points.\n9. The very last part of your response MUST BE a concise list of improvements made, prefixed ONLY by the exact delimiter: [CHANGES_DONE]";
 
-        let userPrompt = `Improve this resume for professional tone and ATS compatibility. Keep it concise for ONE PAGE. After the resume, add [CHANGES_DONE] followed by a short bulleted list of what you changed:`;
+        let userPrompt = `A user has provided their resume content. Rewrite it to drastically improve its ATS compatibility with the job description. \n\nIMPORTANT: \n- Ensure the Name, Email, and Phone are clearly listed at the top.\n- Rewrite the bullet points to be results-oriented (Action + Task + Result).\n- Include the missing keywords naturally.\n- DO NOT RETURN A GENERIC TEMPLATE. USE THE CONTENT BELOW. \n\nAfter the resume, add [CHANGES_DONE] followed by a short bulleted list of 3-5 key improvements you made:`;
 
         // ATS Keyword Injection
         const { jobDescription, atsAnalysis } = req.body;
@@ -155,7 +160,7 @@ export const improveResume = async (req, res) => {
             const { missingKeywords, formattingIssues } = atsAnalysis.analysis;
 
             if (missingKeywords && missingKeywords.length > 0) {
-                userPrompt += `\n\nCRITICAL INSTRUCTION: The following ATS keywords are missing from the resume but required by the job. Seamlessly integrate them into the Experience or Skills sections where contextually appropriate: ${missingKeywords.join(', ')}.`;
+                userPrompt += `\n\n📢 CRITICAL: The following keywords are MISSING and hurting the score. You MUST integrate them into the Experience/Skills sections: ${missingKeywords.join(', ')}.`;
             }
 
             if (formattingIssues && formattingIssues.length > 0) {
@@ -170,11 +175,17 @@ export const improveResume = async (req, res) => {
             ).slice(0, 8); // Top 8 missing words
 
             if (missingKeywords.length > 0) {
-                userPrompt += `\n\nCRITICAL INSTRUCTION: The following ATS keywords are missing from the resume but required by the job. Seamlessly integrate them into the Experience or Skills sections where contextually appropriate: ${missingKeywords.join(', ')}.`;
+                userPrompt += `\n\n📢 CRITICAL: The following keywords are MISSING. You MUST integrate them into the Experience/Skills sections: ${missingKeywords.join(', ')}.`;
             }
         }
 
-        userPrompt += `\n\n${content}`;
+        // TRUNCATE CONTENT to avoid Token Limit Exceeded errors (Llama 3 context window)
+        // Keep approx 15k chars (~3700 tokens) to be safe
+        const truncatedContent = content.length > 15000 ? content.substring(0, 15000) + "\n...[Truncated]..." : content;
+
+        userPrompt += `\n\n${truncatedContent}`;
+
+        console.log(`[Magic Improve] Sending request. Content length: ${content.length}, Truncated to: ${truncatedContent.length}`);
 
         const messages = [
             { role: "system", content: systemPrompt },

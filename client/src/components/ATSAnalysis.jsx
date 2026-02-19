@@ -3,12 +3,39 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, AlertTriangle, CheckCircle, BarChart3, Loader2 } from 'lucide-react';
 import API from '../services/api';
 
-const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value }) => {
+const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, resumeContent }) => {
   const [jobDescription, setJobDescription] = useState(value || "");
-  const [analysis, setAnalysis] = useState(null);
-  // Initialize loading to true if we have a JD, to prevent flash of input fields
-  const [loading, setLoading] = useState(!!(value && value.trim().length > 20));
+  // Helper to normalize data structure between "Simple" (Home) and "Advanced" (Editor) engines
+  const normalizeData = (data) => {
+    if (!data) return null;
+    // If it has 'analysis' object (Advanced engine), return as is
+    if (data.analysis && data.score !== undefined) return data;
+
+    // Otherwise map Simple engine (Home page) to expected structure
+    return {
+      score: data.atsScore || 0,
+      analysis: {
+        formattingIssues: [],
+        strengths: data.matchedSkills ? [`Matches ${data.matchedSkills.length} key skills`] : [],
+        missingKeywords: data.missingSkills || []
+      },
+      matchRate: 0 // Optional
+    };
+  };
+
+  const [analysis, setAnalysis] = useState(normalizeData(initialData));
+  // Initialize loading to true only if we have a JD but NO analysis yet
+  const [loading, setLoading] = useState(!initialData && !!(value && value.trim().length > 20));
   const [error, setError] = useState(null);
+
+  // Sync state with prop if initialData changes (e.g. late arrival)
+  React.useEffect(() => {
+    if (initialData) {
+      setAnalysis(normalizeData(initialData));
+      setLoading(false);
+      setError(null);
+    }
+  }, [initialData]);
 
   // Auto-analyze when JD is provided (on mount or update)
   React.useEffect(() => {
@@ -16,8 +43,9 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value }) => {
       setJobDescription(value);
     }
 
-    // Trigger analysis if we have a valid JD, no analysis yet, and not loading
-    if (value && value.trim().length > 20 && !analysis && !loading && !error) {
+    // Trigger analysis if we have a valid JD, no analysis yet
+    // REMOVED: !loading check to prevent deadlock if we initialized loading=true
+    if (value && value.trim().length > 20 && !analysis && !error && !initialData) {
       handleAnalyze(value);
     } else if (!value && !loading) {
       // If no JD, ensure loading is false so inputs show
@@ -36,7 +64,10 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await API.post(`/resumes/${resumeId}/analyze`, { jobDescription: jdText });
+      const res = await API.post(`/resumes/${resumeId}/analyze`, {
+        jobDescription: jdText,
+        resumeContent: resumeContent // Pass current content to bypass DB lag
+      });
       const data = res.data.data;
       setAnalysis(data);
       if (onAnalysisComplete) onAnalysisComplete(data);

@@ -48,6 +48,14 @@ export const callCloudflareAIStreaming = async (messages, res, options = {}) => 
         return;
     }
 
+    const safelyWrite = (data) => {
+        try {
+            res.write(data);
+        } catch (e) {
+            console.error("Error writing to stream (client disconnected?):", e);
+        }
+    };
+
     try {
         const response = await fetch(
             `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/${MODEL}`,
@@ -66,6 +74,14 @@ export const callCloudflareAIStreaming = async (messages, res, options = {}) => 
             }
         );
 
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Cloudflare API Error:", response.status, errorText);
+            safelyWrite(`data: ${JSON.stringify({ error: `AI Service Error: ${response.status} - ${errorText}` })}\n\n`);
+            try { res.end(); } catch (e) { }
+            return;
+        }
+
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let fullResponse = "";
@@ -76,13 +92,7 @@ export const callCloudflareAIStreaming = async (messages, res, options = {}) => 
 
             const chunk = decoder.decode(value, { stream: true });
 
-            // Cloudflare returns "data: { ... }" lines. We need to parse them to accumulate text, 
-            // but we pass the raw chunk to the client which expects SSE or raw text?
-            // "Fix SSE chunk parser" implies SSE.
-            // But here we can just pass the chunk through if the client can handle it.
-            // HOWEVER, to save to DB, we MUST parse the response.
-            // Cloudflare stream format: `data: {"response":"H"}` ... `data: {"response":"ello"}`
-
+            // Accumulate response for saving later
             const lines = chunk.split('\n');
             for (const line of lines) {
                 if (line.startsWith('data: ')) {
@@ -93,24 +103,22 @@ export const callCloudflareAIStreaming = async (messages, res, options = {}) => 
                         if (json.response) {
                             fullResponse += json.response;
                         }
-                    } catch (e) {
-                        // ignore parse errors for partial chunks
-                    }
+                    } catch (e) { }
                 }
             }
 
-            res.write(chunk);
+            safelyWrite(chunk);
         }
 
         if (options.onComplete) {
             await options.onComplete(fullResponse);
         }
 
-        res.end();
+        try { res.end(); } catch (e) { }
     } catch (error) {
         console.error("Cloudflare Streaming Error:", error);
-        res.write(`data: ${JSON.stringify({ error: "Error in AI stream" })}\n\n`);
-        res.end();
+        safelyWrite(`data: ${JSON.stringify({ error: "Error in AI stream" })}\n\n`);
+        try { res.end(); } catch (e) { }
     }
 };
 

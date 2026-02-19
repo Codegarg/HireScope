@@ -12,6 +12,16 @@ const resumeSchema = new mongoose.Schema({
         default: 'My Resume'
     },
 
+    // ATS Score Tracking
+    atsScore: {
+        type: Number,
+        default: 0
+    },
+    suggestionsCount: {
+        type: Number,
+        default: 0
+    },
+
     // Core Sections
     personalInfo: {
         fullName: { type: String, default: "" },

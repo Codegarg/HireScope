@@ -42,10 +42,18 @@ export const analyzeResume = async (req, res) => {
     let savedResumeId = null;
     if (req.user) {
       const newResume = new Resume({
-        user: req.user.id,  // Changed from userId to user
-        title: `Resume for JD: ${jdText.substring(0, 30)}...`,
+        user: req.user.id,
+        title: (() => {
+          // Attempt to extract job title
+          const titleMatch = jdText.match(/(?:Job Title|Role|Position):\s*([^\n]+)/i);
+          if (titleMatch && titleMatch[1]) {
+            return `Target: ${titleMatch[1].trim().substring(0, 40)}`;
+          }
+          // Fallback to timestamped title
+          return `Analysis ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} - ${jdText.substring(0, 15)}...`;
+        })(),
         originalContent: resumeText,
-        atsScore: atsResult.score || 0,  // Save ATS score
+        atsScore: atsResult.atsScore || atsResult.score || 0,  // Save ATS score (handle both naming conventions)
         suggestionsCount: aiSuggestions?.length || 0,  // Save suggestions count
         versions: [{ content: resumeText, feedback: "Initial Analysis" }]
       });
@@ -59,8 +67,8 @@ export const analyzeResume = async (req, res) => {
         ...atsResult,
         aiSuggestions,
         resumeId: savedResumeId,
-        resumeText: resumeText.substring(0, 5000), // Return snippet for frontend context
-        jdText: jdText.substring(0, 5000)
+        resumeText: resumeText, // Return full text for editor
+        jdText: jdText
       }
     });
   } catch (error) {

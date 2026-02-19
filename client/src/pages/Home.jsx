@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from "react";
-import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X } from "lucide-react";
+import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X, CheckCircle, AlertCircle, Lightbulb, TrendingUp, TrendingDown, Bot } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { analyzeResume } from "../services/api";
@@ -30,6 +30,36 @@ const Home = () => {
     radius: '1.5rem',
   };
 
+  // Helper to parse AI suggestions
+  const parseAnalysis = (text) => {
+    if (!text) return { strengths: [], weaknesses: [], tips: [] };
+
+    const sections = { strengths: [], weaknesses: [], tips: [] };
+    let currentSection = null;
+
+    const lines = text.split('\n');
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      const lower = trimmed.toLowerCase();
+
+      if (lower.includes('strengths') || lower.includes('strength:')) {
+        currentSection = 'strengths';
+      } else if (lower.includes('weaknesses') || lower.includes('weakness:')) {
+        currentSection = 'weaknesses';
+      } else if (lower.includes('tips') || lower.includes('actionable')) {
+        currentSection = 'tips';
+      } else if (trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.match(/^\d+\./)) {
+        const content = trimmed.replace(/^[-•\d\.]\s*/, '').trim();
+        if (content && currentSection) {
+          sections[currentSection].push(content);
+        }
+      }
+    });
+
+    return sections;
+  };
+
   // Save analysis results to sessionStorage whenever they change
   // (sessionStorage clears on fresh open but survives back-button navigation)
   useEffect(() => {
@@ -45,7 +75,7 @@ const Home = () => {
       try {
         const parsed = JSON.parse(savedResults);
         setResult(parsed);
-        setShowChat(true);
+        // setShowChat(true);
       } catch (error) {
         console.error('Error parsing saved analysis results:', error);
         sessionStorage.removeItem('hireScope_analysisResults');
@@ -77,13 +107,15 @@ const Home = () => {
       setLoading(true);
       const res = await analyzeResume(formData);
       setResult(res.data.data);
-      setShowChat(true);
+      // setShowChat(true);
     } catch (err) {
       setError(err.response?.data?.message || "Analysis failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  const analysisSections = result ? parseAnalysis(result.aiSuggestions) : null;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#030014', color: '#f8fafc', overflowX: 'hidden' }}>
@@ -375,12 +407,65 @@ const Home = () => {
                       </div>
                     </div>
 
-                    <div>
-                      <h3 style={{ fontSize: '0.85rem', fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', marginBottom: '1.25rem', letterSpacing: '0.05em' }}>Key Recommendations</h3>
-                      <div style={{ background: 'rgba(255, 255, 255, 0.04)', borderRadius: '1.25rem', padding: '1.75rem', fontSize: '1rem', lineHeight: '1.7', whiteSpace: 'pre-wrap', border: `1px solid ${theme.glassBorder}` }}>
-                        {result.aiSuggestions}
+                    {/* Analysis Sections Grid */}
+                    {analysisSections && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+
+                        {/* Strengths */}
+                        {analysisSections.strengths.length > 0 && (
+                          <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '1.25rem', padding: '1.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', color: '#34d399' }}>
+                              <TrendingUp size={20} />
+                              <h3 style={{ fontSize: '0.9rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Strengths</h3>
+                            </div>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                              {analysisSections.strengths.map((item, i) => (
+                                <li key={i} style={{ display: 'flex', gap: '0.75rem', fontSize: '0.95rem', color: '#d1fae5', lineHeight: '1.5' }}>
+                                  <CheckCircle size={16} style={{ marginTop: '0.2rem', flexShrink: 0, color: '#34d399' }} />
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Weaknesses */}
+                        {analysisSections.weaknesses.length > 0 && (
+                          <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '1.25rem', padding: '1.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', color: '#f87171' }}>
+                              <TrendingDown size={20} />
+                              <h3 style={{ fontSize: '0.9rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Improvements Needed</h3>
+                            </div>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                              {analysisSections.weaknesses.map((item, i) => (
+                                <li key={i} style={{ display: 'flex', gap: '0.75rem', fontSize: '0.95rem', color: '#fee2e2', lineHeight: '1.5' }}>
+                                  <AlertCircle size={16} style={{ marginTop: '0.2rem', flexShrink: 0, color: '#f87171' }} />
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    )}
+
+                    {/* Actionable Tips (Full Width) */}
+                    {analysisSections && analysisSections.tips.length > 0 && (
+                      <div style={{ marginTop: '1.5rem', background: 'rgba(79, 70, 229, 0.05)', border: '1px solid rgba(79, 70, 229, 0.2)', borderRadius: '1.25rem', padding: '1.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', color: '#818cf8' }}>
+                          <Lightbulb size={20} />
+                          <h3 style={{ fontSize: '0.9rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actionable Tips</h3>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                          {analysisSections.tips.map((item, i) => (
+                            <div key={i} style={{ display: 'flex', gap: '0.75rem', padding: '1rem', background: 'rgba(79, 70, 229, 0.1)', borderRadius: '0.75rem', fontSize: '0.95rem', color: '#e0e7ff', lineHeight: '1.5' }}>
+                              <span style={{ fontWeight: '700', color: '#818cf8' }}>{i + 1}.</span>
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginTop: '1rem' }}>
                       <button
@@ -464,7 +549,7 @@ const Home = () => {
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                   }}
                 >
-                  <MessageSquare size={28} />
+                  <Bot size={32} />
                 </motion.button>
               ) : (
                 <motion.div

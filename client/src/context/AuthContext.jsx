@@ -33,13 +33,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const res = await api.post("/auth/login", { email, password });
-      
+
       // Store token first
       localStorage.setItem("token", res.data.token);
-      
+
       // Update global user state immediately
       setUser(res.data.user);
-      
+
       return res.data;
     } catch (error) {
       throw error;
@@ -48,12 +48,13 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem("token");
+    sessionStorage.removeItem("hireScope_analysisResults"); // Clear analysis state
     setUser(null);
     window.location.href = "/login";
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, setUser, login, logout, loading, checkUserStatus }}>
       {children}
     </AuthContext.Provider>
   );

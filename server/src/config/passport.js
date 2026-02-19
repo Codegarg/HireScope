@@ -25,9 +25,10 @@ passport.use(
 
                 if (!user) {
                     user = await User.create({
-                        name: profile.displayName,
+                        username: profile.displayName || email.split('@')[0], // Use username instead of name
                         email: email,
-                        password: "oauth-user-" + Math.random().toString(36).slice(-8) // Dummy password
+                        password: "oauth-user-" + Math.random().toString(36).slice(-8), // Dummy password
+                        googleId: profile.id
                     });
                 }
                 return done(null, user);
@@ -59,7 +60,7 @@ passport.use(
 
                 if (!user) {
                     user = await User.create({
-                        name: profile.displayName || profile.username,
+                        username: profile.username || profile.displayName || email.split('@')[0], // Use username
                         email: email,
                         password: "oauth-user-" + Math.random().toString(36).slice(-8)
                     });
