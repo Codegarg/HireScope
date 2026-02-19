@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { FileText, Sparkles, Clock, ArrowRight, TrendingUp, Briefcase, Plus, Search, ExternalLink } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import BackButton from '../components/BackButton';
 
 const Dashboard = () => {
     const [resumes, setResumes] = useState([]);
@@ -47,6 +48,18 @@ const Dashboard = () => {
         fetchResumes();
     }, []);
 
+    // Calculate dynamic stats from resumes
+    const stats = {
+        totalResumes: resumes.length,
+        topAtsScore: resumes.length > 0
+            ? Math.max(...resumes.map(r => r.atsScore || 0))
+            : 0,
+        totalSuggestions: resumes.reduce((sum, r) => sum + (r.suggestionsCount || 0), 0),
+        averageScore: resumes.length > 0
+            ? Math.round(resumes.reduce((sum, r) => sum + (r.atsScore || 0), 0) / resumes.length)
+            : 0
+    };
+
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#030014', color: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
             {/* Aurora Background */}
@@ -59,6 +72,12 @@ const Dashboard = () => {
 
             <div style={{ padding: '7rem 2rem 5rem 2rem' }}>
                 <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+                    {/* Back Button */}
+                    <div style={{ marginBottom: '2rem' }}>
+                        <BackButton />
+                    </div>
+
+                    {/* Header */}
                     <header style={{ marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <h1 style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '0.4rem', letterSpacing: '-0.02em' }}>
@@ -85,7 +104,7 @@ const Dashboard = () => {
                                 </div>
                                 <span style={{ fontSize: '0.85rem', fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Resumes</span>
                             </div>
-                            <p style={{ fontSize: '2rem', fontWeight: '800', margin: 0 }}>{resumes.length || 0}</p>
+                            <p style={{ fontSize: '2rem', fontWeight: '800', margin: 0 }}>{stats.totalResumes}</p>
                         </div>
 
                         <div style={{ ...glassCardStyle, padding: '1.5rem' }}>
@@ -95,7 +114,9 @@ const Dashboard = () => {
                                 </div>
                                 <span style={{ fontSize: '0.85rem', fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Top ATS Score</span>
                             </div>
-                            <p style={{ fontSize: '2rem', fontWeight: '800', margin: 0, color: '#10b981' }}>85%</p>
+                            <p style={{ fontSize: '2rem', fontWeight: '800', margin: 0, color: '#10b981' }}>
+                                {stats.topAtsScore > 0 ? `${stats.topAtsScore}%` : 'N/A'}
+                            </p>
                         </div>
 
                         <div style={{ ...glassCardStyle, padding: '1.5rem' }}>
@@ -103,9 +124,9 @@ const Dashboard = () => {
                                 <div style={{ background: 'rgba(245, 158, 11, 0.15)', padding: '0.5rem', borderRadius: '0.5rem', color: theme.accent }}>
                                     <Sparkles size={20} />
                                 </div>
-                                <span style={{ fontSize: '0.85rem', fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>AI Suggestions</span>
+                                <span style={{ fontSize: '0.85rem', fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Suggestions</span>
                             </div>
-                            <p style={{ fontSize: '2rem', fontWeight: '800', margin: 0 }}>24</p>
+                            <p style={{ fontSize: '2rem', fontWeight: '800', margin: 0 }}>{stats.totalSuggestions}</p>
                         </div>
                     </div>
 
@@ -156,7 +177,9 @@ const Dashboard = () => {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                             <div style={{ textAlign: 'right', marginRight: '1.5rem' }}>
                                                 <div style={{ fontSize: '0.7rem', color: theme.textMuted, textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.05em' }}>ATS Compatibility</div>
-                                                <div style={{ fontSize: '1rem', fontWeight: '800', color: '#10b981' }}>85%</div>
+                                                <div style={{ fontSize: '1rem', fontWeight: '800', color: resume.atsScore >= 70 ? '#10b981' : resume.atsScore >= 50 ? '#f59e0b' : '#ef4444' }}>
+                                                    {resume.atsScore ? `${resume.atsScore}%` : 'N/A'}
+                                                </div>
                                             </div>
                                             <div style={{ padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(255,255,255,0.05)' }}>
                                                 <ArrowRight size={18} color={theme.textMuted} />

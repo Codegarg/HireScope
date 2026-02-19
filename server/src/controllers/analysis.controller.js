@@ -42,9 +42,11 @@ export const analyzeResume = async (req, res) => {
     let savedResumeId = null;
     if (req.user) {
       const newResume = new Resume({
-        userId: req.user.id,
+        user: req.user.id,  // Changed from userId to user
         title: `Resume for JD: ${jdText.substring(0, 30)}...`,
         originalContent: resumeText,
+        atsScore: atsResult.score || 0,  // Save ATS score
+        suggestionsCount: aiSuggestions?.length || 0,  // Save suggestions count
         versions: [{ content: resumeText, feedback: "Initial Analysis" }]
       });
       const saved = await newResume.save();

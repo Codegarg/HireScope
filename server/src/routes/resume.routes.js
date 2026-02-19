@@ -1,13 +1,15 @@
 import express from "express";
-import { 
-    saveResume, 
-    getUserResumes, 
-    getUserResumeById, 
-    updateResume, 
-    analyzeResumeATS, // Newly Added
-    rewriteSection, 
-    getInterviewPrep, 
-    improveResume 
+import {
+    saveResume,
+    getUserResumes,
+    getUserResumeById,
+    updateResume,
+    analyzeResumeATS,
+    createResumeVersion,
+    rewriteSection,
+    getInterviewPrep,
+    improveResume,
+    downloadResumePDF
 } from "../controllers/resume.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 
@@ -21,12 +23,18 @@ router.get("/", getUserResumes);
 router.get("/:id", getUserResumeById);
 router.put("/:id", updateResume);
 
-// ATS Scoring & Analysis (Stage 5)
+// Versioning
+router.post("/version", createResumeVersion);
+
+// ATS Scoring & Analysis
 router.post("/:id/analyze", analyzeResumeATS);
 
 // AI Tools
 router.post("/rewrite", rewriteSection);
 router.post("/interview-prep", getInterviewPrep);
 router.post("/improve", improveResume);
+
+// PDF Download
+router.get("/:id/download", downloadResumePDF);
 
 export default router;

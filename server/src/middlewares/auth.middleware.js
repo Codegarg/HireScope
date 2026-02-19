@@ -22,3 +22,21 @@ export const authMiddleware = (req, res, next) => {
     });
   }
 };
+
+// Optional auth - sets req.user if token exists, but doesn't block if not
+export const optionalAuthMiddleware = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = { id: decoded.id };
+    }
+    next();
+  } catch (error) {
+    // If token is invalid, just continue without user
+    next();
+  }
+};
+

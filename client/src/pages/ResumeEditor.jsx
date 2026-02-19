@@ -4,11 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
+import BackButton from '../components/BackButton';
 
 const ResumeEditor = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { search } = useLocation();
+    const location = useLocation();  // Added this line
+    const { search } = location;
     const queryParams = new URLSearchParams(search);
     const shouldImprove = queryParams.get('improve');
 
@@ -53,6 +55,12 @@ const ResumeEditor = () => {
                 return; // Skip loading if we have the data
             }
 
+            // If no state, try fetching from backend
+            if (!id || id === 'null' || id === 'undefined') {
+                console.error("Invalid resume ID");
+                return;
+            }
+
             try {
                 const token = localStorage.getItem('token');
                 const res = await axios.get(`http://localhost:5000/api/resumes/${id}`, {
@@ -61,12 +69,15 @@ const ResumeEditor = () => {
                 const found = res.data.data;
                 if (found) {
                     setResume(found);
-                    const content = found.versions[found.currentVersionIndex].content;
+                    const content = found.versions?.[found.currentVersionIndex]?.content || found.originalContent || '';
                     setCurrentContent(content);
                     setLastSavedContent(content);
-                    setActiveVersion(found.currentVersionIndex);
+                    setActiveVersion(found.currentVersionIndex || 0);
                 }
-            } catch (err) { console.error("Error fetching", err); }
+            } catch (err) {
+                console.error("Error fetching resume:", err);
+                // If fetch fails but we have state, that's okay
+            }
         };
         fetchResume();
     }, [id, location.state]);
@@ -158,6 +169,12 @@ const ResumeEditor = () => {
 
     const handleMagicImprove = async () => {
         if (isImproving) return;
+
+        if (!id || id === 'null' || id === 'undefined') {
+            alert('Cannot improve resume: Invalid resume ID. Please save your resume first.');
+            return;
+        }
+
         setIsImproving(true);
 
         try {
@@ -167,8 +184,12 @@ const ResumeEditor = () => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
-                body: JSON.stringify({ resumeId: id, content: currentContent })
+                body: JSON.stringify({ content: currentContent })
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -198,6 +219,7 @@ const ResumeEditor = () => {
             }
         } catch (err) {
             console.error("Improvement error", err);
+            alert('Failed to improve resume. Please try again.');
         } finally {
             setIsImproving(false);
         }
@@ -211,11 +233,17 @@ const ResumeEditor = () => {
 
             <div style={{ display: 'flex', height: '100vh', paddingTop: '6rem' }}>
                 <main style={{ flex: 1, padding: '3rem', overflowY: 'auto' }}>
+                    {/* Back Button */}
+                    <div style={{ maxWidth: '800px', margin: '0 auto 2rem auto' }}>
+                        <BackButton />
+                    </div>
+
+                    {/* Header */}
                     <header style={{ margin: '0 auto 3rem auto', maxWidth: '800px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.4rem' }}>{resume.title}</h1>
+                            <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.4rem' }}>{resume?.title || 'Resume'}</h1>
                             <p style={{ color: theme.textMuted, fontSize: '1rem', fontWeight: '500' }}>
-                                Version {activeVersion + 1} of {resume.versions.length} • {currentContent === lastSavedContent ? 'Saved' : 'Editing...'}
+                                Version {activeVersion + 1} of {resume?.versions?.length || 1} • {currentContent === lastSavedContent ? 'Saved' : 'Editing...'}
                             </p>
                         </div>
                         <div className="no-print" style={{ display: 'flex', gap: '1rem' }}>
@@ -230,13 +258,40 @@ const ResumeEditor = () => {
                                 {isImproving ? 'Improving...' : '✨ Magic Improve'}
                             </button>
                             <button
-                                onClick={() => window.print()}
+                                onClick={async () => {
+                                    if (!id || id === 'null' || id === 'undefined') {
+                                        alert('Cannot download: Invalid resume ID');
+                                        return;
+                                    }
+
+                                    try {
+                                        const token = localStorage.getItem('token');
+                                        const response = await fetch(`http://localhost:5000/api/resumes/${id}/download`, {
+                                            headers: { Authorization: `Bearer ${token}` }
+                                        });
+
+                                        if (!response.ok) throw new Error('Download failed');
+
+                                        const blob = await response.blob();
+                                        const url = window.URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `${resume?.title || 'resume'}.txt`;
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        window.URL.revokeObjectURL(url);
+                                        document.body.removeChild(a);
+                                    } catch (err) {
+                                        console.error('Download error:', err);
+                                        alert('Failed to download resume. Please try again.');
+                                    }
+                                }}
                                 style={{
                                     padding: '0.75rem 1.5rem', background: theme.primary, color: 'white',
                                     borderRadius: '999px', border: 'none', fontWeight: '700', cursor: 'pointer'
                                 }}
                             >
-                                Download PDF
+                                Download Resume
                             </button>
                         </div>
                     </header>
@@ -249,11 +304,15 @@ const ResumeEditor = () => {
                             style={{ fontSize: '1.1rem', lineHeight: '1.7', outline: 'none', whiteSpace: 'pre-wrap' }}
                             onMouseUp={() => setSelectedText(window.getSelection().toString())}
                             contentEditable
-                            onInput={(e) => setCurrentContent(e.currentTarget.textContent)}
+                            onInput={(e) => {
+                                const newContent = e.currentTarget.textContent;
+                                if (newContent !== currentContent) {
+                                    setCurrentContent(newContent);
+                                }
+                            }}
                             suppressContentEditableWarning={true}
-                        >
-                            {currentContent}
-                        </div>
+                            dangerouslySetInnerHTML={{ __html: currentContent }}
+                        />
                     </motion.div>
 
                     <AnimatePresence>

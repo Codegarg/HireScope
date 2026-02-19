@@ -1,6 +1,6 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { analyzeResume } from "../services/api";
 import { AuthContext } from "../context/AuthContext";
@@ -10,6 +10,7 @@ import Navbar from "../components/Navbar";
 const Home = () => {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const [resume, setResume] = useState(null);
   const [jdFile, setJdFile] = useState(null);
   const [jdText, setJdText] = useState("");
@@ -28,6 +29,29 @@ const Home = () => {
     textMuted: '#94a3b8',
     radius: '1.5rem',
   };
+
+  // Save analysis results to sessionStorage whenever they change
+  // (sessionStorage clears on fresh open but survives back-button navigation)
+  useEffect(() => {
+    if (result) {
+      sessionStorage.setItem('hireScope_analysisResults', JSON.stringify(result));
+    }
+  }, [result]);
+
+  // Restore analysis results from sessionStorage on mount
+  useEffect(() => {
+    const savedResults = sessionStorage.getItem('hireScope_analysisResults');
+    if (savedResults) {
+      try {
+        const parsed = JSON.parse(savedResults);
+        setResult(parsed);
+        setShowChat(true);
+      } catch (error) {
+        console.error('Error parsing saved analysis results:', error);
+        sessionStorage.removeItem('hireScope_analysisResults');
+      }
+    }
+  }, []);
 
   const glassCardStyle = {
     background: theme.glassBg,
@@ -99,6 +123,48 @@ const Home = () => {
               </a>
             </div>
           </motion.section>
+        )}
+
+        {/* Analysis Results - Show Back Button */}
+        {result && (
+          <div style={{ maxWidth: '1200px', margin: '0 auto 2rem auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+              <button
+                onClick={() => {
+                  setResult(null);
+                  setShowChat(false);
+                  sessionStorage.removeItem('hireScope_analysisResults');
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem 1.25rem',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '0.75rem',
+                  color: '#f8fafc',
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  backdropFilter: 'blur(8px)',
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                  e.target.style.transform = 'translateX(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.target.style.transform = 'translateX(0)';
+                }}
+              >
+                ← New Analysis
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Analysis Section */}
@@ -318,7 +384,18 @@ const Home = () => {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginTop: '1rem' }}>
                       <button
-                        onClick={() => navigate(`/editor/${result.resumeId}?improve=true`, { state: { initialResume: { ...result, content: result.resumeText } } })}
+                        onClick={() => {
+                          console.log('Home - Navigating to editor with improve, passing state:', {
+                            initialResume: { ...result, content: result.resumeText },
+                            analysisResults: result
+                          });
+                          navigate(`/editor/${result.resumeId}?improve=true`, {
+                            state: {
+                              initialResume: { ...result, content: result.resumeText },
+                              analysisResults: result
+                            }
+                          });
+                        }}
                         style={{
                           padding: '1.25rem', borderRadius: '1rem', border: 'none', fontWeight: '700', cursor: 'pointer',
                           background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white'
@@ -327,7 +404,18 @@ const Home = () => {
                         ✨ Magic AI Improve
                       </button>
                       <button
-                        onClick={() => navigate(`/editor/${result.resumeId}`, { state: { initialResume: { ...result, content: result.resumeText } } })}
+                        onClick={() => {
+                          console.log('Home - Navigating to editor, passing state:', {
+                            initialResume: { ...result, content: result.resumeText },
+                            analysisResults: result
+                          });
+                          navigate(`/editor/${result.resumeId}`, {
+                            state: {
+                              initialResume: { ...result, content: result.resumeText },
+                              analysisResults: result
+                            }
+                          });
+                        }}
                         style={{
                           padding: '1.25rem', borderRadius: '1rem', border: 'none', fontWeight: '700', cursor: 'pointer',
                           background: theme.primary, color: 'white'

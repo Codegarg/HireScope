@@ -66,6 +66,30 @@ export const updateResume = async (req, res) => {
     }
 };
 
+// --- Versioning ---
+export const createResumeVersion = async (req, res) => {
+    try {
+        const { resumeId, content, feedback } = req.body;
+
+        const resume = await Resume.findOne({ _id: resumeId, user: req.user.id });
+        if (!resume) return res.status(404).json({ message: "Resume not found" });
+
+        resume.versions.push({
+            content,
+            feedback: feedback || "Manual save",
+            createdAt: new Date()
+        });
+
+        resume.currentVersionIndex = resume.versions.length - 1;
+        await resume.save();
+
+        res.status(200).json({ success: true, data: resume });
+    } catch (error) {
+        console.error("Version creation error:", error);
+        res.status(500).json({ message: "Error creating version" });
+    }
+};
+
 // --- AI Methods ---
 export const rewriteSection = async (req, res) => {
     const { sectionText, instructions } = req.body;
@@ -75,4 +99,74 @@ export const rewriteSection = async (req, res) => {
         { role: "user", content: `Rewrite: ${sectionText}. Focus: ${instructions}` }
     ];
     await callCloudflareAIStreaming(messages, res);
+};
+
+export const getInterviewPrep = async (req, res) => {
+    try {
+        const { resumeText, companyName } = req.body;
+
+        if (!resumeText || !companyName) {
+            return res.status(400).json({ message: "Resume text and company name required" });
+        }
+
+        const prepContent = await generateInterviewPrep(resumeText, companyName);
+
+        res.status(200).json({
+            success: true,
+            data: prepContent
+        });
+    } catch (error) {
+        console.error("Interview prep error:", error);
+        res.status(500).json({ message: "Error generating interview prep" });
+    }
+};
+
+export const improveResume = async (req, res) => {
+    try {
+        const { content } = req.body;
+
+        if (!content) {
+            return res.status(400).json({ message: "Resume content required" });
+        }
+
+        res.setHeader('Content-Type', 'text/event-stream');
+
+        const messages = [
+            {
+                role: "system",
+                content: "You are a Master Resume Writer and ATS Strategist. Rewrite resumes for maximum impact."
+            },
+            {
+                role: "user",
+                content: `Rewrite this resume for maximum impact, professional tone, and ATS compatibility. Use strong action verbs and quantifiable metrics:\n\n${content}`
+            }
+        ];
+
+        await callCloudflareAIStreaming(messages, res);
+    } catch (error) {
+        console.error("Improvement error:", error);
+        res.write(`data: ${JSON.stringify({ error: "Error improving resume" })}\n\n`);
+        res.end();
+    }
+};
+
+// --- PDF Download ---
+export const downloadResumePDF = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const resume = await Resume.findOne({ _id: id, user: req.user.id });
+        if (!resume) return res.status(404).json({ message: "Resume not found" });
+
+        // Dynamically import the PDF generator
+        const { generateResumePDF } = await import("../services/pdfGenerator.service.js");
+        const pdfBuffer = await generateResumePDF(resume);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${resume.title || 'resume'}.pdf"`);
+        res.send(pdfBuffer);
+    } catch (error) {
+        console.error("PDF generation error:", error);
+        res.status(500).json({ message: "Error generating PDF" });
+    }
 };

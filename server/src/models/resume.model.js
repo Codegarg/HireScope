@@ -1,17 +1,17 @@
 import mongoose from 'mongoose';
 
 const resumeSchema = new mongoose.Schema({
-    user: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User', 
-        required: true 
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
-    title: { 
-        type: String, 
-        required: true, 
-        default: 'My Resume' 
+    title: {
+        type: String,
+        required: true,
+        default: 'My Resume'
     },
-    
+
     // Core Sections
     personalInfo: {
         fullName: { type: String, default: "" },
@@ -69,7 +69,27 @@ const resumeSchema = new mongoose.Schema({
     languages: [{
         language: String,
         proficiency: String // e.g., Native, Professional
-    }]
+    }],
+
+    // Versioning Support
+    originalContent: {
+        type: String,
+        default: ""
+    },
+
+    versions: [{
+        content: String,
+        feedback: String,
+        createdAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+
+    currentVersionIndex: {
+        type: Number,
+        default: 0
+    }
 
 }, { timestamps: true });
 
