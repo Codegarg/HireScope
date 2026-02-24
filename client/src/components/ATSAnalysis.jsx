@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, CheckCircle, BarChart3, Loader2, Upload, RefreshCw, Target } from 'lucide-react';
+import { AlertTriangle, CheckCircle, BarChart3, Loader2, Upload, RefreshCw, Target, X } from 'lucide-react';
 import API from '../services/api';
 
 /* ─────────────────────────────────────────────
@@ -11,9 +11,9 @@ const ScoreRing = ({ score }) => {
   const circumference = 2 * Math.PI * radius;
   const filled = circumference - (score / 100) * circumference;
 
-  const scoreColor = score >= 70 ? 'var(--success-light)'
+  const scoreColor = score >= 70 ? 'var(--success)'
     : score >= 50 ? 'var(--warning)'
-      : 'var(--error-light)';
+      : 'var(--error)';
 
   const glowColor = score >= 70 ? 'rgba(52,211,153,0.4)'
     : score >= 50 ? 'rgba(245,158,11,0.4)'
@@ -84,7 +84,7 @@ const ProgressBar = ({ label, value, color, delay = 0 }) => (
 /* ─────────────────────────────────────────────
    Main ATSAnalysis Component
    ───────────────────────────────────────────── */
-const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, resumeContent, onAnalysisComplete }) => {
+const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, resumeContent, onAnalysisComplete, onClose }) => {
   const [jobDescription, setJobDescription] = useState(value || "");
 
   // Helper to normalize data structure between "Simple" (Home) and "Advanced" (Editor) engines
@@ -202,8 +202,8 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
   const getBreakdown = (score) => {
     const base = Math.max(0, score - 10);
     return [
-      { label: 'Keyword Match', value: Math.min(100, base + 15), color: 'var(--primary-light)', delay: 0.3 },
-      { label: 'Skills Alignment', value: Math.min(100, base + 8), color: 'var(--success-light)', delay: 0.45 },
+      { label: 'Keyword Match', value: Math.min(100, base + 15), color: 'var(--primary)', delay: 0.3 },
+      { label: 'Skills Alignment', value: Math.min(100, base + 8), color: 'var(--success)', delay: 0.45 },
       { label: 'Format Score', value: Math.min(100, base + 12), color: 'var(--warning)', delay: 0.6 },
     ];
   };
@@ -225,26 +225,44 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{ padding: '0.4rem', borderRadius: '0.5rem', background: 'rgba(124,58,237,0.15)' }}>
-            <BarChart3 size={18} color="var(--primary-light)" />
+            <BarChart3 size={18} color="var(--primary)" />
           </div>
           <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)' }}>ATS Optimizer</h3>
         </div>
-        {analysis && (
-          <button
-            onClick={resetAnalysis}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '0.35rem',
-              background: 'transparent', border: '1px solid var(--border)',
-              color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '600',
-              padding: '0.3rem 0.7rem', borderRadius: '0.5rem', cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-sub)'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-          >
-            <RefreshCw size={12} /> New Analysis
-          </button>
-        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {analysis && (
+            <button
+              onClick={resetAnalysis}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.35rem',
+                background: 'transparent', border: '1px solid var(--border)',
+                color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '600',
+                padding: '0.3rem 0.7rem', borderRadius: '0.5rem', cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-sub)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              <RefreshCw size={12} /> New Analysis
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                color: 'var(--text-muted)', padding: '0.4rem', borderRadius: '0.5rem',
+                cursor: 'pointer', transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -351,8 +369,8 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
 
               {/* Formatting Issues */}
               {analysis.analysis.formattingIssues.length > 0 && (
-                <div style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 'var(--radius-sm)' }}>
-                  <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--error-light)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                <div style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--error)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
                     <AlertTriangle size={14} /> Formatting Alerts
                   </h4>
                   {analysis.analysis.formattingIssues.map((issue, i) => (
@@ -363,8 +381,8 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
 
               {/* Strengths */}
               {analysis.analysis.strengths.length > 0 && (
-                <div style={{ padding: '1rem', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 'var(--radius-sm)' }}>
-                  <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--success-light)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                <div style={{ padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
                     <CheckCircle size={14} /> Profile Strengths
                   </h4>
                   {analysis.analysis.strengths.map((strength, i) => (

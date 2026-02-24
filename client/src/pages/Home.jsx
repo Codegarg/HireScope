@@ -95,7 +95,7 @@ const Home = () => {
     if (!jdText.trim() && !jdFile) { setValidationError("Please provide a Job Description (paste text or upload file)."); return; }
     const formData = new FormData();
     formData.append("resume", resume);
-    if (jdFile) formData.append("jdFile", jdFile);
+    if (jdFile) formData.append("jd", jdFile);
     if (jdText) formData.append("jdText", jdText);
     try {
       setLoading(true);
@@ -136,16 +136,6 @@ const Home = () => {
             transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
             style={{ textAlign: 'center', maxWidth: '860px', margin: '2rem auto 5rem' }}
           >
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1 }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem', padding: '0.4rem 1rem 0.4rem 0.6rem', background: 'rgba(124,58,237,0.12)', border: '1px solid var(--primary)', borderRadius: '9999px', color: 'var(--primary-light)', fontSize: '0.8rem', fontWeight: '700' }}
-            >
-              <Sparkles size={14} style={{ color: 'var(--primary)' }} />
-              AI-Powered ATS Analysis — Free to Try
-            </motion.div>
 
             <h1 style={{ fontSize: 'clamp(2.75rem, 7vw, 4.75rem)', fontWeight: '800', lineHeight: '1.08', marginBottom: '1.5rem', fontFamily: "'Outfit', sans-serif", letterSpacing: '-0.04em' }}>
               Elevate Your{' '}
@@ -346,14 +336,14 @@ const Home = () => {
                     {analysisSections && (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
                         {analysisSections.strengths.length > 0 && (
-                          <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: 'var(--success-light)' }}>
+                          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: 'var(--success)' }}>
                               <TrendingUp size={16} /><h3 style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Strengths</h3>
                             </div>
                             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                               {analysisSections.strengths.map((item, i) => (
-                                <li key={i} style={{ display: 'flex', gap: '0.6rem', fontSize: '0.875rem', color: '#d1fae5', lineHeight: '1.5' }}>
-                                  <CheckCircle size={14} style={{ marginTop: '0.15rem', flexShrink: 0, color: 'var(--success-light)' }} /><span>{item}</span>
+                                <li key={i} style={{ display: 'flex', gap: '0.6rem', fontSize: '0.875rem', color: 'var(--text-sub)', lineHeight: '1.5' }}>
+                                  <CheckCircle size={14} style={{ marginTop: '0.15rem', flexShrink: 0, color: 'var(--success)' }} /><span>{item}</span>
                                 </li>
                               ))}
                             </ul>
@@ -361,14 +351,14 @@ const Home = () => {
                         )}
 
                         {analysisSections.weaknesses.length > 0 && (
-                          <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: 'var(--error-light)' }}>
+                          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: 'var(--error)' }}>
                               <TrendingDown size={16} /><h3 style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Improvements</h3>
                             </div>
                             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                               {analysisSections.weaknesses.map((item, i) => (
-                                <li key={i} style={{ display: 'flex', gap: '0.6rem', fontSize: '0.875rem', color: '#fee2e2', lineHeight: '1.5' }}>
-                                  <AlertCircle size={14} style={{ marginTop: '0.15rem', flexShrink: 0, color: 'var(--error-light)' }} /><span>{item}</span>
+                                <li key={i} style={{ display: 'flex', gap: '0.6rem', fontSize: '0.875rem', color: 'var(--text-sub)', lineHeight: '1.5' }}>
+                                  <AlertCircle size={14} style={{ marginTop: '0.15rem', flexShrink: 0, color: 'var(--error)' }} /><span>{item}</span>
                                 </li>
                               ))}
                             </ul>
@@ -379,14 +369,14 @@ const Home = () => {
 
                     {/* Tips */}
                     {analysisSections && analysisSections.tips.length > 0 && (
-                      <div style={{ background: 'rgba(79,70,229,0.06)', border: '1px solid rgba(79,70,229,0.2)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: '#818cf8' }}>
+                      <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: 'var(--primary-light)' }}>
                           <Lightbulb size={16} /><h3 style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Actionable Tips</h3>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                           {analysisSections.tips.map((item, i) => (
-                            <div key={i} style={{ display: 'flex', gap: '0.6rem', padding: '0.75rem', background: 'rgba(79,70,229,0.1)', borderRadius: '0.6rem', fontSize: '0.875rem', color: '#e0e7ff', lineHeight: '1.5' }}>
-                              <span style={{ fontWeight: '700', color: '#818cf8', flexShrink: 0 }}>{i + 1}.</span><span>{item}</span>
+                            <div key={i} style={{ display: 'flex', gap: '0.6rem', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.6rem', fontSize: '0.875rem', color: 'var(--text-sub)', lineHeight: '1.5' }}>
+                              <span style={{ fontWeight: '700', color: 'var(--primary-light)', flexShrink: 0 }}>{i + 1}.</span><span>{item}</span>
                             </div>
                           ))}
                         </div>
@@ -419,48 +409,41 @@ const Home = () => {
       </main>
 
       {/* Floating AI Assistant */}
-      <AnimatePresence>
-        {result && (
-          <motion.div
-            initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            style={{ position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000 }}
-          >
-            <AnimatePresence mode="wait">
-              {!showChat ? (
-                <motion.button
-                  key="chat-trigger"
-                  initial={{ opacity: 0, rotate: -45 }} animate={{ opacity: 1, rotate: 0 }} exit={{ opacity: 0, rotate: 45 }}
-                  whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                  onClick={() => setShowChat(true)}
-                  className="animate-glow"
-                  style={{ width: '62px', height: '62px', borderRadius: '50%', background: 'var(--gradient-primary)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 8px 32px var(--primary-glow)' }}
-                >
-                  <Bot size={28} />
-                </motion.button>
-              ) : (
-                <motion.div
-                  key="chat-window"
-                  initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                  style={{ width: '420px', height: '580px', background: 'var(--nav-bg)', backdropFilter: 'var(--blur)', WebkitBackdropFilter: 'var(--blur)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}
-                >
-                  <div style={{ padding: '1rem 1.5rem', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success-light)' }} />
-                      <span style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--primary-light)' }}>AI ASSISTANT</span>
-                    </div>
-                    <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex' }}>
-                      <X size={18} />
-                    </button>
-                  </div>
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <AIAssistant context={{ resumeText: result?.resumeText, jdText: result?.jdText, atsResult: result }} />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div style={{ position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000 }}>
+        <AnimatePresence mode="wait">
+          {!showChat ? (
+            <motion.button
+              key="chat-trigger"
+              initial={{ opacity: 0, rotate: -45 }} animate={{ opacity: 1, rotate: 0 }} exit={{ opacity: 0, rotate: 45 }}
+              whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+              onClick={() => setShowChat(true)}
+              className="animate-glow"
+              style={{ width: '62px', height: '62px', borderRadius: '50%', background: 'var(--gradient-primary)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 8px 32px var(--primary-glow)' }}
+            >
+              <Bot size={28} />
+            </motion.button>
+          ) : (
+            <motion.div
+              key="chat-window"
+              initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              style={{ width: '420px', height: '580px', background: 'var(--nav-bg)', backdropFilter: 'var(--blur)', WebkitBackdropFilter: 'var(--blur)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}
+            >
+              <div style={{ padding: '1rem 1.5rem', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success-light)' }} />
+                  <span style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--primary-light)' }}>AI ASSISTANT</span>
+                </div>
+                <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex' }}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <AIAssistant context={result ? { resumeText: result?.resumeText, jdText: result?.jdText, atsResult: result } : {}} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Responsive styles for Home */}
       <style>{`

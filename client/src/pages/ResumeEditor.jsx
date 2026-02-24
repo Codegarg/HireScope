@@ -1478,7 +1478,7 @@ const ResumeEditor = () => {
                         whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
                         onClick={() => setShowChat(true)}
                         style={{
-                            position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000,
+                            position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 5000,
                             width: '62px', height: '62px', borderRadius: '50%',
                             background: 'var(--gradient-primary)',
                             border: 'none', color: 'white',
@@ -1495,7 +1495,7 @@ const ResumeEditor = () => {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
                         style={{
-                            position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000,
+                            position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 5000,
                             width: '420px', height: '580px',
                             background: 'var(--nav-bg)',
                             backdropFilter: 'var(--blur)', WebkitBackdropFilter: 'var(--blur)',
@@ -1533,7 +1533,7 @@ const ResumeEditor = () => {
                 {showATS && (
                     <div style={{
                         position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-                        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)', zIndex: 100,
+                        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)', zIndex: 5000,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem'
                     }}>
                         <motion.div
@@ -1542,17 +1542,6 @@ const ResumeEditor = () => {
                             exit={{ opacity: 0, scale: 0.95 }}
                             style={{ width: '100%', maxWidth: '600px', position: 'relative' }}
                         >
-                            <button
-                                onClick={() => setShowATS(false)}
-                                style={{
-                                    position: 'absolute', top: '-1rem', right: '-1rem',
-                                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '50%',
-                                    width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    color: 'var(--text-sub)', cursor: 'pointer', backdropFilter: 'var(--blur)'
-                                }}
-                            >
-                                <X size={16} />
-                            </button>
                             <ATSAnalysis
                                 resumeId={id}
                                 value={jobDescription}
@@ -1565,6 +1554,7 @@ const ResumeEditor = () => {
                                         setResume(prev => ({ ...prev, atsScore: data.score }));
                                     }
                                 }}
+                                onClose={() => setShowATS(false)}
                             />
                         </motion.div>
                     </div>

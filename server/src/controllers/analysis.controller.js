@@ -35,8 +35,13 @@ export const analyzeResume = async (req, res) => {
 
     const atsResult = calculateATSScore(resumeText, jdText);
 
-    // Generate AI suggestions
-    const aiSuggestions = await generateSuggestions(resumeText, jdText, atsResult);
+    // Generate AI suggestions — non-fatal: if AI is down, analysis still succeeds
+    let aiSuggestions = [];
+    try {
+      aiSuggestions = await generateSuggestions(resumeText, jdText, atsResult);
+    } catch (aiErr) {
+      console.warn("[analyzeResume] AI suggestions skipped:", aiErr.message);
+    }
 
     // Auto-save resume if user is logged in
     let savedResumeId = null;

@@ -17,16 +17,6 @@ const AIAssistant = ({ context, hideHeader = false }) => {
     const [isLoading, setIsLoading] = useState(false);
     const chatEndRef = useRef(null);
 
-    const theme = {
-        primary: '#7c3aed',
-        primaryLight: '#a78bfa',
-        secondary: '#4f46e5',
-        glassBg: 'rgba(255, 255, 255, 0.05)',
-        glassBorder: 'rgba(255, 255, 255, 0.1)',
-        textMuted: '#94a3b8',
-        sidebarBg: 'rgba(15, 23, 42, 0.95)', // Darker background for sidebar
-    };
-
     // Load chat list on mount
     useEffect(() => {
         loadChats();
@@ -124,22 +114,6 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                 if (done) break;
 
                 const text = decoder.decode(value);
-                // The backend sends raw text chunks, potentially prefixed with "data: " or JSON if we kept SSE format.
-                // Our updated service sends raw chunks via res.write(chunk). 
-                // However, Cloudflare sends "data: {...json...}" so our service forwards that.
-                // Wait, in ai.service.js we modified it to res.write(chunk) -- chunk is "data: ..." from Cloudflare.
-                // The client side needs to parse these "data: " lines same as the service does.
-                // OR we should have parsed it in the service and sent raw text?
-                // The service implementation:
-                /* 
-                   const lines = chunk.split('\n');
-                   ...
-                   if (json.response) fullResponse += json.response;
-                   ...
-                   res.write(chunk); // WRITES RAW CLOUDFLARE CHUNK
-                */
-                // So frontend receives "data: {...}" strings. We must parse here too!
-
                 const lines = text.split('\n');
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
@@ -188,12 +162,10 @@ const AIAssistant = ({ context, hideHeader = false }) => {
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'transparent', position: 'relative', overflow: 'hidden' }}>
 
             {/* Header */}
-
-
             <div style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(0,0,0,0.2)',
-                borderBottom: `1px solid ${theme.glassBorder}`,
+                background: 'var(--bg-elevated)',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '1rem',
@@ -201,22 +173,22 @@ const AIAssistant = ({ context, hideHeader = false }) => {
             }}>
                 <button
                     onClick={() => setShowSidebar(!showSidebar)}
-                    style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.25rem' }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.25rem' }}
                     title={showSidebar ? "Close History" : "View History"}
                 >
                     {showSidebar ? <PanelLeftClose size={20} /> : <PanelLeft size={20} />}
                 </button>
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                    <span style={{ fontWeight: '700', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ fontWeight: '700', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-main)' }}>
                         {currentChatId ? (chats.find(c => c._id === currentChatId)?.title || 'Conversation') : 'New Chat'}
                     </span>
-                    <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>AI Assistant</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>AI Assistant</span>
                 </div>
 
                 {/* New Chat Action in Header */}
                 <button
                     onClick={startNewChat}
-                    style={{ background: theme.primary, border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer', boxShadow: '0 2px 8px rgba(124, 58, 237, 0.4)' }}
+                    style={{ background: 'var(--primary)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer', boxShadow: '0 2px 8px var(--primary-glow)' }}
                     title="Start New Chat"
                 >
                     <Plus size={16} />
@@ -240,36 +212,35 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                                 left: 0,
                                 width: '260px',
                                 height: '100%',
-                                background: theme.sidebarBg,
-                                borderRight: `1px solid ${theme.glassBorder}`,
-                                backdropFilter: 'blur(20px)',
+                                background: 'var(--nav-bg)',
+                                borderRight: '1px solid var(--border)',
+                                backdropFilter: 'var(--blur)',
                                 zIndex: 100,
                                 display: 'flex',
                                 flexDirection: 'column',
-                                boxShadow: '4px 0 15px rgba(0,0,0,0.5)'
+                                boxShadow: 'var(--shadow-lg)'
                             }}
                         >
-                            <div style={{ padding: '1rem', borderBottom: `1px solid ${theme.glassBorder}`, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                 <button
                                     onClick={() => setShowSidebar(false)}
-                                    style={{ background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.25rem' }}
-                                    className="hover:text-white"
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.25rem' }}
                                 >
                                     <PanelLeftClose size={20} />
                                 </button>
                                 <button
                                     onClick={startNewChat}
-                                    style={{ flex: 1, padding: '0.6rem', background: theme.primary, border: 'none', borderRadius: '0.5rem', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}
+                                    style={{ flex: 1, padding: '0.6rem', background: 'var(--primary)', border: 'none', borderRadius: '0.5rem', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}
                                 >
                                     <Plus size={16} /> New Chat
                                 </button>
                             </div>
 
                             <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }}>
-                                <h4 style={{ fontSize: '0.7rem', color: theme.textMuted, marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '700', paddingLeft: '0.25rem' }}>History</h4>
+                                <h4 style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '700', paddingLeft: '0.25rem' }}>History</h4>
 
                                 {chats.length === 0 ? (
-                                    <div style={{ textAlign: 'center', color: theme.textMuted, marginTop: '2rem', fontSize: '0.8rem' }}>
+                                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem', fontSize: '0.8rem' }}>
                                         No history yet.
                                     </div>
                                 ) : (
@@ -280,29 +251,27 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                                                 onClick={() => loadChatDetails(chat._id)}
                                                 style={{
                                                     padding: '0.6rem 0.75rem',
-                                                    background: currentChatId === chat._id ? 'rgba(124, 58, 237, 0.2)' : 'transparent',
+                                                    background: currentChatId === chat._id ? 'var(--primary-glow)' : 'transparent',
                                                     borderRadius: '0.5rem',
                                                     cursor: 'pointer',
                                                     display: 'flex',
                                                     justifyContent: 'space-between',
                                                     alignItems: 'center',
                                                     transition: 'all 0.2s',
-                                                    border: currentChatId === chat._id ? `1px solid ${theme.primary}44` : '1px solid transparent'
+                                                    border: currentChatId === chat._id ? '1px solid var(--primary)' : '1px solid transparent'
                                                 }}
-                                                className="hover:bg-white/5"
                                             >
                                                 <div style={{ overflow: 'hidden', flex: 1, marginRight: '0.5rem' }}>
-                                                    <div style={{ fontSize: '0.85rem', color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                         {chat.title}
                                                     </div>
-                                                    <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                                                         {new Date(chat.updatedAt).toLocaleDateString()}
                                                     </div>
                                                 </div>
                                                 <button
                                                     onClick={(e) => deleteChat(e, chat._id)}
-                                                    style={{ padding: '4px', background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', opacity: 0.5 }}
-                                                    className="hover:text-red-400 hover:opacity-100"
+                                                    style={{ padding: '4px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.5 }}
                                                 >
                                                     <Trash2 size={13} />
                                                 </button>
@@ -345,9 +314,9 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                                 borderRadius: '1rem',
                                 fontSize: '0.9rem',
                                 lineHeight: '1.5',
-                                backgroundColor: msg.role === 'user' ? theme.primary : 'rgba(255,255,255,0.08)',
-                                color: 'white',
-                                border: msg.role === 'user' ? 'none' : `1px solid ${theme.glassBorder}`,
+                                backgroundColor: msg.role === 'user' ? 'var(--primary)' : 'var(--bg-elevated)',
+                                color: msg.role === 'user' ? 'white' : 'var(--text-main)',
+                                border: msg.role === 'user' ? 'none' : '1px solid var(--border)',
                                 borderBottomRightRadius: msg.role === 'user' ? '0.2rem' : '1rem',
                                 borderBottomLeftRadius: msg.role === 'user' ? '1rem' : '0.2rem',
                                 whiteSpace: 'pre-wrap'
@@ -361,7 +330,7 @@ const AIAssistant = ({ context, hideHeader = false }) => {
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSendMessage} style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', borderTop: `1px solid ${theme.glassBorder}`, zIndex: 20 }}>
+            <form onSubmit={handleSendMessage} style={{ padding: '1rem', background: 'var(--bg-card)', borderTop: '1px solid var(--border)', zIndex: 20 }}>
                 <div style={{ display: 'flex', gap: '0.6rem' }}>
                     <input
                         type="text"
@@ -370,11 +339,11 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                         placeholder="Ask for career advice..."
                         style={{
                             flex: 1,
-                            background: 'rgba(255,255,255,0.05)',
-                            border: `1px solid ${theme.glassBorder}`,
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--border)',
                             borderRadius: '0.75rem',
                             padding: '0.7rem 1rem',
-                            color: 'white',
+                            color: 'var(--text-main)',
                             outline: 'none',
                             fontSize: '0.9rem'
                         }}
@@ -384,7 +353,7 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                         disabled={isLoading}
                         style={{
                             padding: '0 1.2rem',
-                            background: theme.primary,
+                            background: 'var(--primary)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '0.75rem',
@@ -393,7 +362,8 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                             opacity: isLoading ? 0.5 : 1,
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            boxShadow: 'var(--primary-glow)'
                         }}
                     >
                         <Send size={18} />

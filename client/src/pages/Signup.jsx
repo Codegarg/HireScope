@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { User as UserIcon, Mail, Lock, UserPlus, AlertCircle, Github, Chrome, Eye, EyeOff } from "lucide-react";
+import { User as UserIcon, Mail, Lock, UserPlus, AlertCircle, Github, Chrome, Eye, EyeOff, FileCheck, Search, Zap } from "lucide-react";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
 
@@ -30,10 +30,10 @@ const Signup = () => {
     }
   };
 
-  const stats = [
-    { value: '10k+', label: 'Resumes optimized' },
-    { value: '85%', label: 'Interview rate increase' },
-    { value: '4.9', label: 'User satisfaction' },
+  const benefits = [
+    { icon: <FileCheck size={24} />, label: 'Smart ATS Check' },
+    { icon: <Search size={24} />, label: 'Keyword Analysis' },
+    { icon: <Zap size={24} />, label: 'Instant Feedback' },
   ];
 
   return (
@@ -53,26 +53,28 @@ const Signup = () => {
             </div>
 
             <h2 style={{ fontSize: 'clamp(2rem, 3.5vw, 2.75rem)', fontWeight: '800', lineHeight: '1.15', marginBottom: '1.25rem', fontFamily: "'Outfit', sans-serif" }}>
-              Your career<br />
-              <span style={{ background: 'var(--gradient-hero)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>starts here.</span>
+              Build a<br />
+              <span style={{ background: 'var(--gradient-hero)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>better resume.</span>
             </h2>
 
             <p style={{ color: 'var(--text-muted)', fontSize: '1rem', lineHeight: '1.7', marginBottom: '3rem' }}>
-              Join thousands of job seekers who use HireScope to beat the ATS and land interviews faster.
+              Optimize your profile against job descriptions and improve your visibility to employers.
             </p>
 
             {/* Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.25rem' }}>
-              {stats.map(({ value, label }, i) => (
+              {benefits.map(({ icon, label }, i) => (
                 <motion.div
                   key={label}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 + i * 0.1 }}
-                  style={{ padding: '1rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', textAlign: 'center' }}
+                  style={{ padding: '1.25rem 1rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}
                 >
-                  <div style={{ fontSize: '1.75rem', fontWeight: '800', background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: "'Outfit', sans-serif" }}>{value}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.25rem' }}>{label}</div>
+                  <div style={{ color: 'var(--primary)', background: 'rgba(124,58,237,0.1)', padding: '0.5rem', borderRadius: '0.75rem', display: 'flex' }}>
+                    {icon}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', lineHeight: '1.3' }}>{label}</div>
                 </motion.div>
               ))}
             </div>

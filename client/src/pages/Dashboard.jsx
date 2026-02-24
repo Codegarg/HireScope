@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import {
     FileText, Sparkles, ArrowRight, TrendingUp,
-    Plus, Target, Bot, X, Loader2
+    Plus, Target, Bot, X, Loader2, ArrowLeft
 } from 'lucide-react';
 import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
@@ -209,6 +209,21 @@ const Dashboard = () => {
             <Navbar />
 
             <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '8rem 1.5rem 5rem', position: 'relative', zIndex: 1 }}>
+
+                {/* Navigation / Back Button */}
+                <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    style={{ marginBottom: '1.5rem' }}
+                >
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="ghost-btn"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}
+                    >
+                        <ArrowLeft size={16} /> Back
+                    </button>
+                </motion.div>
 
                 {/* Header */}
                 <motion.div

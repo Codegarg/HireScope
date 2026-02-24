@@ -42,10 +42,10 @@ const Login = () => {
   };
 
   const features = [
-    "AI-powered ATS score analysis",
-    "Smart keyword optimization",
-    "Side-by-side job match insights",
-    "Magic AI resume improvement",
+    "ATS score analysis",
+    "Keyword optimization",
+    "Job match insights",
+    "Tailored resume suggestions",
   ];
 
   return (
@@ -68,13 +68,12 @@ const Login = () => {
             </div>
 
             <h2 style={{ fontSize: 'clamp(2rem, 3.5vw, 2.75rem)', fontWeight: '800', lineHeight: '1.15', marginBottom: '1.25rem', fontFamily: "'Outfit', sans-serif", color: 'var(--text-main)' }}>
-              Land your<br />
-              <span style={{ background: 'var(--gradient-hero)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>dream job</span><br />
-              faster.
+              Refine your resume.<br />
+              <span style={{ background: 'var(--gradient-hero)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Land the interview.</span>
             </h2>
 
             <p style={{ color: 'var(--text-muted)', fontSize: '1rem', lineHeight: '1.7', marginBottom: '2.5rem' }}>
-              Join thousands of professionals using HireScope to optimize resumes and beat the ATS.
+              Use HireScope's ATS insights to help your profile stand out to recruiters.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
