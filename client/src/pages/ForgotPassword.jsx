@@ -25,19 +25,39 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div style={{ height: '100vh', backgroundColor: '#030014', color: '#f8fafc', overflow: 'hidden', position: 'relative' }}>
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, background: 'radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.1) 0%, transparent 40%)' }}></div>
-      <div style={{ position: 'relative', zIndex: 10 }}><Navbar /></div>
-      <div style={{ position: 'relative', zIndex: 5, display: 'grid', placeItems: 'center', height: '100vh' }}>
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-          style={{ borderRadius: '1.25rem', width: '100%', maxWidth: '400px', padding: '2.5rem 2rem', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', backdropFilter: 'blur(10px)' }}>
-          <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '1rem' }}>Recover Password</h2>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.5rem' }}>We'll send a reset link to your email.</p>
+    <div className="page-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div className="ambient-bg" />
+      <Navbar />
+
+      <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: '8rem 1.5rem 3rem' }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+          className="glass-card"
+          style={{ width: '100%', maxWidth: '420px', padding: '2.5rem' }}
+        >
+          {/* Icon */}
+          <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(124,58,237,0.12)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+            <Mail size={24} color="var(--primary-light)" />
+          </div>
+
+          <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Outfit', sans-serif" }}>Recover Password</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.75rem' }}>
+            We'll send a secure reset link to your email.
+          </p>
 
           <AnimatePresence mode="wait">
             {status.message && (
-              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-                style={{ background: status.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(248, 113, 113, 0.1)', border: `1px solid ${status.type === 'success' ? '#10b981' : '#f87171'}`, borderRadius: '0.75rem', padding: '0.8rem', marginBottom: '1rem', color: status.type === 'success' ? '#34d399' : '#fca5a5', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+              <motion.div
+                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                style={{
+                  background: status.type === 'success' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                  border: `1px solid ${status.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                  borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem', marginBottom: '1.25rem',
+                  color: status.type === 'success' ? 'var(--success-light)' : 'var(--error-light)',
+                  display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem'
+                }}
+              >
                 {status.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
                 <span>{status.message}</span>
               </motion.div>
@@ -45,17 +65,24 @@ const ForgotPassword = () => {
           </AnimatePresence>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ position: 'relative' }}>
-              <Mail style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} size={16} />
-              <input type="email" placeholder="Email Address" required value={email} onChange={(e) => setEmail(e.target.value)}
-                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', padding: '0.8rem 1rem 0.8rem 2.75rem', color: 'white', outline: 'none' }} />
+            <div className="input-icon-wrap">
+              <Mail className="input-icon" size={16} />
+              <input type="email" placeholder="Email Address" required value={email} onChange={(e) => setEmail(e.target.value)} className="premium-input" />
             </div>
-            <button type="submit" disabled={loading} style={{ padding: '0.85rem', borderRadius: '0.75rem', border: 'none', background: '#7c3aed', color: 'white', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+            <button
+              type="submit" disabled={loading}
+              className="glow-btn"
+              style={{ width: '100%', justifyContent: 'center', opacity: loading ? 0.7 : 1 }}
+            >
               {loading ? "Sending..." : "Send Reset Link"}
             </button>
           </form>
-          <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-            <Link to="/login" style={{ color: '#94a3b8', fontSize: '0.85rem', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+
+          <div style={{ marginTop: '1.75rem', textAlign: 'center' }}>
+            <Link to="/login" style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', transition: 'color 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-main)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+            >
               <ArrowLeft size={14} /> Back to Login
             </Link>
           </div>

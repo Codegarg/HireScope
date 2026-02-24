@@ -1061,10 +1061,11 @@ const ResumeEditor = () => {
     };
 
     if (!resume) return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#030014', color: '#fff', display: 'grid', placeItems: 'center' }}>
-            <div style={{ textAlign: 'center' }}>
-                <div style={{ width: '48px', height: '48px', border: '3px solid #7c3aed', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 1rem' }} />
-                <p style={{ color: '#94a3b8' }}>Loading editor...</p>
+        <div className="page-wrapper" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+            <div className="ambient-bg" />
+            <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+                <div style={{ width: '52px', height: '52px', border: '3px solid var(--primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 1rem', boxShadow: '0 0 20px var(--primary-glow)' }} />
+                <p style={{ color: 'var(--text-muted)', fontWeight: '600' }}>Loading editor...</p>
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
         </div>
@@ -1074,7 +1075,7 @@ const ResumeEditor = () => {
     const saveStatusLabel = saveStatus === 'saved' ? '✓ Saved' : saveStatus === 'saving' ? '⏳ Saving...' : '● Unsaved';
 
     return (
-        <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#030014', color: '#f8fafc', overflow: 'hidden' }}>
+        <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-deep)', color: 'var(--text-main)', overflow: 'hidden' }}>
             <Navbar />
 
             {/* Spacer for fixed floating navbar (~80px from top + navbar pill height) */}
@@ -1083,34 +1084,36 @@ const ResumeEditor = () => {
             {/* Top toolbar — always visible, never scrolls */}
             <div style={{
                 flexShrink: 0, zIndex: 50,
-                background: 'rgba(3, 0, 20, 0.97)', backdropFilter: 'blur(16px)',
-                borderBottom: '1px solid rgba(255,255,255,0.07)',
+                background: 'var(--nav-bg)', backdropFilter: 'var(--blur)',
+                WebkitBackdropFilter: 'var(--blur)',
+                borderBottom: '1px solid var(--border)',
                 padding: '0.75rem 2rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap'
             }}>
                 <button
                     onClick={() => navigate(-1)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '0.6rem', padding: '0.5rem 1rem', color: '#f8fafc', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                    className="ghost-btn"
+                    style={{ fontSize: '0.85rem' }}
                 >
                     <ArrowLeft size={15} /> Back
                 </button>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: '800', fontSize: '1rem', color: '#f8fafc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>
                         {resume?.title || 'Resume Editor'}
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: saveStatusColor, fontWeight: '600' }}>{saveStatusLabel}</div>
+                    <div style={{ fontSize: '0.72rem', color: saveStatusColor, fontWeight: '600', marginTop: '1px' }}>{saveStatusLabel}</div>
                 </div>
 
                 {/* Template Selector */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 1rem', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 1rem', borderLeft: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template</span>
                     <select
                         value={selectedTemplate}
                         onChange={(e) => setSelectedTemplate(e.target.value)}
-                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', padding: '0.4rem 0.75rem', color: '#f8fafc', fontSize: '0.8rem', fontWeight: '600', outline: 'none', cursor: 'pointer' }}
+                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '0.4rem 0.75rem', color: 'var(--text-main)', fontSize: '0.8rem', fontWeight: '600', outline: 'none', cursor: 'pointer' }}
                     >
                         {Object.values(TEMPLATE_CONFIGS).map(t => (
-                            <option key={t.id} value={t.id} style={{ background: '#030014' }}>{t.name}</option>
+                            <option key={t.id} value={t.id} style={{ background: 'var(--bg-surface)' }}>{t.name}</option>
                         ))}
                     </select>
                 </div>
@@ -1118,7 +1121,6 @@ const ResumeEditor = () => {
                 {/* ATS Optimizer Button */}
                 <button
                     onClick={() => {
-                        // Ensure saved before analyzing
                         if (saveStatus !== 'saved') {
                             autoSave(currentContent);
                             setSaveStatus('saved');
@@ -1127,21 +1129,20 @@ const ResumeEditor = () => {
                     }}
                     style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        background: 'rgba(124, 58, 237, 0.1)', border: '1px solid rgba(124, 58, 237, 0.2)',
-                        borderRadius: '0.6rem', padding: '0.5rem 1rem', color: '#a78bfa',
+                        background: 'rgba(124,58,237,0.08)', border: '1px solid var(--primary-glow)',
+                        borderRadius: '0.6rem', padding: '0.5rem 1rem', color: 'var(--primary-light)',
                         cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600',
                         transition: 'all 0.2s ease'
                     }}
                 >
                     <BarChart3 size={15} /> ATS Match
-                    {atsAnalysis && jobDescription && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80' }} />}
+                    {atsAnalysis && jobDescription && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success-light)' }} />}
                 </button>
 
                 {/* Save manually */}
                 <button
                     onClick={() => {
                         autoSave(currentContent);
-                        // Brief visual feedback if already saved
                         if (saveStatus === 'saved') {
                             setSaveStatus('saving');
                             setTimeout(() => setSaveStatus('saved'), 500);
@@ -1149,18 +1150,13 @@ const ResumeEditor = () => {
                     }}
                     disabled={saveStatus === 'saving'}
                     style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        background: saveStatus === 'unsaved' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255,255,255,0.05)',
-                        border: `1px solid ${saveStatus === 'unsaved' ? '#22c55e' : 'rgba(255,255,255,0.08)'}`,
-                        borderRadius: '0.6rem',
-                        padding: '0.5rem 1rem',
-                        color: saveStatus === 'unsaved' ? '#4ade80' : '#94a3b8',
+                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                        background: saveStatus === 'unsaved' ? 'rgba(16,185,129,0.1)' : 'var(--bg-card)',
+                        border: `1px solid ${saveStatus === 'unsaved' ? 'var(--success)' : 'var(--border)'}`,
+                        borderRadius: '0.6rem', padding: '0.5rem 1rem',
+                        color: saveStatus === 'unsaved' ? 'var(--success-light)' : 'var(--text-muted)',
                         cursor: saveStatus === 'saving' ? 'default' : 'pointer',
-                        fontSize: '0.85rem',
-                        fontWeight: '600',
-                        transition: 'all 0.2s ease'
+                        fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s ease'
                     }}
                 >
                     <Save size={14} /> {saveStatus === 'saved' ? 'Saved' : 'Save'}
@@ -1226,7 +1222,8 @@ const ResumeEditor = () => {
                 <button
                     onClick={handleDownload}
                     disabled={isDownloading}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.25rem', background: isDownloading ? 'rgba(124,58,237,0.2)' : 'linear-gradient(135deg, #7c3aed, #4f46e5)', color: isDownloading ? '#a78bfa' : 'white', borderRadius: '0.6rem', border: 'none', fontWeight: '700', cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem' }}
+                    className="glow-btn"
+                    style={{ opacity: isDownloading ? 0.65 : 1, cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', padding: '0.55rem 1.25rem' }}
                 >
                     <Download size={15} />
                     {isDownloading ? 'Generating...' : 'Download PDF'}
@@ -1248,7 +1245,7 @@ const ResumeEditor = () => {
                 </AnimatePresence>
 
                 {/* Main layout */}
-                <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+                <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '100%' }}>
 
                     {/* ── Resume Preview (A4-style white card) ─────────────────────────── */}
                     <main style={{ flex: 1, minWidth: 0 }}>
@@ -1294,13 +1291,14 @@ const ResumeEditor = () => {
                                     exit={{ opacity: 0, y: 40, x: '-50%' }}
                                     style={{
                                         position: 'fixed', bottom: '2rem', left: '50%',
-                                        background: 'rgba(10,10,20,0.92)', backdropFilter: 'blur(16px)',
-                                        border: '1px solid rgba(124,58,237,0.4)', borderRadius: '1rem',
+                                        background: 'var(--nav-bg)', backdropFilter: 'var(--blur)',
+                                        WebkitBackdropFilter: 'var(--blur)',
+                                        border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-md)',
                                         padding: '1rem 1.5rem', width: '90%', maxWidth: '580px', zIndex: 200,
-                                        boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                                        boxShadow: 'var(--shadow-lg)',
                                     }}
                                 >
-                                    <div style={{ fontSize: '0.7rem', color: '#a78bfa', fontWeight: '700', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--primary-light)', fontWeight: '700', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                                         ✨ Optimize Selected Text
                                     </div>
                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1310,19 +1308,21 @@ const ResumeEditor = () => {
                                             onChange={e => setRewriteInstructions(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && handleRewrite()}
                                             placeholder="E.g. Make it more professional, add metrics..."
-                                            style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.6rem', padding: '0.6rem 1rem', color: 'white', outline: 'none', fontSize: '0.85rem' }}
+                                            className="premium-input"
+                                            style={{ flex: 1, fontSize: '0.85rem' }}
                                         />
                                         <button
                                             onClick={handleRewrite}
                                             disabled={isRewriting || !rewriteInstructions}
-                                            style={{ padding: '0.6rem 1.25rem', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '0.6rem', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
+                                            className="glow-btn"
+                                            style={{ padding: '0.55rem 1.25rem', fontSize: '0.85rem', whiteSpace: 'nowrap', opacity: (isRewriting || !rewriteInstructions) ? 0.6 : 1 }}
                                         >
                                             {isRewriting ? '...' : 'Rewrite'}
                                         </button>
-                                        <button onClick={() => setSelectedText('')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '1.1rem', padding: '0 0.25rem' }}>✕</button>
+                                        <button onClick={() => setSelectedText('')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 0.25rem' }}>✕</button>
                                     </div>
-                                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.4rem' }}>
-                                        Selected: "<span style={{ color: '#94a3b8' }}>{selectedText.slice(0, 60)}{selectedText.length > 60 ? '...' : ''}</span>"
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-faint)', marginTop: '0.4rem' }}>
+                                        Selected: "<span style={{ color: 'var(--text-muted)' }}>{selectedText.slice(0, 60)}{selectedText.length > 60 ? '...' : ''}</span>"
                                     </div>
                                 </motion.div>
                             )}
@@ -1342,30 +1342,32 @@ const ResumeEditor = () => {
                         exit={{ opacity: 0 }}
                         style={{
                             position: 'fixed', inset: 0, zIndex: 5000,
-                            background: '#030014', display: 'flex', flexDirection: 'column'
+                            background: 'var(--bg-deep)', display: 'flex', flexDirection: 'column'
                         }}
                     >
                         <div style={{
                             flexShrink: 0, padding: '1.25rem 2.5rem',
-                            background: 'rgba(3, 0, 20, 0.95)', borderBottom: '1px solid rgba(255,255,255,0.1)',
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(10px)'
+                            background: 'var(--nav-bg)', borderBottom: '1px solid var(--border)',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'var(--blur)'
                         }}>
                             <div>
-                                <h2 style={{ fontSize: '1.25rem', fontWeight: '800', margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                    <Sparkles size={20} color="#f59e0b" /> Highlighted AI Improvements
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: '800', margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.6rem', fontFamily: "'Outfit', sans-serif" }}>
+                                    <Sparkles size={20} color="var(--accent)" /> Highlighted AI Improvements
                                 </h2>
-                                <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>Review the proposed changes before applying them to your resume.</p>
+                                <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Review the proposed changes before applying them to your resume.</p>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem' }}>
                                 <button
                                     onClick={handleRejectImprovement}
-                                    style={{ padding: '0.7rem 1.5rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', borderRadius: '0.6rem', fontWeight: '700', cursor: 'pointer' }}
+                                    className="ghost-btn"
+                                    style={{ padding: '0.7rem 1.5rem' }}
                                 >
                                     Reject All
                                 </button>
                                 <button
                                     onClick={handleAcceptImprovement}
-                                    style={{ padding: '0.7rem 1.5rem', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', border: 'none', color: 'white', borderRadius: '0.6rem', fontWeight: '700', cursor: 'pointer', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}
+                                    className="glow-btn"
+                                    style={{ padding: '0.7rem 1.5rem' }}
                                 >
                                     Accept Changes
                                 </button>
@@ -1374,9 +1376,9 @@ const ResumeEditor = () => {
 
                         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                             {/* Left: Original */}
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '3rem', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '3rem', borderRight: '1px solid var(--border)' }}>
                                 <div style={{ position: 'sticky', top: 0, marginBottom: '1.5rem', textAlign: 'center', zIndex: 10 }}>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'rgba(255,255,255,0.05)', padding: '0.3rem 0.8rem', borderRadius: '1rem', backdropFilter: 'blur(10px)' }}>Original Version</span>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'var(--bg-elevated)', padding: '0.3rem 0.8rem', borderRadius: '9999px', backdropFilter: 'var(--blur)' }}>Original Version</span>
                                 </div>
                                 <div style={{
                                     background: '#ffffff', color: '#000', borderRadius: '0.5rem', padding: '3rem',
@@ -1395,9 +1397,9 @@ const ResumeEditor = () => {
                             </div>
 
                             {/* Right: Improved */}
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '3rem', background: 'rgba(124,58,237,0.02)' }}>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '3rem', background: 'rgba(124,58,237,0.04)' }}>
                                 <div style={{ position: 'sticky', top: 0, marginBottom: '1.5rem', textAlign: 'center', zIndex: 10 }}>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: '800', color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'rgba(124,58,237,0.1)', padding: '0.3rem 0.8rem', borderRadius: '1rem', backdropFilter: 'blur(10px)' }}>✨ Improved Version</span>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--primary-light)', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'rgba(124,58,237,0.15)', padding: '0.3rem 0.8rem', borderRadius: '9999px', backdropFilter: 'var(--blur)', border: '1px solid var(--primary-glow)' }}>✨ Improved Version</span>
                                 </div>
 
                                 {improvementsSummary.length > 0 && (
@@ -1473,16 +1475,15 @@ const ResumeEditor = () => {
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
-                        whileHover={{ scale: 1.1, boxShadow: '0 0 20px rgba(124,58,237,0.5)' }}
-                        whileTap={{ scale: 0.9 }}
+                        whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
                         onClick={() => setShowChat(true)}
                         style={{
                             position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000,
                             width: '62px', height: '62px', borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                            background: 'var(--gradient-primary)',
                             border: 'none', color: 'white',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                            cursor: 'pointer', boxShadow: '0 8px 32px var(--primary-glow)',
                         }}
                     >
                         <Bot size={26} />
@@ -1496,24 +1497,27 @@ const ResumeEditor = () => {
                         style={{
                             position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000,
                             width: '420px', height: '580px',
-                            background: 'rgba(10, 10, 20, 0.92)',
-                            backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-                            borderRadius: '1.5rem',
-                            border: '1px solid rgba(124,58,237,0.35)',
+                            background: 'var(--nav-bg)',
+                            backdropFilter: 'var(--blur)', WebkitBackdropFilter: 'var(--blur)',
+                            borderRadius: 'var(--radius-lg)',
+                            border: '1px solid var(--border)',
                             display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                            boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+                            boxShadow: 'var(--shadow-lg)',
                         }}
                     >
                         <div style={{
                             padding: '1rem 1.5rem',
-                            background: 'rgba(255,255,255,0.02)',
+                            background: 'var(--bg-card)',
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            borderBottom: '1px solid var(--border)',
                         }}>
-                            <span style={{ fontWeight: '700', fontSize: '0.85rem', color: '#a78bfa', letterSpacing: '0.05em' }}>AI ASSISTANT</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success-light)' }} />
+                                <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--primary-light)', letterSpacing: '0.05em' }}>AI ASSISTANT</span>
+                            </div>
                             <button
                                 onClick={() => setShowChat(false)}
-                                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex' }}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex' }}
                             >
                                 <X size={18} />
                             </button>
@@ -1529,7 +1533,7 @@ const ResumeEditor = () => {
                 {showATS && (
                     <div style={{
                         position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-                        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 100,
+                        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)', zIndex: 100,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem'
                     }}>
                         <motion.div
@@ -1542,9 +1546,9 @@ const ResumeEditor = () => {
                                 onClick={() => setShowATS(false)}
                                 style={{
                                     position: 'absolute', top: '-1rem', right: '-1rem',
-                                    background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '50%',
                                     width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    color: 'white', cursor: 'pointer', backdropFilter: 'blur(4px)'
+                                    color: 'var(--text-sub)', cursor: 'pointer', backdropFilter: 'var(--blur)'
                                 }}
                             >
                                 <X size={16} />

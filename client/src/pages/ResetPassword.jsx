@@ -12,48 +12,91 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (password !== confirmPassword) return alert("Passwords do not match");
+    if (password !== confirmPassword) { setError("Passwords do not match."); return; }
     setLoading(true);
+    setError("");
     try {
       await API.post(`/auth/reset-password/${token}`, { password });
       setSuccess(true);
       setTimeout(() => navigate("/login"), 3000);
     } catch (err) {
-      alert(err.response?.data?.message || "Link expired or invalid.");
+      setError(err.response?.data?.message || "Link expired or invalid.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ height: '100vh', backgroundColor: '#030014', color: '#f8fafc', display: 'grid', placeItems: 'center' }}>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        style={{ borderRadius: '1.25rem', width: '100%', maxWidth: '400px', padding: '2.5rem 2rem', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', backdropFilter: 'blur(10px)', textAlign: 'center' }}>
-        
+    <div className="page-wrapper" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '2rem 1.5rem' }}>
+      <div className="ambient-bg" />
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+        className="glass-card"
+        style={{ width: '100%', maxWidth: '420px', padding: '2.5rem', textAlign: 'center', position: 'relative', zIndex: 1 }}
+      >
         {success ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-            <CheckCircle2 size={48} color="#10b981" />
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '800' }}>Password Reset!</h2>
-            <p style={{ color: '#94a3b8' }}>Redirecting to login...</p>
-          </div>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}
+          >
+            <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'rgba(16,185,129,0.12)', border: '1px solid var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle2 size={36} color="var(--success-light)" />
+            </div>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', fontFamily: "'Outfit', sans-serif" }}>Password Reset!</h2>
+            <p style={{ color: 'var(--text-muted)' }}>Redirecting you to login…</p>
+            <div style={{ width: '100%', height: '4px', background: 'var(--bg-elevated)', borderRadius: '9999px', overflow: 'hidden', marginTop: '0.5rem' }}>
+              <motion.div style={{ height: '100%', background: 'var(--gradient-primary)', borderRadius: '9999px' }} initial={{ width: '0%' }} animate={{ width: '100%' }} transition={{ duration: 3, ease: 'linear' }} />
+            </div>
+          </motion.div>
         ) : (
           <>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '1.5rem' }}>Set New Password</h2>
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ position: 'relative' }}>
-                <Lock style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} size={16} />
-                <input type={showPassword ? "text" : "password"} placeholder="New Password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', padding: '0.8rem 3rem 0.8rem 2.75rem', color: 'white', outline: 'none' }} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+            <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(124,58,237,0.12)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+              <Lock size={24} color="var(--primary-light)" />
+            </div>
+
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Outfit', sans-serif" }}>Set New Password</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.75rem' }}>Choose a strong password for your account.</p>
+
+            {error && (
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1rem', color: 'var(--error-light)', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                ⚠️ {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
+              <div className="input-icon-wrap">
+                <Lock className="input-icon" size={16} />
+                <input
+                  type={showPassword ? "text" : "password"} placeholder="New Password" required
+                  value={password} onChange={(e) => setPassword(e.target.value)}
+                  className="premium-input" style={{ paddingRight: '3rem' }}
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}>
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <input type="password" placeholder="Confirm Password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', padding: '0.8rem 1rem', color: 'white', outline: 'none' }} />
-              <button type="submit" disabled={loading} style={{ padding: '0.85rem', borderRadius: '0.75rem', border: 'none', background: '#7c3aed', color: 'white', fontWeight: 'bold', opacity: loading ? 0.7 : 1 }}>
+
+              <div className="input-icon-wrap">
+                <Lock className="input-icon" size={16} />
+                <input
+                  type="password" placeholder="Confirm Password" required
+                  value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="premium-input"
+                />
+              </div>
+
+              <button
+                type="submit" disabled={loading}
+                className="glow-btn"
+                style={{ width: '100%', justifyContent: 'center', opacity: loading ? 0.7 : 1 }}
+              >
                 {loading ? "Updating..." : "Update Password"}
               </button>
             </form>
