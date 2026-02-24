@@ -16,6 +16,7 @@ const Home = () => {
   const [jdText, setJdText] = useState("");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [validationError, setValidationError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
@@ -93,23 +94,33 @@ const Home = () => {
   };
 
   const handleAnalyze = async () => {
+    setValidationError("");
     setError("");
     setResult(null);
-    if (!resume) { setError("Please upload a resume file."); return; }
-    if (!jdText && !jdFile) { setError("Please provide a Job Description."); return; }
+
+    // Validation
+    if (!resume) {
+      setValidationError("Please upload your Resume to begin analysis.");
+      return;
+    }
+    if (!jdText.trim() && !jdFile) {
+      setValidationError("Please provide a Job Description (paste text or upload file).");
+      return;
+    }
 
     const formData = new FormData();
     formData.append("resume", resume);
-    if (jdFile) formData.append("jd", jdFile);
+    if (jdFile) formData.append("jdFile", jdFile);
     if (jdText) formData.append("jdText", jdText);
 
     try {
       setLoading(true);
       const res = await analyzeResume(formData);
       setResult(res.data.data);
-      // setShowChat(true);
     } catch (err) {
-      setError(err.response?.data?.message || "Analysis failed. Please try again.");
+      console.error("Home Analysis Error:", err);
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || "Analysis failed. Please try again.";
+      setValidationError(serverMsg);
     } finally {
       setLoading(false);
     }
@@ -337,6 +348,32 @@ const Home = () => {
 
               {/* CTA Section */}
               <div style={{ textAlign: 'center' }}>
+                {validationError && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    style={{
+                      padding: '1rem',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: '1rem',
+                      color: '#f87171',
+                      marginBottom: '2rem',
+                      fontSize: '0.95rem',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.75rem',
+                      maxWidth: '500px',
+                      margin: '0 auto 2rem'
+                    }}
+                  >
+                    <AlertCircle size={20} />
+                    <span>{validationError}</span>
+                  </motion.div>
+                )}
+
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -348,7 +385,7 @@ const Home = () => {
                       handleAnalyze();
                     }
                   }}
-                  disabled={user && (loading || !resume || (!jdFile && !jdText))}
+                  disabled={user && loading}
                   style={{
                     padding: '1.25rem 3.5rem',
                     borderRadius: '1rem',
@@ -362,7 +399,8 @@ const Home = () => {
                     gap: '0.75rem',
                     margin: '0 auto',
                     boxShadow: user ? '0 10px 30px -10px rgba(124, 58, 237, 0.5)' : 'none',
-                    border: !user ? '1px solid rgba(255,255,255,0.1)' : 'none'
+                    border: !user ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                    opacity: user && loading ? 0.7 : 1
                   }}
                 >
                   {loading ? "Analyzing..." : (
@@ -372,7 +410,6 @@ const Home = () => {
                     </>
                   )}
                 </motion.button>
-                {error && <p style={{ color: '#f87171', fontSize: '0.9rem', marginTop: '1.5rem', fontWeight: '600' }}>{error}</p>}
                 {!user && <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginTop: '1.25rem' }}>Create a free account to get detailed matching scores and AI feedback.</p>}
               </div>
             </motion.div>

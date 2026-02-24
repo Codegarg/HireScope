@@ -1,12 +1,24 @@
 import Resume from "../models/resume.model.js";
 import { calculateATSScore } from "../utils/atsEngine.js";
 import { generateInterviewPrep, callCloudflareAIStreaming } from "../services/ai.service.js";
+import { extractTextFromFile } from "../services/textExtractor.service.js";
 
 // --- ATS Analysis ---
 export const analyzeResumeATS = async (req, res) => {
     try {
         const { id } = req.params;
-        const { jobDescription, resumeContent: manualContent } = req.body;
+        let { jobDescription, resumeContent: manualContent } = req.body;
+        const jdFile = req.file;
+
+        // Extract text from JD file if provided
+        if (jdFile) {
+            try {
+                jobDescription = await extractTextFromFile(jdFile);
+            } catch (err) {
+                console.error("JD Extraction Error:", err);
+                return res.status(400).json({ message: "Failed to extract text from JD file" });
+            }
+        }
 
         const resume = await Resume.findOne({ _id: id, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
