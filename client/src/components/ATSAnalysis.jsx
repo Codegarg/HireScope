@@ -63,23 +63,29 @@ const ScoreRing = ({ score }) => {
 /* ─────────────────────────────────────────────
    Animated Progress Bar
    ───────────────────────────────────────────── */
-const ProgressBar = ({ label, value, color, delay = 0 }) => (
-  <div style={{ marginBottom: '0.875rem' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>{label}</span>
-      <span style={{ fontSize: '0.8rem', color, fontWeight: '700' }}>{value}%</span>
+const ProgressBar = ({ label, value, delay = 0 }) => {
+  const color = value >= 80 ? 'var(--success)'
+    : value >= 50 ? 'var(--warning)'
+      : 'var(--error)';
+
+  return (
+    <div style={{ marginBottom: '0.875rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>{label}</span>
+        <span style={{ fontSize: '0.8rem', color, fontWeight: '700' }}>{value}%</span>
+      </div>
+      <div className="progress-bar-track">
+        <motion.div
+          className="progress-bar-fill"
+          initial={{ width: '0%' }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 1, ease: [0.4, 0, 0.2, 1], delay }}
+          style={{ background: `linear-gradient(90deg, ${color}99, ${color})` }}
+        />
+      </div>
     </div>
-    <div className="progress-bar-track">
-      <motion.div
-        className="progress-bar-fill"
-        initial={{ width: '0%' }}
-        animate={{ width: `${value}%` }}
-        transition={{ duration: 1, ease: [0.4, 0, 0.2, 1], delay }}
-        style={{ background: `linear-gradient(90deg, ${color}99, ${color})` }}
-      />
-    </div>
-  </div>
-);
+  );
+};
 
 /* ─────────────────────────────────────────────
    Main ATSAnalysis Component
@@ -202,9 +208,9 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
   const getBreakdown = (score) => {
     const base = Math.max(0, score - 10);
     return [
-      { label: 'Keyword Match', value: Math.min(100, base + 15), color: 'var(--primary)', delay: 0.3 },
-      { label: 'Skills Alignment', value: Math.min(100, base + 8), color: 'var(--success)', delay: 0.45 },
-      { label: 'Format Score', value: Math.min(100, base + 12), color: 'var(--warning)', delay: 0.6 },
+      { label: 'Keyword Match', value: Math.min(100, base + 15), delay: 0.3 },
+      { label: 'Skills Alignment', value: Math.min(100, base + 8), delay: 0.45 },
+      { label: 'Format Score', value: Math.min(100, base + 12), delay: 0.6 },
     ];
   };
 

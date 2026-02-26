@@ -5,7 +5,7 @@ import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
-import { ArrowLeft, Download, Sparkles, Save, Edit3, Check, X, MessageSquare, BarChart3, Bot } from 'lucide-react';
+import { ArrowLeft, Download, Sparkles, Save, Edit3, Check, X, MessageSquare, BarChart3, Bot, ChevronDown, AlertTriangle } from 'lucide-react';
 import ATSAnalysis from '../components/ATSAnalysis';
 
 // ─── Templates Configuration ──────────────────────────────────────────────────
@@ -323,17 +323,20 @@ const SectionCard = ({ section, onSave, templateConfig, readOnly = false }) => {
                                         );
                                     }
 
-                                    // 2. Sub-headings & Dates (Greedy alignment)
+                                    // 2. Sub-headings & Dates (Greedy alignment + Merged string fix)
                                     const monthNames = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)";
                                     const datePart = `(?:${monthNames}\\s+)?(?:[0-9]{4}|Present)`;
-                                    const dateRangeRegex = new RegExp(`^(.+?)\\s+(${datePart}\\s*[-–]\\s*${datePart})$`, 'i');
 
-                                    const dateMatch = trimmed.match(dateRangeRegex);
-                                    if (dateMatch) {
+                                    // Detect merged text like "MemberSep" or "PlatformGitHub"
+                                    const socialLinks = "(?:GitHub|LinkedIn|Portfolio|Website|http|www)";
+                                    const metadataFullRegex = new RegExp(`^(.+?)(?:\\s{2,}|(?=${monthNames}|${socialLinks}))(${datePart}\\s*[-–]\\s*${datePart}|${socialLinks}.*)$`, 'i');
+
+                                    const metaMatch = trimmed.match(metadataFullRegex);
+                                    if (metaMatch) {
                                         return (
                                             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', marginBottom: '0.05rem', fontSize: '0.86rem', color: '#000' }}>
-                                                <span>{dateMatch[1].trim()}</span>
-                                                <span style={{ textAlign: 'right', marginLeft: '1rem' }}>{dateMatch[2].trim()}</span>
+                                                <span>{metaMatch[1].trim()}</span>
+                                                <span style={{ textAlign: 'right', marginLeft: '1rem', fontWeight: '500', fontSize: '0.82rem' }}>{metaMatch[2].trim()}</span>
                                             </div>
                                         );
                                     }
@@ -344,7 +347,7 @@ const SectionCard = ({ section, onSave, templateConfig, readOnly = false }) => {
                                     const genDateRegex = new RegExp(`\\b${datePart}\\b`, 'i');
                                     const prevHadDate = prevLine.match(genDateRegex);
 
-                                    if ((isProjectLine && (section.title.toLowerCase().includes('project') || trimmed.length < 65)) || (prevHadDate && trimmed.length < 90 && !trimmed.includes('•'))) {
+                                    if (isProjectLine && (section.title.toLowerCase().includes('project') || trimmed.length < 65) && !metaMatch) {
                                         return (
                                             <div key={idx} style={{ fontWeight: '700', marginBottom: '0.15rem', color: '#000', fontSize: '0.86rem' }}>
                                                 {trimmed}
@@ -445,10 +448,10 @@ const ResumeEditor = () => {
     const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'unsaved' | 'saving'
     const [isDownloading, setIsDownloading] = useState(false);
     const [showChat, setShowChat] = useState(false);
-    const [showATS, setShowATS] = useState(false); // Make sure this state exists if used below
-    const [selectedText, setSelectedText] = useState('');
-    const [rewriteInstructions, setRewriteInstructions] = useState('');
-    const [isRewriting, setIsRewriting] = useState(false);
+    const [showATS, setShowATS] = useState(false);
+    const [showImproveMenu, setShowImproveMenu] = useState(false);
+    const improveMenuRef = useRef(null);
+    const [improveMode, setImproveMode] = useState('structured'); // 'structured' | 'regenerate'
     const saveTimeoutRef = useRef(null);
     const lastSavedRef = useRef('');
 
@@ -457,6 +460,17 @@ const ResumeEditor = () => {
         glassBg: 'rgba(255, 255, 255, 0.03)', glassBorder: 'rgba(255, 255, 255, 0.08)',
         textMuted: '#94a3b8', radius: '1.5rem',
     };
+
+    // ── Dropdown Close Handler ───────────────────────────────────────────────
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (improveMenuRef.current && !improveMenuRef.current.contains(event.target)) {
+                setShowImproveMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // ── Load resume ─────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -518,6 +532,8 @@ const ResumeEditor = () => {
     // Magic Improve comparison states
     const [improvedContent, setImprovedContent] = useState('');
     const [improvementsSummary, setImprovementsSummary] = useState([]);
+    const [originalSnapshot, setOriginalSnapshot] = useState(null); // pre-improve snapshot for restore
+    const [postImproveAts, setPostImproveAts] = useState(null); // ATS_UPDATE from backend after improve
 
     // ATS Integration State
     const [isComparing, setIsComparing] = useState(false);
@@ -841,11 +857,22 @@ const ResumeEditor = () => {
 
     const handleAcceptImprovement = () => {
         if (!improvedContent) return;
+        // Persist the pre-improve snapshot so user can restore later
+        setOriginalSnapshot(currentContent);
         setCurrentContent(improvedContent);
         setSections(parseResumeIntoSections(improvedContent));
         setImprovedContent('');
         setIsComparing(false);
-        setAtsAnalysis(null); // Clear old analysis
+        // Apply post-improve ATS score if we got one from the backend
+        if (postImproveAts) {
+            setAtsAnalysis(prev => ({ ...prev, ...postImproveAts, score: postImproveAts.atsScore }));
+            if (postImproveAts.atsScore != null) {
+                setResume(prev => ({ ...prev, atsScore: postImproveAts.atsScore }));
+            }
+            setPostImproveAts(null);
+        } else {
+            setAtsAnalysis(null); // Clear old analysis so user re-runs
+        }
         setSaveStatus('unsaved');
         autoSave(improvedContent);
     };
@@ -853,6 +880,18 @@ const ResumeEditor = () => {
     const handleRejectImprovement = () => {
         setImprovedContent('');
         setIsComparing(false);
+        setPostImproveAts(null);
+    };
+
+    const handleRestoreVersion = () => {
+        if (!originalSnapshot) return;
+        if (!window.confirm('Restore the version before Magic AI improvement? Your current content will be replaced.')) return;
+        setCurrentContent(originalSnapshot);
+        setSections(parseResumeIntoSections(originalSnapshot));
+        setOriginalSnapshot(null);
+        setAtsAnalysis(null);
+        setSaveStatus('unsaved');
+        autoSave(originalSnapshot);
     };
 
     // ── Magic Improve ────────────────────────────────────────────────────────────
@@ -868,6 +907,11 @@ const ResumeEditor = () => {
         }
 
         if (isImproving) return;
+
+        // ── Snapshot the current content before we overwrite it ──────────────────
+        setOriginalSnapshot(contentToUse);
+        setPostImproveAts(null);
+
         setIsImproving(true);
         setIsComparing(false);
         setImprovedContent('');
@@ -880,185 +924,50 @@ const ResumeEditor = () => {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('Authentication token missing. Please log in again.');
 
-            const response = await fetch('http://localhost:5000/api/resumes/improve', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    content: contentToUse,
-                    jobDescription: jobDescription, // Send JD for targeted improvements
-                    atsAnalysis: atsAnalysis // Send detailed analysis (missing keywords, etc.)
-                })
+            const res = await axios.post(`http://localhost:5000/api/resumes/${id}/improve`, {
+                content: contentToUse,
+                jobDescription,
+                mode: improveMode,
+                previousScore: atsAnalysis?.atsScore || null
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
             });
 
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.message || `HTTP error! status: ${response.status}`);
-            }
+            const { optimizedResume, improvementSummary, newScore, scoreDelta, newAnalysis } = res.data;
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
+            if (optimizedResume) {
+                setImprovedContent(optimizedResume);
 
-            let streamFinished = false;
-            let lastUpdate = Date.now();
-            let accumulatedResponse = ""; // Local accumulator for the raw response
-
-            while (!streamFinished) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                buffer += chunk;
-
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed) continue;
-
-                    let jsonPart = trimmed;
-                    if (trimmed.startsWith('data: ')) {
-                        jsonPart = trimmed.slice(6).trim();
-                    }
-
-                    if (jsonPart === '[DONE]') {
-                        streamFinished = true;
-                        break;
-                    }
-
-                    try {
-                        const data = JSON.parse(jsonPart);
-                        if (data.response) {
-                            fullContent += data.response;
-                            accumulatedResponse += data.response; // Update local accumulator
-
-                            // THROTTLE UI UPDATES: Only update React state every 500ms to prevent lag
-                            const now = Date.now();
-                            if (now - lastUpdate > 500) {
-                                // Split logic to keep cleanResume logic consistent
-                                const parts = fullContent.split('[CHANGES_DONE]');
-                                setImprovedContent(parts[0].trim());
-                                lastUpdate = now;
-                            }
-
-                            if (!startedComparing && fullContent.length > 50) { // Increased threshold slightly for stability
-                                setIsComparing(true);
-                                startedComparing = true;
-                            }
-                        } else if (data.error) {
-                            throw new Error(data.error);
-                        }
-                    } catch (e) { }
+                // Parse summary if it's a string or array
+                if (typeof improvementSummary === 'string') {
+                    setImprovementsSummary(improvementSummary.split('\n').filter(l => l.trim().length > 3));
+                } else if (Array.isArray(improvementSummary)) {
+                    setImprovementsSummary(improvementSummary);
                 }
-            }
 
-            // Final update to ensure everything is shown
-            const finalParts = fullContent.split('[CHANGES_DONE]');
-            let finalResume = finalParts[0].trim();
-
-            // ATS FAIL-SAFE: Force-inject Header if missing to prevent score drop
-            // The AI sometimes forgets the header even with strict prompts.
-            // We check for Email/Phone and prepending the stored profile data if missing.
-            const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
-            const phoneRegex = /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/; // Simple check
-
-            const hasEmail = emailRegex.test(finalResume);
-            const hasPhone = phoneRegex.test(finalResume);
-
-            if ((!hasEmail || !hasPhone) && resume?.personalInfo) {
-                console.warn("[ATS Fail-Safe] AI dropped contact info. Injecting manually.");
-                const { firstName, lastName, email, phone, city, country, linkedin, github, portfolio } = resume.personalInfo;
-                const name = `${firstName || ''} ${lastName || ''}`.trim();
-                const contacts = [email, phone, city, country, linkedin, github, portfolio].filter(Boolean).join(' | ');
-
-                if (name && contacts) {
-                    finalResume = `**${name}**\n${contacts}\n\n${finalResume}`;
+                if (newAnalysis) {
+                    setAtsAnalysis(newAnalysis);
+                    setPostImproveAts({
+                        atsScore: newScore,
+                        scoreDelta: scoreDelta,
+                        analysis: newAnalysis
+                    });
                 }
+
+                setIsComparing(true);
+            } else {
+                throw new Error('AI returned an empty response.');
             }
 
-            setImprovedContent(finalResume);
-
-            if (finalParts[1]) {
-                const summaryLines = finalParts[1].split('\n')
-                    .map(l => l.trim())
-                    .filter(l => l.startsWith('-') || l.startsWith('*') || l.length > 5)
-                    .map(l => l.replace(/^[-*]\s*/, '').trim());
-                setImprovementsSummary(summaryLines);
-            }
-
-            if (!fullContent) {
-                throw new Error('AI returned an empty response. Please try again or check your internet.');
-            }
         } catch (err) {
             console.error('Improvement error:', err);
-            alert(`Magic Improve Error: ${err.message}`);
+            alert(`Magic Improve Error: ${err.response?.data?.message || err.message}`);
             setIsComparing(false);
         } finally {
             setIsImproving(false);
         }
     };
 
-    // ── Section rewrite (selected text) ─────────────────────────────────────────
-    const handleRewrite = async () => {
-        if (!selectedText || !rewriteInstructions || isRewriting) return;
-        setIsRewriting(true);
-        const originalContent = currentContent;
-        let fullReplacement = '';
-        let buffer = '';
-        const placeholder = `[Optimizing...]`;
-        const tempContent = originalContent.replace(selectedText, placeholder);
-        setCurrentContent(tempContent);
-        setSections(parseResumeIntoSections(tempContent));
-
-        try {
-            const response = await fetch('http://localhost:5000/api/resumes/rewrite', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({ sectionText: selectedText, instructions: rewriteInstructions, resumeId: id })
-            });
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                buffer += chunk;
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed.startsWith('data: ')) {
-                        const raw = trimmed.slice(6).trim();
-                        if (raw === '[DONE]') continue;
-                        try {
-                            const data = JSON.parse(raw);
-                            if (data.response) {
-                                fullReplacement += data.response;
-                                const updated = tempContent.replace(placeholder, fullReplacement);
-                                setCurrentContent(updated);
-                                setSections(parseResumeIntoSections(updated));
-                            }
-                        } catch { }
-                    }
-                }
-            }
-            setSelectedText('');
-            setRewriteInstructions('');
-        } catch (err) {
-            console.error('Rewrite error:', err);
-            setCurrentContent(originalContent);
-            setSections(parseResumeIntoSections(originalContent));
-        } finally {
-            setIsRewriting(false);
-        }
-    };
 
     if (!resume) return (
         <div className="page-wrapper" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
@@ -1162,62 +1071,115 @@ const ResumeEditor = () => {
                     <Save size={14} /> {saveStatus === 'saved' ? 'Saved' : 'Save'}
                 </button>
 
-                {/* Magic Improve */}
-                <motion.button
-                    whileHover={{ scale: 1.05, boxShadow: '0 0 25px rgba(245,158,11,0.5)' }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleMagicImprove}
-                    disabled={isImproving}
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.6rem',
-                        padding: '0.65rem 1.5rem',
-                        background: isImproving
-                            ? 'rgba(245,158,11,0.1)'
-                            : 'linear-gradient(135deg, #f59e0b, #ea580c)',
-                        color: isImproving ? '#fbbf24' : 'white',
-                        borderRadius: '0.8rem',
-                        border: isImproving ? '1px solid rgba(245,158,11,0.3)' : 'none',
-                        fontWeight: '800',
-                        cursor: isImproving ? 'not-allowed' : 'pointer',
-                        fontSize: '0.85rem',
-                        minWidth: '170px',
-                        justifyContent: 'center',
-                        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-                        transition: 'all 0.3s ease',
-                        position: 'relative',
-                        overflow: 'hidden'
-                    }}
-                >
-                    <motion.div
-                        animate={{
-                            rotate: isImproving ? 360 : [0, 10, -10, 0],
-                            scale: isImproving ? 1.2 : 1
-                        }}
-                        transition={{
-                            repeat: Infinity,
-                            duration: isImproving ? 2 : 5,
-                            ease: "linear"
+                {/* Magic Improve Dropdown Button */}
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }} ref={improveMenuRef}>
+                    <motion.button
+                        whileHover={{ scale: 1.02, boxShadow: '0 0 20px rgba(245,158,11,0.3)' }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleMagicImprove}
+                        disabled={isImproving}
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
+                            padding: '0.65rem 1.2rem',
+                            background: isImproving ? 'rgba(245,158,11,0.1)' : 'linear-gradient(135deg, #f59e0b, #ea580c)',
+                            color: isImproving ? '#fbbf24' : 'white',
+                            borderRadius: '0.8rem 0 0 0.8rem',
+                            border: 'none', fontWeight: '800', cursor: isImproving ? 'not-allowed' : 'pointer',
+                            fontSize: '0.85rem', minWidth: '160px', justifyContent: 'center',
+                            boxShadow: '0 4px 15px rgba(0,0,0,0.3)', transition: 'all 0.3s ease',
+                            borderRight: '1px solid rgba(255,255,255,0.1)'
                         }}
                     >
-                        <Sparkles size={18} color={isImproving ? "#f59e0b" : "white"} fill={isImproving ? "none" : "rgba(255,255,255,0.2)"} />
-                    </motion.div>
-                    <span>{isImproving ? 'Weaving Magic...' : 'Magic Improve'}</span>
+                        <Sparkles size={16} fill={isImproving ? "none" : "white"} />
+                        <span>{isImproving ? 'Weaving Magic...' : (improveMode === 'structured' ? 'Optimize Content' : 'Regenerate Resume')}</span>
+                    </motion.button>
 
-                    {/* Subtle shine effect */}
-                    {!isImproving && (
-                        <motion.div
-                            animate={{ left: ['-100%', '200%'] }}
-                            transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-                            style={{
-                                position: 'absolute', top: 0, width: '40px', height: '100%',
-                                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-                                pointerEvents: 'none'
-                            }}
-                        />
-                    )}
-                </motion.button>
+                    <button
+                        onClick={() => setShowImproveMenu(!showImproveMenu)}
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '0.65rem 0.5rem',
+                            background: isImproving ? 'rgba(245,158,11,0.1)' : 'linear-gradient(135deg, #f59e0b, #ea580c)',
+                            color: 'white', borderRadius: '0 0.8rem 0.8rem 0',
+                            border: 'none', cursor: 'pointer', height: '100%',
+                            boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+                        }}
+                    >
+                        <ChevronDown size={14} style={{ transform: showImproveMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                    </button>
+
+                    <AnimatePresence>
+                        {showImproveMenu && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                style={{
+                                    position: 'absolute', top: '110%', right: 0, zIndex: 100,
+                                    background: 'rgba(30,30,45,0.98)', backdropFilter: 'blur(12px)',
+                                    borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)',
+                                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)', overflow: 'hidden', minWidth: '240px'
+                                }}
+                            >
+                                <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                    <button
+                                        onClick={() => { setImproveMode('structured'); setShowImproveMenu(false); }}
+                                        style={{
+                                            display: 'flex', flexDirection: 'column', width: '100%', padding: '0.8rem 1rem', textAlign: 'left',
+                                            background: improveMode === 'structured' ? 'rgba(245,158,11,0.1)' : 'transparent',
+                                            border: 'none', cursor: 'pointer', borderRadius: '0.6rem',
+                                            color: improveMode === 'structured' ? '#f59e0b' : '#94a3b8',
+                                            fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = improveMode === 'structured' ? 'rgba(245,158,11,0.1)' : 'transparent'}
+                                    >
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <Sparkles size={14} /> Optimize Content
+                                        </span>
+                                        <span style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.2rem' }}>Surgical wording & keyword updates (Recommended)</span>
+                                    </button>
+                                    <button
+                                        onClick={() => { setImproveMode('regenerate'); setShowImproveMenu(false); }}
+                                        style={{
+                                            display: 'flex', flexDirection: 'column', width: '100%', padding: '0.8rem 1rem', textAlign: 'left',
+                                            background: improveMode === 'regenerate' ? 'rgba(245,158,11,0.1)' : 'transparent',
+                                            border: 'none', cursor: 'pointer', borderRadius: '0.6rem',
+                                            color: improveMode === 'regenerate' ? '#f59e0b' : '#94a3b8',
+                                            fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = improveMode === 'regenerate' ? 'rgba(245,158,11,0.1)' : 'transparent'}
+                                    >
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <AlertTriangle size={14} /> Regenerate Resume
+                                        </span>
+                                        <span style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.2rem' }}>Full AI-powered rewrite for major changes (Experimental)</span>
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                {/* Experimental Mode Warning */}
+                {improveMode === 'regenerate' && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        style={{
+                            position: 'absolute', top: '100%', right: '180px', marginTop: '0.5rem',
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            padding: '0.4rem 0.8rem', background: 'rgba(245,158,11,0.15)',
+                            borderRadius: '0.6rem', border: '1px solid rgba(245,158,11,0.3)',
+                            color: '#fbbf24', fontSize: '0.75rem', fontWeight: '800', backdropFilter: 'blur(8px)', zIndex: 50,
+                            whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+                        }}
+                    >
+                        <AlertTriangle size={14} />
+                        <span>⚠ Experimental mode may modify formatting. Review carefully.</span>
+                    </motion.div>
+                )}
 
                 <button
                     onClick={handleDownload}
@@ -1228,6 +1190,26 @@ const ResumeEditor = () => {
                     <Download size={15} />
                     {isDownloading ? 'Generating...' : 'Download PDF'}
                 </button>
+
+                {/* Restore Earlier Version — only visible after accepting Magic Improve */}
+                {originalSnapshot && (
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={handleRestoreVersion}
+                        title="Restore the version before Magic AI improvement"
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.35)',
+                            borderRadius: '0.6rem', padding: '0.5rem 1rem',
+                            color: '#f87171', cursor: 'pointer',
+                            fontSize: '0.82rem', fontWeight: '700',
+                            transition: 'all 0.2s ease'
+                        }}
+                    >
+                        ↩ Restore Earlier
+                    </motion.button>
+                )}
             </div>
 
             {/* Scrollable content area — only this region scrolls */}
@@ -1260,10 +1242,6 @@ const ResumeEditor = () => {
                                 boxShadow: '0 25px 60px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)',
                                 fontFamily: templateConfig.fontFamily,
                             }}
-                            onMouseUp={() => {
-                                const sel = window.getSelection()?.toString().trim();
-                                if (sel) setSelectedText(sel);
-                            }}
                         >
                             {sections.map((section, i) => (
                                 <SectionCard
@@ -1282,51 +1260,6 @@ const ResumeEditor = () => {
                             )}
                         </motion.div>
 
-                        {/* Selection rewrite bar */}
-                        <AnimatePresence>
-                            {selectedText && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 40, x: '-50%' }}
-                                    animate={{ opacity: 1, y: 0, x: '-50%' }}
-                                    exit={{ opacity: 0, y: 40, x: '-50%' }}
-                                    style={{
-                                        position: 'fixed', bottom: '2rem', left: '50%',
-                                        background: 'var(--nav-bg)', backdropFilter: 'var(--blur)',
-                                        WebkitBackdropFilter: 'var(--blur)',
-                                        border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-md)',
-                                        padding: '1rem 1.5rem', width: '90%', maxWidth: '580px', zIndex: 200,
-                                        boxShadow: 'var(--shadow-lg)',
-                                    }}
-                                >
-                                    <div style={{ fontSize: '0.7rem', color: 'var(--primary-light)', fontWeight: '700', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                                        ✨ Optimize Selected Text
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <input
-                                            type="text"
-                                            value={rewriteInstructions}
-                                            onChange={e => setRewriteInstructions(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && handleRewrite()}
-                                            placeholder="E.g. Make it more professional, add metrics..."
-                                            className="premium-input"
-                                            style={{ flex: 1, fontSize: '0.85rem' }}
-                                        />
-                                        <button
-                                            onClick={handleRewrite}
-                                            disabled={isRewriting || !rewriteInstructions}
-                                            className="glow-btn"
-                                            style={{ padding: '0.55rem 1.25rem', fontSize: '0.85rem', whiteSpace: 'nowrap', opacity: (isRewriting || !rewriteInstructions) ? 0.6 : 1 }}
-                                        >
-                                            {isRewriting ? '...' : 'Rewrite'}
-                                        </button>
-                                        <button onClick={() => setSelectedText('')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 0.25rem' }}>✕</button>
-                                    </div>
-                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-faint)', marginTop: '0.4rem' }}>
-                                        Selected: "<span style={{ color: 'var(--text-muted)' }}>{selectedText.slice(0, 60)}{selectedText.length > 60 ? '...' : ''}</span>"
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
                     </main>
 
                 </div>
@@ -1356,7 +1289,22 @@ const ResumeEditor = () => {
                                 </h2>
                                 <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Review the proposed changes before applying them to your resume.</p>
                             </div>
-                            <div style={{ display: 'flex', gap: '1rem' }}>
+                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                {/* Live ATS score badge — shown if backend sent ATS_UPDATE */}
+                                {postImproveAts && (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                        background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)',
+                                        borderRadius: '0.6rem', padding: '0.4rem 0.85rem',
+                                        fontSize: '0.78rem', fontWeight: '700', color: '#a78bfa'
+                                    }}>
+                                        <Sparkles size={13} />
+                                        ATS {postImproveAts.atsScore}%
+                                        {postImproveAts.scoreDelta != null && postImproveAts.scoreDelta > 0 && (
+                                            <span style={{ color: '#4ade80', marginLeft: '0.3rem' }}>+{postImproveAts.scoreDelta} pts</span>
+                                        )}
+                                    </div>
+                                )}
                                 <button
                                     onClick={handleRejectImprovement}
                                     className="ghost-btn"
@@ -1565,5 +1513,6 @@ const ResumeEditor = () => {
 };
 
 export default ResumeEditor;
+
 
 
