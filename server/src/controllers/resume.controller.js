@@ -1,6 +1,7 @@
 import Resume from "../models/resume.model.js";
-import { calculateATSScore } from "../utils/atsEngine.js";
-import { generateInterviewPrep, callCloudflareAIStreaming } from "../services/ai.service.js";
+import { calculateATSScore as ruleBasedScore } from "../utils/atsEngine.js";
+import { calculateATSScore as hybridScore } from "../services/atsScorer.js";
+import { generateInterviewPrep, callCloudflareAIStreaming, improveResumeStructured, improveResumeRegenerate } from "../services/ai.service.js";
 import { extractTextFromFile } from "../services/textExtractor.service.js";
 
 // --- ATS Analysis ---
@@ -9,6 +10,10 @@ export const analyzeResumeATS = async (req, res) => {
         const { id } = req.params;
         let { jobDescription, resumeContent: manualContent } = req.body;
         const jdFile = req.file;
+
+        // Support previousScore for delta computation (post-Magic Improve)
+        const previousScore =
+            req.body.previousScore !== undefined ? Number(req.body.previousScore) : null;
 
         // Extract text from JD file if provided
         if (jdFile) {
@@ -23,22 +28,24 @@ export const analyzeResumeATS = async (req, res) => {
         const resume = await Resume.findOne({ _id: id, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
 
-        // Fix: Extract actual text content from the resume object
-        // The scorer expects a string, not the whole mongoose document
-        // PRIORITIZE manualContent if sent (for real-time analysis before save)
-        const resumeContent = manualContent || resume.versions?.[resume.currentVersionIndex]?.content || resume.originalContent || "";
+        // PRIORITIZE manualContent if sent (real-time analysis before save)
+        const resumeContent =
+            manualContent ||
+            resume.versions?.[resume.currentVersionIndex]?.content ||
+            resume.originalContent ||
+            "";
 
-        const analysisResults = calculateATSScore(resumeContent, jobDescription);
+        // ── Hybrid ATS scoring (rule-based 70% + Llama 3 30%) ──────────────
+        const analysisResults = await hybridScore(resumeContent, jobDescription, { previousScore });
 
-        // Update the resume with the new score so it reflects in Dashboard
-        if (analysisResults && typeof analysisResults.score === 'number') {
-            resume.atsScore = analysisResults.score;
-            // Also update suggestions count if we have findings
-            if (analysisResults.analysis) {
-                const issuesCount = (analysisResults.analysis.missingKeywords?.length || 0) +
-                    (analysisResults.analysis.formattingIssues?.length || 0);
-                resume.suggestionsCount = issuesCount;
-            }
+        // ── Persist new score to DB ─────────────────────────────────────────
+        if (analysisResults && typeof analysisResults.atsScore === 'number') {
+            resume.atsScore = analysisResults.atsScore;
+            const issuesCount =
+                (analysisResults.missingCriticalSkills?.length || 0) +
+                (analysisResults.weakSections?.length || 0) +
+                (analysisResults.analysis?.formattingIssues?.length || 0);
+            resume.suggestionsCount = issuesCount;
             await resume.save();
         }
 
@@ -150,65 +157,51 @@ export const getInterviewPrep = async (req, res) => {
     }
 };
 
+// --- Magic Improve (Refactored for Structured & Regenerate modes) ---
 export const improveResume = async (req, res) => {
     try {
-        const { content } = req.body;
+        const { id } = req.params;
+        const { content, jobDescription, mode = 'structured' } = req.body;
+        const previousScore = req.body.previousScore !== undefined ? Number(req.body.previousScore) : null;
 
-        if (!content) {
-            return res.status(400).json({ message: "Resume content required" });
+        if (!content) return res.status(400).json({ message: "Resume content is required" });
+
+        console.log(`[Magic Improve] Mode: ${mode}, ID: ${id}`);
+
+        let aiResult;
+        if (mode === 'regenerate') {
+            aiResult = await improveResumeRegenerate(content, jobDescription || "");
+        } else {
+            // Default: structured
+            aiResult = await improveResumeStructured(content, jobDescription || "");
         }
 
-        res.setHeader('Content-Type', 'text/event-stream');
+        const { optimizedResume, improvementSummary, llmFallback: validationFallback } = aiResult;
 
-        let systemPrompt = "You are a Master Resume Writer & ATS Optimization Expert. Your goal is to rewrite the user's resume (provided below) to maximize their ATS Match Score for the target job while maintaining their original factual content.\n\nCRITICAL RULES:\n1. **HEADER IS MANDATORY**: You MUST start with the user's Name, Email, and Phone Number. Do NOT omit these. If you are rewriting the whole resume, these must be at the very top.\n2. **NO PLACEHOLDERS**: Do NOT use brackets like [Date], [Company], or [Your Name]. Use the ACTUAL, ORIGINAL data from the resume. If a date or company is missing, omit it or use 'Present'.\n3. **PRESERVE FACTS**: Do not invent companies, degrees, or job titles. You may only rephrase the bullet points to be more impactful.\n4. Output ONLY the improved resume text first.\n5. NO conversational filler. Start directly with the resume header.\n6. NO Markdown formatting (do NOT use **, __, #).\n7. Use standard plain-text headings (EDUCATION, EXPERIENCE, SKILLS, etc.).\n8. PRIORITY 1: SEAMLESSLY INTEGRATE MISSING KEYWORDS. Do not just list them; weave them into bullet points.\n9. The very last part of your response MUST BE a concise list of improvements made, prefixed ONLY by the exact delimiter: [CHANGES_DONE]";
-
-        let userPrompt = `A user has provided their resume content. Rewrite it to drastically improve its ATS compatibility with the job description. \n\nIMPORTANT: \n- Ensure the Name, Email, and Phone are clearly listed at the top.\n- Rewrite the bullet points to be results-oriented (Action + Task + Result).\n- Include the missing keywords naturally.\n- DO NOT RETURN A GENERIC TEMPLATE. USE THE CONTENT BELOW. \n\nAfter the resume, add [CHANGES_DONE] followed by a short bulleted list of 3-5 key improvements you made:`;
-
-        // ATS Keyword Injection
-        const { jobDescription, atsAnalysis } = req.body;
-
-        if (atsAnalysis && atsAnalysis.analysis) {
-            // Use pre-calculated analysis from frontend if available
-            const { missingKeywords, formattingIssues } = atsAnalysis.analysis;
-
-            if (missingKeywords && missingKeywords.length > 0) {
-                userPrompt += `\n\n📢 CRITICAL: The following keywords are MISSING and hurting the score. You MUST integrate them into the Experience/Skills sections: ${missingKeywords.join(', ')}.`;
-            }
-
-            if (formattingIssues && formattingIssues.length > 0) {
-                userPrompt += `\n\nALSO FIX THESE FORMATTING ISSUES: ${formattingIssues.join(', ')}`;
-            }
-        } else if (jobDescription) {
-            // Fallback: Simple keyword extraction if no full analysis provided
-            const jdWords = jobDescription.toLowerCase().match(/\b[a-z]{2,}\b/g) || [];
-            const contentLower = content.toLowerCase();
-            const missingKeywords = [...new Set(jdWords)].filter(w =>
-                w.length > 3 && !contentLower.includes(w) && !['with', 'that', 'have', 'from', 'this', 'will', 'your', 'their'].includes(w)
-            ).slice(0, 8); // Top 8 missing words
-
-            if (missingKeywords.length > 0) {
-                userPrompt += `\n\n📢 CRITICAL: The following keywords are MISSING. You MUST integrate them into the Experience/Skills sections: ${missingKeywords.join(', ')}.`;
+        // ── Auto-recalculate ATS score after Magic Improve ─────────────
+        let newScoreData = null;
+        if (optimizedResume && jobDescription) {
+            try {
+                // Use hybrid score for the most accurate post-AI result
+                newScoreData = await hybridScore(optimizedResume, jobDescription, { previousScore });
+            } catch (err) {
+                console.error("Post-Improve ATS Scoring failed:", err);
             }
         }
 
-        // TRUNCATE CONTENT to avoid Token Limit Exceeded errors (Llama 3 context window)
-        // Keep approx 15k chars (~3700 tokens) to be safe
-        const truncatedContent = content.length > 15000 ? content.substring(0, 15000) + "\n...[Truncated]..." : content;
+        res.status(200).json({
+            success: true,
+            optimizedResume,
+            improvementSummary,
+            newScore: newScoreData?.atsScore || null,
+            scoreDelta: newScoreData?.scoreDelta || null,
+            llmFallback: validationFallback || newScoreData?.llmFallback || false,
+            newAnalysis: newScoreData // Return full analysis for frontend update
+        });
 
-        userPrompt += `\n\n${truncatedContent}`;
-
-        console.log(`[Magic Improve] Sending request. Content length: ${content.length}, Truncated to: ${truncatedContent.length}`);
-
-        const messages = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-        ];
-
-        await callCloudflareAIStreaming(messages, res, { temperature: 0.1 });
     } catch (error) {
-        console.error("Improvement error:", error);
-        res.write(`data: ${JSON.stringify({ error: "Error improving resume" })}\n\n`);
-        res.end();
+        console.error("Magic Improve Error:", error);
+        res.status(500).json({ message: error.message || "Error during AI improvement" });
     }
 };
 
