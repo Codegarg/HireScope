@@ -8,15 +8,15 @@ export const analyzeResume = async (req, res) => {
     const resumeFile = req.files?.resume?.[0];
     const jdFile = req.files?.jd?.[0];
     const jdTextInput = req.body.jdText;
+    const previousScore =
+      req.body.previousScore !== undefined ? Number(req.body.previousScore) : null;
 
     let resumeText = "";
     let jdText = "";
 
     // Resume file is mandatory
     if (!resumeFile) {
-      return res.status(400).json({
-        message: "Resume file is required"
-      });
+      return res.status(400).json({ message: "Resume file is required" });
     }
 
     // Extract resume text
@@ -28,14 +28,13 @@ export const analyzeResume = async (req, res) => {
     } else if (jdFile) {
       jdText = await extractTextFromFile(jdFile);
     } else {
-      return res.status(400).json({
-        message: "Job Description text or file is required"
-      });
+      return res.status(400).json({ message: "Job Description text or file is required" });
     }
 
-    const atsResult = calculateATSScore(resumeText, jdText);
+    // ── Hybrid ATS scoring (rule-based + Llama 3) ──────────────────────────
+    const atsResult = await calculateATSScore(resumeText, jdText, { previousScore });
 
-    // Generate AI suggestions — non-fatal: if AI is down, analysis still succeeds
+    // ── AI narrative suggestions (non-fatal) ──────────────────────────────
     let aiSuggestions = [];
     try {
       aiSuggestions = await generateSuggestions(resumeText, jdText, atsResult);
@@ -43,24 +42,23 @@ export const analyzeResume = async (req, res) => {
       console.warn("[analyzeResume] AI suggestions skipped:", aiErr.message);
     }
 
-    // Auto-save resume if user is logged in
+    // ── Auto-save resume if user is logged in ─────────────────────────────
     let savedResumeId = null;
     if (req.user) {
       const newResume = new Resume({
         user: req.user.id,
         title: (() => {
-          // Attempt to extract job title
           const titleMatch = jdText.match(/(?:Job Title|Role|Position):\s*([^\n]+)/i);
-          if (titleMatch && titleMatch[1]) {
-            return `Target: ${titleMatch[1].trim().substring(0, 40)}`;
-          }
-          // Fallback to timestamped title
-          return `Analysis ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} - ${jdText.substring(0, 15)}...`;
+          if (titleMatch?.[1]) return `Target: ${titleMatch[1].trim().substring(0, 40)}`;
+          return `Analysis ${new Date().toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })} - ${jdText.substring(0, 15)}...`;
         })(),
         originalContent: resumeText,
-        atsScore: atsResult.atsScore || atsResult.score || 0,  // Save ATS score (handle both naming conventions)
-        suggestionsCount: aiSuggestions?.length || 0,  // Save suggestions count
-        versions: [{ content: resumeText, feedback: "Initial Analysis" }]
+        atsScore: atsResult.atsScore || 0,
+        suggestionsCount: aiSuggestions?.length || 0,
+        versions: [{ content: resumeText, feedback: "Initial Analysis" }],
       });
       const saved = await newResume.save();
       savedResumeId = saved._id;
@@ -72,14 +70,12 @@ export const analyzeResume = async (req, res) => {
         ...atsResult,
         aiSuggestions,
         resumeId: savedResumeId,
-        resumeText: resumeText, // Return full text for editor
-        jdText: jdText
-      }
+        resumeText,
+        jdText,
+      },
     });
   } catch (error) {
     console.error("ATS Analysis Error:", error);
-    return res.status(500).json({
-      message: "Error analyzing resume"
-    });
+    return res.status(500).json({ message: "Error analyzing resume" });
   }
 };

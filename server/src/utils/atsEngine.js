@@ -1,253 +1,532 @@
 /**
- * Advanced ATS Logic Engine (Upgraded)
- * Calculates score based on:
- * 1. Keyword Match & Density (60%) - Uses full-text search + stop-word filtering
- * 2. Structural Integrity (25%)
- * 3. Section Completeness (15%)
+ * HireScope — Rule-Based ATS Scoring Engine (8 Components)
+ * Used by: resume.controller.js  →  analyzeResumeATS()
+ *
+ * Weights:
+ *   Required Skills Match      30%
+ *   Preferred Skills Match     15%
+ *   Experience Relevance       15%
+ *   Keyword Density            10%
+ *   Section Completeness       10%
+ *   Action Verb Strength        5%
+ *   Formatting & Structure      5%
+ *   Semantic Similarity        10%
+ *
+ * Total = 100
  */
 
-// Common stop words to exclude from keyword analysis
+import {
+    TECH_SKILLS,
+    SECTION_HEADERS,
+    STRONG_ACTION_VERBS,
+    WEAK_ACTION_VERBS,
+    REQUIRED_SIGNAL_WORDS,
+    PREFERRED_SIGNAL_WORDS,
+} from "./skillDictionary.util.js";
+
+// ── Stop Words ───────────────────────────────────────────────────────────────
 const STOP_WORDS = new Set([
-    "and", "the", "of", "in", "to", "a", "with", "for", "on", "as", "by", "an", "is", "at", "from", "or", "that", "which",
-    "be", "are", "was", "were", "have", "has", "had", "do", "does", "did", "can", "could", "will", "would", "should",
-    "responsible", "responsibility", "duties", "included", "working", "worked", "work", "team", "support", "help",
-    "managed", "managing", "handled", "handling", "created", "creating", "using", "used", "utilized", "maintaining",
-    "various", "strong", "excellent", "good", "proficient", "familiar", "knowledge", "understanding", "experience",
-    "including", "ensure", "ensuring", "able", "ability", "skill", "skills", "etc", "role", "task", "tasks"
+    "and", "the", "of", "in", "to", "a", "with", "for", "on", "as", "by", "an", "is", "at",
+    "from", "or", "that", "which", "be", "are", "was", "were", "have", "has", "had", "do",
+    "does", "did", "can", "could", "will", "would", "should", "may", "might", "must",
+    "not", "but", "if", "we", "you", "they", "he", "she", "it", "this", "these", "those",
+    "our", "your", "their", "its", "us", "me", "him", "her", "we", "who", "what", "how",
+    "when", "where", "why", "also", "both", "each", "few", "more", "most", "other",
+    "some", "such", "than", "then", "there", "these", "they", "very", "just", "into",
+    "over", "after", "before", "during", "about", "between", "through", "while",
+    "any", "all", "no", "nor", "so", "yet", "both", "either", "neither",
 ]);
 
-// Helper to extract email/links from text
-const extractContactInfo = (text) => {
-    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
-    const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/;
-    const linkedinRegex = /linkedin\.com\/in\/[a-zA-Z0-9_-]+/;
-    const githubRegex = /github\.com\/[a-zA-Z0-9_-]+/;
-    const urlRegex = /https?:\/\/[^\s]+/;
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-    return {
-        email: text.match(emailRegex)?.[0] || "",
-        phone: text.match(phoneRegex)?.[0] || "",
-        linkedin: text.match(linkedinRegex)?.[0] || "",
-        github: text.match(githubRegex)?.[0] || "",
-        portfolio: text.match(urlRegex)?.[0] || "" // Rough approximation
-    };
+/** Normalize text: lowercase, remove punctuation */
+const normalize = (text = "") =>
+    text.toLowerCase().replace(/[^a-z0-9\s\-\.\/]/g, " ").replace(/\s+/g, " ").trim();
+
+/** Tokenize into meaningful words */
+const tokenize = (text) =>
+    normalize(text).split(" ").filter((w) => w.length > 1 && !STOP_WORDS.has(w));
+
+/** Count occurrences of a keyword (word-boundary aware) */
+const countOccurrences = (text, keyword) => {
+    try {
+        const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return (text.match(new RegExp(`\\b${escaped}\\b`, "gi")) || []).length;
+    } catch {
+        return 0;
+    }
 };
 
-// Simple Section Parser
-const parseSectionsFromText = (text) => {
-    if (!text) return {};
+/** Check if text contains a keyword */
+const containsKeyword = (text, keyword) => countOccurrences(text, keyword) > 0;
 
-    const sections = {
-        experience: [],
-        education: [],
-        projects: [],
-        skills: { technical: [] },
-        summary: ""
-    };
+/** Extract contact info */
+const extractContactInfo = (text) => ({
+    email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/i.test(text),
+    phone: /(?:\+?\d{1,3}[\-.\s]?)?\(?\d{3}\)?[\-.\s]?\d{3}[\-.\s]?\d{4}/i.test(text),
+    linkedin: /linkedin\.com\/(?:in\/|profile\/)?[a-zA-Z0-9%_-]+|linkedin\s+profile/i.test(text),
+    github: /github\.com\/[a-zA-Z0-9%_-]+|github\s+profile/i.test(text),
+});
 
-    const lines = text.split('\n');
-    let currentSection = 'summary'; // Default to summary/header
-    let buffer = [];
-
-    // Keywords to identify sections
-    const sectionKeywords = {
-        experience: ['experience', 'work history', 'employment'],
-        education: ['education', 'academic'],
-        projects: ['projects', 'softwares'],
-        skills: ['skills', 'technologies', 'technical proficiency']
-    };
+/** Simple section splitter: returns { sectionName → text } */
+const parseSections = (text) => {
+    const result = { raw: text, summary: "", experience: "", education: "", projects: "", skills: "" };
+    const lines = text.split(/\n/);
+    let currentSection = "summary";
 
     for (const line of lines) {
         const trimmed = line.trim().toLowerCase();
+        if (!trimmed) continue;
 
-        // Check if line is a header
-        let isHeader = false;
-        // Simple heuristic: Line is short, no lowercase (or mostly caps), or matches exact keywords
-        if (trimmed.length < 40 && /^[a-z\s]+$/.test(trimmed)) {
-            for (const [key, keywords] of Object.entries(sectionKeywords)) {
-                if (keywords.some(k => trimmed.includes(k))) {
-                    // Save previous buffer
-                    if (buffer.length > 0) {
-                        if (currentSection === 'summary') sections.summary = buffer.join(' ');
-                        else if (currentSection === 'skills') sections.skills.technical.push(...buffer.join(' ').split(/[,•|]/).map(s => s.trim()).filter(s => s.length > 2));
-                        else if (Array.isArray(sections[currentSection])) sections[currentSection].push({ description: buffer.join(' ') });
-                    }
-
-                    currentSection = key;
-                    buffer = [];
-                    isHeader = true;
-                    break;
-                }
+        let matched = false;
+        for (const [section, headers] of Object.entries(SECTION_HEADERS)) {
+            if (headers.some((h) => trimmed === h || trimmed.startsWith(h + " ") || trimmed.startsWith(h + ":"))) {
+                currentSection = section;
+                matched = true;
+                break;
             }
         }
-
-        if (!isHeader && trimmed.length > 0) {
-            buffer.push(line.trim());
+        if (!matched) {
+            result[currentSection] = (result[currentSection] || "") + " " + line;
         }
     }
-
-    // Flush last buffer
-    if (buffer.length > 0) {
-        if (currentSection === 'summary') sections.summary = buffer.join(' ');
-        else if (currentSection === 'skills') sections.skills.technical.push(...buffer.join(' ').split(/[,•|]/).map(s => s.trim()).filter(s => s.length > 2));
-        else if (Array.isArray(sections[currentSection])) sections[currentSection].push({ description: buffer.join(' ') });
-    }
-
-    return sections;
+    return result;
 };
 
-export const calculateATSScore = (resume, jobDescription) => {
-    const findings = {
-        missingKeywords: [],
-        formattingIssues: [],
-        strengths: []
-    };
+/** Build TF vector (term frequency map) */
+const buildTFVector = (text) => {
+    const tokens = tokenize(text);
+    const freq = {};
+    tokens.forEach((t) => { freq[t] = (freq[t] || 0) + 1; });
+    const total = tokens.length || 1;
+    Object.keys(freq).forEach((k) => { freq[k] /= total; });
+    return freq;
+};
 
-    if (!jobDescription) return { score: 0, analysis: findings };
+/** Cosine similarity between two TF vectors */
+const cosineSimilarity = (vecA, vecB) => {
+    const allKeys = new Set([...Object.keys(vecA), ...Object.keys(vecB)]);
+    let dot = 0, magA = 0, magB = 0;
+    for (const k of allKeys) {
+        const a = vecA[k] || 0;
+        const b = vecB[k] || 0;
+        dot += a * b;
+        magA += a * a;
+        magB += b * b;
+    }
+    if (!magA || !magB) return 0;
+    return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+};
 
-    // ── 0. Normalize Resume Data (Structure vs Text) ─────────────────────────────
-    // If structured fields are empty, try to parse from raw content
-    let processedResume = { ...resume.toObject?.() || resume }; // Clone
+/** Extract skills from a text block */
+const extractSkillsFromText = (text) => {
+    const lower = normalize(text);
+    return TECH_SKILLS.filter((skill) => containsKeyword(lower, skill));
+};
 
-    // Check if we need to fall back to text parsing
-    const hasStructure = processedResume.experience?.length > 0 || processedResume.education?.length > 0;
-
-    if (!hasStructure) {
-        // Try to get content from versions or originalContent
-        const rawText = processedResume.versions?.[processedResume.currentVersionIndex]?.content
-            || processedResume.originalContent
-            || processedResume.contact // Fallback field
-            || "";
-
-        if (rawText) {
-            const parsedInfo = extractContactInfo(rawText);
-            const parsedSections = parseSectionsFromText(rawText);
-
-            processedResume.personalInfo = { ...processedResume.personalInfo, ...parsedInfo };
-            processedResume.personalInfo.summary = parsedSections.summary;
-            processedResume.experience = parsedSections.experience;
-            processedResume.education = parsedSections.education;
-            processedResume.projects = parsedSections.projects;
-            processedResume.skills = parsedSections.skills;
+/** Detect skills near required/preferred signals in a window */
+const detectSkillsNearSignals = (jdText, signalWords, windowSize = 120) => {
+    const lower = jdText.toLowerCase();
+    const skills = new Set();
+    for (const signal of signalWords) {
+        let pos = 0;
+        while ((pos = lower.indexOf(signal, pos)) !== -1) {
+            const window = lower.slice(Math.max(0, pos - 20), pos + windowSize);
+            extractSkillsFromText(window).forEach((s) => skills.add(s));
+            pos += signal.length;
         }
     }
+    return [...skills];
+};
 
-    // ── 1. Advanced Keyword Analysis ─────────────────────────────────────────────
-
-    // A. Parse Job Description (JD)
-    // Extract words, lower-case, remove punctuation
-    const jdWords = jobDescription.toLowerCase().match(/\b[a-z]{2,}\b/g) || [];
-
-    // Filter out stop words to find "significant" keywords
-    const significantJdKeywords = jdWords.filter(w => !STOP_WORDS.has(w));
-
-    // Get unique significant keywords and their frequency in JD (optional, for now just presence)
-    const uniqueJdKeywords = [...new Set(significantJdKeywords)];
-
-
-    // B. Build Resume Full-Text Search Block
-    // Concatenate all text content to find keywords hidden in descriptions
-    const resumeFullText = [
-        processedResume.personalInfo?.summary || '',
-        ...(processedResume.experience?.map(e => `${e.position || ''} ${e.company || ''} ${e.description || ''}`) || []),
-        ...(processedResume.projects?.map(p => `${p.title || ''} ${p.technologies?.join(' ') || ''} ${p.description || ''}`) || []),
-        ...(processedResume.education?.map(e => `${e.degree || ''} ${e.school || ''}`) || []),
-        ...(processedResume.skills?.technical || []),
-        ...(processedResume.skills?.soft || [])
-    ].join(' ').toLowerCase();
-
-    // C. Find Matches
-    const matchedKeywords = uniqueJdKeywords.filter(keyword => {
-        // Use word boundary regex to ensure "go" doesn't match "google"
-        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-        return regex.test(resumeFullText);
-    });
-
-    const missingKeywords = uniqueJdKeywords.filter(k => !matchedKeywords.includes(k));
-
-    // D. Keyword Score Calculation (Max 60)
-    // We expect a reasonable match rate of significant words. 
-    // Let's say matching 40% of unique significant JD words is a "perfect" 60/60 score for this section,
-    // because JDs often contain fluff too.
-    const matchRatio = uniqueJdKeywords.length > 0 ? (matchedKeywords.length / uniqueJdKeywords.length) : 0;
-
-    // Tweaked formula: 
-    // If you match > 50% of unique significant words, you get max points.
-    // Otherwise, proportional.
-    const keywordScore = Math.min((matchRatio / 0.5) * 60, 60);
-
-    // Record top missing keywords (up to 5)
-    findings.missingKeywords = missingKeywords.slice(0, 5);
-
-
-    // ── 2. Structural & Formatting Check (Max 25) ────────────────────────────────
-    let formattingScore = 25;
-
-    if (!processedResume.personalInfo?.linkedin && !processedResume.personalInfo?.github && !processedResume.personalInfo?.portfolio) {
-        // Not strictly mandatory, but good for tech roles
-        findings.formattingIssues.push("No professional links (LinkedIn/GitHub) detected.");
-        formattingScore -= 3;
+/** Extract approximate years of experience from text */
+export const extractExperienceYears = (text) => {
+    const patterns = [
+        /(\d+)\+?\s*(?:years?|yrs?)(?:\s+of)?(?:\s+relevant)?\s+(?:professional\s+)?experience/i,
+        /(\d+)\s*-\s*(\d+)\s*(?:years?|yrs?)/i,
+        /minimum\s+(?:of\s+)?(\d+)\s*(?:years?|yrs?)/i,
+        /at\s+least\s+(\d+)\s*(?:years?|yrs?)/i,
+        /(\d+)\s*(?:years?|yrs?)\s+(?:of\s+)?(?:industry|professional|work|hands-on)/i,
+    ];
+    for (const pat of patterns) {
+        const m = text.match(pat);
+        if (m) return parseInt(m[2] ? Math.floor((parseInt(m[1]) + parseInt(m[2])) / 2) : m[1], 10);
     }
+    return null;
+};
 
-    // Contact Info Check
-    if (!processedResume.personalInfo?.email || !processedResume.personalInfo?.phone) {
-        findings.formattingIssues.push("Missing essential contact information.");
-        formattingScore -= 5;
-    }
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMPONENT 1 — Required Skills Match (30 pts)
+// ─────────────────────────────────────────────────────────────────────────────
+const scoreRequiredSkills = (resumeText, jdText, jdSkills) => {
+    // Skills explicitly flagged as "required" in JD
+    let required = detectSkillsNearSignals(jdText, REQUIRED_SIGNAL_WORDS, 150);
 
-    if (!processedResume.experience?.length) {
-        findings.formattingIssues.push("No work experience section directed. ATS parsers prioritize experience.");
-        formattingScore -= 10;
-    }
+    // Fallback: use all JD skills if required signals produced nothing
+    if (required.length === 0) required = jdSkills;
 
-    // Summary Length Check
-    const summaryLen = processedResume.personalInfo?.summary?.length || 0;
-    if (summaryLen === 0) {
-        findings.formattingIssues.push("Missing professional summary.");
-        formattingScore -= 5;
-    } else if (summaryLen < 50) { // Lowered threshold for parsed text
-        findings.formattingIssues.push("Professional summary is too short. Aim for 3-4 sentences.");
-        formattingScore -= 2;
-    }
+    if (required.length === 0) return { score: 25, matched: [], missing: [], required: [] };
 
+    const resumeLower = normalize(resumeText);
+    const matched = required.filter((s) => containsKeyword(resumeLower, s));
+    const missing = required.filter((s) => !matched.includes(s));
 
-    // ── 3. Section Completeness (Max 15) ─────────────────────────────────────────
-    let completenessScore = 15;
-
-    if (!processedResume.skills?.technical?.length) {
-        findings.missingKeywords.push("No technical skills listed in the Skills section.");
-        completenessScore -= 5;
-    }
-
-    if (!processedResume.projects?.length && !processedResume.experience?.length) {
-        // If neither exist, it's a very weak resume
-        findings.formattingIssues.push("Lack of practical experience (Projects/Work) content.");
-        completenessScore -= 5;
-    }
-
-    if (!processedResume.education?.length) {
-        // Some jobs don't require it, but ATS looks for it
-        findings.formattingIssues.push("Education section is missing.");
-        completenessScore -= 3;
-    }
-
-
-    // ── 4. Identify Strengths & Consolidate ──────────────────────────────────────
-    if (matchRatio > 0.3) findings.strengths.push("Good match with job description keywords.");
-    if (processedResume.experience?.length >= 2) findings.strengths.push("Solid work history detected.");
-    if (processedResume.projects?.length >= 2) findings.strengths.push("Strong project portfolio.");
-    if (processedResume.skills?.technical?.length > 5) findings.strengths.push("Diverse technical skillset.");
-
-    const totalScore = Math.min(Math.round(keywordScore + formattingScore + completenessScore), 100);
+    // Weighted: each missing required skill is a heavy penalty
+    const matchRatio = matched.length / required.length;
+    // Curve: matching 60%+ of required = full marks
+    const rawScore = Math.min(matchRatio / 0.6, 1) * 30;
 
     return {
-        score: totalScore,
-        analysis: findings,
-        matchRate: Math.round(matchRatio * 100), // Raw percentage of keywords matched
-        breakdown: {
-            keywordScore: Math.round(keywordScore),
-            formattingScore: Math.round(formattingScore),
-            completenessScore: Math.round(completenessScore)
+        score: Math.round(rawScore),
+        matched,
+        missing,
+        required,
+    };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMPONENT 2 — Preferred Skills Match (15 pts)
+// ─────────────────────────────────────────────────────────────────────────────
+const scorePreferredSkills = (resumeText, jdText, jdSkills, requiredSkills) => {
+    let preferred = detectSkillsNearSignals(jdText, PREFERRED_SIGNAL_WORDS, 150);
+
+    // Remove already-classified required skills
+    preferred = preferred.filter((s) => !requiredSkills.includes(s));
+
+    // Fallback: remaining JD skills not in required
+    if (preferred.length === 0) {
+        preferred = jdSkills.filter((s) => !requiredSkills.includes(s));
+    }
+
+    if (preferred.length === 0) return { score: 10, matched: [], missing: [] };
+
+    const resumeLower = normalize(resumeText);
+    const matched = preferred.filter((s) => containsKeyword(resumeLower, s));
+    const matchRatio = matched.length / preferred.length;
+    const rawScore = Math.min(matchRatio / 0.5, 1) * 15;
+
+    return {
+        score: Math.round(rawScore),
+        matched,
+        missing: preferred.filter((s) => !matched.includes(s)),
+    };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMPONENT 3 — Experience Relevance (15 pts)
+// ─────────────────────────────────────────────────────────────────────────────
+const scoreExperienceRelevance = (sections, jdText) => {
+    const expText = sections.experience + " " + sections.projects + " " + sections.summary;
+    if (!expText.trim()) return { score: 0, detail: "No experience section detected" };
+
+    const jdTokens = new Set(tokenize(jdText));
+    const expTokens = tokenize(expText);
+
+    if (jdTokens.size === 0) return { score: 10, detail: "Vague JD" };
+
+    // Token overlap ratio
+    const overlapCount = expTokens.filter((t) => jdTokens.has(t)).length;
+    const overlapRatio = overlapCount / Math.max(expTokens.length, 1);
+
+    // Normalize: 15%+ overlap = full marks
+    const rawScore = Math.min(overlapRatio / 0.15, 1) * 15;
+
+    return {
+        score: Math.round(rawScore),
+        detail: `${Math.round(overlapRatio * 100)}% token overlap with JD`,
+    };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMPONENT 4 — Keyword Density & Distribution (10 pts)
+// ─────────────────────────────────────────────────────────────────────────────
+const scoreKeywordDensity = (resumeText, jdSkills, sections) => {
+    if (jdSkills.length === 0) return { score: 7, detail: "No skills to evaluate density" };
+
+    const resumeLower = normalize(resumeText);
+    const sectionTexts = [sections.skills, sections.experience, sections.projects, sections.education, sections.summary];
+
+    let stuffingPenalty = 0;
+    let distributionBonus = 0;
+
+    for (const skill of jdSkills) {
+        const totalCount = countOccurrences(resumeLower, skill);
+
+        // Penalize keyword stuffing (>5 occurrences is suspicious)
+        if (totalCount > 5) stuffingPenalty += Math.min((totalCount - 5) * 0.4, 2);
+
+        // Reward natural distribution (appears in multiple sections)
+        const sectionsWithSkill = sectionTexts.filter((s) => containsKeyword(normalize(s || ""), skill)).length;
+        if (sectionsWithSkill >= 2) distributionBonus += 0.5;
+    }
+
+    const rawScore = Math.max(0, 8 + distributionBonus - stuffingPenalty);
+    return {
+        score: Math.min(Math.round(rawScore), 10),
+        detail: `Stuffing penalty: ${stuffingPenalty.toFixed(1)}, Distribution bonus: ${distributionBonus.toFixed(1)}`,
+    };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMPONENT 5 — Section Completeness (10 pts)
+// ─────────────────────────────────────────────────────────────────────────────
+const scoreSectionCompleteness = (sections, resumeText) => {
+    const resumeLower = normalize(resumeText);
+    const sectionChecks = [
+        { name: "Skills", text: sections.skills, weight: 3 },
+        { name: "Experience", text: sections.experience, weight: 3 },
+        { name: "Education", text: sections.education, weight: 2 },
+        { name: "Projects", text: sections.projects, weight: 2 },
+    ];
+
+    let score = 0;
+    const present = [];
+    const missing = [];
+
+    for (const check of sectionChecks) {
+        const hasSection =
+            (check.text && check.text.trim().length > 20) ||
+            SECTION_HEADERS[check.name.toLowerCase()]?.some((h) => containsKeyword(resumeLower, h));
+
+        if (hasSection) {
+            score += check.weight;
+            present.push(check.name);
+        } else {
+            missing.push(check.name);
         }
+    }
+
+    return { score: Math.min(score, 10), present, missing };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMPONENT 6 — Action Verb Strength (5 pts)
+// ─────────────────────────────────────────────────────────────────────────────
+const scoreActionVerbs = (resumeText) => {
+    const lower = resumeText.toLowerCase();
+    let strongCount = 0;
+    let weakCount = 0;
+
+    STRONG_ACTION_VERBS.forEach((v) => { if (containsKeyword(lower, v)) strongCount++; });
+    WEAK_ACTION_VERBS.forEach((v) => { if (lower.includes(v)) weakCount++; });
+
+    const total = strongCount + weakCount;
+    if (total === 0) return { score: 2, detail: "No action verbs detected", strongCount, weakCount };
+
+    const strongRatio = strongCount / total;
+    const rawScore = Math.min(strongRatio / 0.7, 1) * 5;
+
+    return {
+        score: Math.round(rawScore),
+        detail: `${strongCount} strong verbs, ${weakCount} weak verbs (ratio: ${Math.round(strongRatio * 100)}%)`,
+        strongCount,
+        weakCount,
+    };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMPONENT 7 — Formatting & Structure (5 pts)
+// ─────────────────────────────────────────────────────────────────────────────
+const scoreFormatting = (resumeText, sections) => {
+    let score = 5;
+    const issues = [];
+    const contact = extractContactInfo(resumeText);
+
+    if (!contact.email) { score -= 2; issues.push("Missing email address"); }
+    if (!contact.phone) { score -= 1; issues.push("Missing phone number"); }
+    if (!contact.linkedin && !contact.github) { score -= 1; issues.push("No professional links (LinkedIn/GitHub)"); }
+
+    const summaryText = sections.summary || "";
+    if (summaryText.trim().length < 50) {
+        score -= 1;
+        issues.push("Missing or very short professional summary");
+    }
+
+    return { score: Math.max(score, 0), issues };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMPONENT 8 — Semantic Similarity (10 pts)
+// ─────────────────────────────────────────────────────────────────────────────
+const scoreSemanticSimilarity = (resumeText, jdText) => {
+    const tfResume = buildTFVector(resumeText);
+    const tfJD = buildTFVector(jdText);
+    const similarity = cosineSimilarity(tfResume, tfJD);
+
+    // Normalize: 0.25 cosine similarity maps to full score
+    const rawScore = Math.min(similarity / 0.25, 1) * 10;
+
+    return {
+        score: Math.round(rawScore),
+        similarity: Math.round(similarity * 100) / 100,
+    };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MAIN EXPORT — calculateATSScore
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Rule-based 8-component ATS scorer.
+ * Accepts either:
+ *   - (resumeText: string, jobDescription: string)  — raw text mode
+ *   - (resumeDoc: Object, jobDescription: string)   — structured doc mode
+ *
+ * Returns the standard result shape plus `ruleScore`.
+ */
+export const calculateATSScore = (resume, jobDescription) => {
+    // ── 0. Normalize input ─────────────────────────────────────────────────────
+    let resumeText = "";
+
+    if (typeof resume === "string") {
+        resumeText = resume;
+    } else if (resume && typeof resume === "object") {
+        // Structured resume document (from mongoose / frontend editor)
+        const doc = resume.toObject ? resume.toObject() : resume;
+        resumeText = [
+            doc.personalInfo?.name || "",
+            doc.personalInfo?.email || "",
+            doc.personalInfo?.phone || "",
+            doc.personalInfo?.summary || "",
+            ...(doc.experience || []).map(
+                (e) => `${e.position || ""} ${e.company || ""} ${e.startDate || ""} ${e.endDate || ""} ${e.description || ""}`
+            ),
+            ...(doc.projects || []).map(
+                (p) => `${p.title || ""} ${(p.technologies || []).join(" ")} ${p.description || ""}`
+            ),
+            ...(doc.education || []).map(
+                (e) => `${e.degree || ""} ${e.school || ""} ${e.startDate || ""} ${e.endDate || ""}`
+            ),
+            ...(doc.skills?.technical || []),
+            ...(doc.skills?.soft || []),
+            doc.versions?.[doc.currentVersionIndex]?.content || doc.originalContent || "",
+        ].join(" ");
+    }
+
+    if (!jobDescription || !resumeText.trim()) {
+        return {
+            score: 0,
+            ruleScore: 0,
+            overallScore: 0,
+            atsScore: 0,
+            breakdown: {
+                requiredSkills: 0, preferredSkills: 0, experienceMatch: 0,
+                densityScore: 0, sectionScore: 0, actionVerbScore: 0,
+                formattingScore: 0, semanticScore: 0,
+            },
+            missingCriticalSkills: [],
+            weakSections: [],
+            improvementSuggestions: ["Provide resume and job description to get a score."],
+            matchedSkills: [],
+            missingSkills: [],
+            analysis: { missingKeywords: [], formattingIssues: [], strengths: [] },
+        };
+    }
+
+    // ── 1. Parse sections ──────────────────────────────────────────────────────
+    const sections = parseSections(resumeText);
+
+    // ── 2. Extract all JD skills ───────────────────────────────────────────────
+    const jdNorm = normalize(jobDescription);
+    const jdSkills = TECH_SKILLS.filter((s) => containsKeyword(jdNorm, s));
+
+    // ── 3. Run all 8 components ────────────────────────────────────────────────
+    const req = scoreRequiredSkills(resumeText, jobDescription, jdSkills);
+    const pref = scorePreferredSkills(resumeText, jobDescription, jdSkills, req.required);
+    const exp = scoreExperienceRelevance(sections, jobDescription);
+    const density = scoreKeywordDensity(resumeText, jdSkills, sections);
+    const section = scoreSectionCompleteness(sections, resumeText);
+    const verbs = scoreActionVerbs(resumeText);
+    const fmt = scoreFormatting(resumeText, sections);
+    const semantic = scoreSemanticSimilarity(resumeText, jobDescription);
+
+    // ── 4. Compose ruleScore ───────────────────────────────────────────────────
+    const ruleScore = Math.min(
+        req.score + pref.score + exp.score + density.score +
+        section.score + verbs.score + fmt.score + semantic.score,
+        100
+    );
+
+    // ── 5. Build lists ─────────────────────────────────────────────────────────
+    const matchedSkills = [...new Set([...req.matched, ...pref.matched])];
+    const missingCriticalSkills = req.missing.slice(0, 8);
+    const weakSections = section.missing;
+
+    // ── 6. Build improvement suggestions ──────────────────────────────────────
+    const suggestions = [];
+
+    if (missingCriticalSkills.length > 0)
+        suggestions.push(`Add missing required skills to your resume: ${missingCriticalSkills.slice(0, 5).join(", ")}.`);
+
+    if (weakSections.length > 0)
+        suggestions.push(`Add or expand these sections: ${weakSections.join(", ")}.`);
+
+    if (verbs.weakCount > verbs.strongCount)
+        suggestions.push(`Replace weak verbs (helped, worked on) with strong action verbs (led, built, optimized).`);
+
+    if (fmt.issues.length > 0)
+        fmt.issues.forEach((i) => suggestions.push(i));
+
+    if (semantic.similarity < 0.1)
+        suggestions.push("Your resume language is very different from the job description. Mirror JD terminology more closely.");
+
+    if (density.score < 5)
+        suggestions.push("Improve keyword distribution — mention key skills naturally across multiple sections.");
+
+    if (exp.score < 7)
+        suggestions.push("Strengthen your Experience section with more role-specific keywords from the job description.");
+
+    // ── 7. Experience years ────────────────────────────────────────────────────
+    const experienceYearsRequired = extractExperienceYears(jobDescription);
+    const experienceYearsFound = extractExperienceYears(resumeText);
+
+    // ── 8. Build legacy analysis shape (used by frontend) ─────────────────────
+    const analysis = {
+        missingKeywords: [...req.missing, ...pref.missing].slice(0, 8),
+        formattingIssues: fmt.issues,
+        strengths: [
+            ...(matchedSkills.length > 3 ? [`Matched ${matchedSkills.length} relevant skills.`] : []),
+            ...(verbs.strongCount > 3 ? ["Good use of action verbs."] : []),
+            ...(section.present.length >= 3 ? ["Resume has most key sections."] : []),
+            ...(semantic.similarity > 0.15 ? ["Strong language alignment with the JD."] : []),
+        ],
+    };
+
+    return {
+        // Scores
+        score: ruleScore,
+        ruleScore,
+        overallScore: ruleScore, // will be overridden by hybrid combiner if used
+        atsScore: ruleScore,     // will be overridden by hybrid combiner if used
+
+        // Breakdown
+        breakdown: {
+            requiredSkills: req.score,
+            preferredSkills: pref.score,
+            experienceMatch: exp.score,
+            densityScore: density.score,
+            sectionScore: section.score,
+            actionVerbScore: verbs.score,
+            formattingScore: fmt.score,
+            semanticScore: semantic.score,
+        },
+
+        // Lists
+        matchedSkills,
+        missingSkills: [...req.missing, ...pref.missing],
+        missingCriticalSkills,
+        weakSections,
+        improvementSuggestions: suggestions,
+
+        // Experience
+        experienceYearsRequired,
+        experienceYearsFound,
+        yearsMismatch:
+            experienceYearsRequired !== null &&
+            experienceYearsFound !== null &&
+            experienceYearsFound < experienceYearsRequired,
+
+        // Legacy shape (for frontend compatibility)
+        analysis,
+        matchRate: Math.round((matchedSkills.length / Math.max(jdSkills.length, 1)) * 100),
     };
 };

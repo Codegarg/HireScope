@@ -3,7 +3,7 @@
 export const cleanText = (text = "") => {
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9+.#\s]/g, " ")
+    .replace(/[^a-z0-9+.#\s@/_\-%]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 };
