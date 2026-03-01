@@ -171,25 +171,32 @@ export const generateInterviewPrep = async (resumeText, companyName) => {
  * Non-streaming call to Cloudflare AI
  */
 export const callCloudflareAINonStreaming = async (systemPrompt, userPrompt) => {
+    if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_API_TOKEN) {
+        throw new Error('Cloudflare credentials missing for non-streaming call');
+    }
     try {
-        const response = await axios.post(
-            `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`,
+        const response = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/${MODEL}`,
             {
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userPrompt }
-                ]
-            },
-            {
+                method: 'POST',
                 headers: {
-                    Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
-                    'Content-Type': 'application/json'
-                }
+                    Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt },
+                    ],
+                    max_tokens: 4096,
+                }),
             }
         );
-        return response.data.result.response;
+        const data = await response.json();
+        if (!data.result?.response) throw new Error('Empty AI response');
+        return data.result.response;
     } catch (error) {
-        console.error("Cloudflare Non-Streaming Error:", error.response?.data || error.message);
+        console.error('Cloudflare Non-Streaming Error:', error.message);
         throw error;
     }
 };
@@ -225,160 +232,112 @@ export const extractSectionHeaders = (text) => {
 };
 
 /**
- * STRUCTURED MODE: Surgical improvements via JSON
+ * STRUCTURED MODE: Surgical improvements — returns improved plain text directly.
+ * JSON was unreliable: bullet text has quotes/newlines Llama 3 never escapes correctly.
  */
-export const improveResumeStructured = async (resumeText, jobDescription) => {
-    const systemPrompt = `You are a resume optimization engine.
+export const improveResumeStructured = async (resumeText, jobDescription, missingKeywords = []) => {
+    const systemPrompt = `You are a precise resume optimization engine.
+Output ONLY the improved resume as plain text. No JSON. No markdown fences. No explanations. No preamble.`;
+
+    const keywordHint = missingKeywords.length > 0
+        ? `\nCRITICAL — These keywords are MISSING from the resume but required by the JD. You MUST naturally incorporate them into relevant existing sections:\n${missingKeywords.map(k => `  • ${k}`).join('\n')}\n`
+        : '';
+
+    const userPrompt = `Improve this resume surgically for the job description below.
 
 STRICT RULES:
-- DO NOT change section names.
-- DO NOT add new sections.
-- DO NOT reorder sections.
-- DO NOT fabricate experience.
-- Only improve wording and alignment.
-- Only enhance existing content.
-- If adding keywords, insert them naturally.
-- Output ONLY valid JSON.
-- No markdown.
-- No explanation.`;
-
-    const userPrompt = `Given this resume and job description:
-
-1. Rewrite weak bullet points.
-2. Improve action verbs.
-3. Add quantification if logically possible.
-4. Suggest keyword insertions within existing sections only.
-5. Improve summary for JD alignment.
-6. Maintain truthfulness.
-
+- DO NOT change, add, remove, or reorder section headings.
+- DO NOT fabricate skills, companies, years, or experience.
+- Only improve wording: stronger action verbs, better quantification, tighter phrasing.
+- Naturally insert relevant keywords from the JD into existing sections only.
+- Improve the summary/objective paragraph for JD alignment.
+- Preserve ALL dates exactly as written.
+- Return ONLY the improved resume text — nothing else.
+${keywordHint}
 RESUME:
 ${resumeText}
 
 JOB DESCRIPTION:
-${jobDescription}
+${jobDescription || 'Not provided — optimize for general professional impact.'}`;
 
-Return EXACTLY this JSON:
 
-{
-  "bulletRewrites": [
-    {
-      "original": "...",
-      "improved": "..."
-    }
-  ],
-  "keywordInsertions": [
-    {
-      "section": "...",
-      "text": "..."
-    }
-  ],
-  "summaryRewrite": "...",
-  "improvementSummary": "..."
-}`;
 
     const aiResponse = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
 
-    try {
-        const jsonStr = aiResponse.replace(/```json|```/g, "").trim();
-        const data = JSON.parse(jsonStr);
+    // Strip any accidental markdown fences
+    const optimizedResume = aiResponse
+        .replace(/```[\w]*\n?/gi, '')
+        .replace(/```/g, '')
+        .trim();
 
-        const originalHeaders = extractSectionHeaders(resumeText);
-        let optimizedResume = resumeText;
-
-        // Apply bullet rewrites
-        if (data.bulletRewrites) {
-            data.bulletRewrites.forEach(rewrite => {
-                if (rewrite.original && rewrite.improved && rewrite.original.length > 5) {
-                    optimizedResume = optimizedResume.replace(rewrite.original, rewrite.improved);
-                }
-            });
-        }
-
-        // Apply keyword insertions
-        if (data.keywordInsertions) {
-            data.keywordInsertions.forEach(ins => {
-                const sectionHeader = ins.section.toUpperCase();
-                const sectionRegex = new RegExp(`(${sectionHeader})(?::|\\n)`, 'i');
-                if (sectionRegex.test(optimizedResume)) {
-                    optimizedResume = optimizedResume.replace(sectionRegex, `$1\n• ${ins.text}\n`);
-                }
-            });
-        }
-
-        // Apply summary rewrite
-        if (data.summaryRewrite) {
-            const summaryMatch = optimizedResume.match(/(SUMMARY|OBJECTIVE|PROFILE|EXPERIENCE|EDUCATION)(?::|\n)([\s\S]+?)(?=\n\n|\n[A-Z\s]{5,}|$)/i);
-            if (summaryMatch) {
-                // If it matched a section other than summary (failsafe), we need to be careful.
-                // But generally summary is first.
-                optimizedResume = optimizedResume.replace(summaryMatch[2], `\n${data.summaryRewrite}\n`);
-            }
-        }
-
-        // VALIDATION LAYER: Ensure structural integrity
-        const newHeaders = extractSectionHeaders(optimizedResume);
-
-        if (newHeaders.length !== originalHeaders.length) {
-            console.warn(`[Validation] Section count mismatch. Rejection. Orig: ${originalHeaders.length}, New: ${newHeaders.length}`);
-            return { optimizedResume: resumeText, improvementSummary: "Structural validation failed: Missing or Added sections.", llmFallback: true };
-        }
-
-        const isStructureValid = originalHeaders.every((h, i) => h.toLowerCase() === newHeaders[i].toLowerCase());
-        if (!isStructureValid) {
-            console.warn(`[Validation] Section name mismatch. Rejection. Orig: ${originalHeaders}, New: ${newHeaders}`);
-            return { optimizedResume: resumeText, improvementSummary: "Structural validation failed: Section names altered.", llmFallback: true };
-        }
-
-        return { optimizedResume, improvementSummary: data.improvementSummary, llmFallback: false };
-    } catch (error) {
-        console.error("Structured Mode Error:", error, aiResponse);
-        throw new Error("AI output was invalid JSON. Please try again.");
+    if (!optimizedResume || optimizedResume.length < 100) {
+        console.error('[Structured Mode] Response too short or empty');
+        return { optimizedResume: resumeText, improvementSummary: 'AI output was empty. Your original resume has been preserved.', llmFallback: true };
     }
+
+    // ── Sanity check: only reject if response is drastically too short ──────
+    // Section-count checks were causing false fallbacks when the AI reformatted
+    // a heading slightly. In plain-text mode the model isn't inventing sections;
+    // just ensure the output is a substantial resume, not a truncated stub.
+    const minAcceptableLength = Math.max(100, resumeText.length * 0.4);
+    if (optimizedResume.length < minAcceptableLength) {
+        console.warn(`[Structured Mode] Output too short (${optimizedResume.length} vs ${resumeText.length}). Falling back.`);
+        return { optimizedResume: resumeText, improvementSummary: 'AI output was too short. Your original resume has been preserved.', llmFallback: true };
+    }
+
+    return {
+        optimizedResume,
+        improvementSummary: 'Surgical improvements applied: stronger verbs, better keyword alignment, and quantified achievements.',
+        llmFallback: false
+    };
 };
 
 /**
- * REGENERATE MODE: Full rewrite via JSON
+ * REGENERATE MODE: Full rewrite — returns plain text (no JSON wrapper)
+ * Asking the LLM to embed a full resume inside a JSON string value is unreliable
+ * because every newline/quote must be perfectly escaped. Plain text is far safer.
  */
-export const improveResumeRegenerate = async (resumeText, jobDescription) => {
-    const systemPrompt = `You are an expert technical resume writer.
+export const improveResumeRegenerate = async (resumeText, jobDescription, missingKeywords = []) => {
+    const systemPrompt = `You are an expert technical resume writer and ATS specialist.
+Output ONLY the rewritten resume as plain text. No JSON. No markdown fences. No explanations. No preamble.`;
+
+    const keywordHint = missingKeywords.length > 0
+        ? `\nCRITICAL — These keywords are MISSING from the resume but required by the JD. You MUST naturally incorporate them:\n${missingKeywords.map(k => `  • ${k}`).join('\n')}\n`
+        : '';
+
+    const userPrompt = `Rewrite the resume below fully optimized for the job description.
 
 RULES:
-- Optimize resume fully for the given job description.
-- Maintain professional formatting.
-- Do NOT fabricate skills or experience.
-- Do NOT invent years.
-- Be strict and ATS-focused.
-- Output ONLY valid JSON.
-- No markdown.
-- No explanation.`;
-
-    const userPrompt = `Rewrite this resume completely optimized for the job description.
-
+- Use strong action verbs and quantifiable achievements.
+- Naturally integrate relevant keywords from the job description.
+- Do NOT fabricate skills, companies, years, or experience.
+- Maintain all original section headings.
+- Return ONLY the rewritten resume text — nothing else.
+${keywordHint}
 RESUME:
 ${resumeText}
 
 JOB DESCRIPTION:
-${jobDescription}
+${jobDescription || 'Not provided — optimize for general professional impact.'}`;
 
-Return EXACTLY:
-
-{
-  "optimizedResume": ""
-}`;
 
     const aiResponse = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
 
-    try {
-        const jsonStr = aiResponse.replace(/```json|```/g, "").trim();
-        const data = JSON.parse(jsonStr);
-        return {
-            optimizedResume: data.optimizedResume,
-            improvementSummary: "Full resume regeneration for enhanced JD alignment and technical impact."
-        };
-    } catch (error) {
-        console.error("Regenerate Mode Error:", error, aiResponse);
-        throw new Error("AI failed to regenerate the resume properly.");
+    // Strip any accidental markdown fences the model might add
+    const cleaned = aiResponse
+        .replace(/```[\w]*\n?/gi, '')
+        .replace(/```/g, '')
+        .trim();
+
+    if (!cleaned || cleaned.length < 200) {
+        console.error('[Regenerate Mode] Response too short or empty:', cleaned?.substring(0, 100));
+        throw new Error('AI failed to regenerate the resume properly.');
     }
+
+    return {
+        optimizedResume: cleaned,
+        improvementSummary: 'Full resume regeneration for enhanced JD alignment and technical impact.'
+    };
 };
 
 export const improveResumeContent = async (resumeText) => {
@@ -535,7 +494,7 @@ ${resumeSnippet}`;
                         { role: "system", content: systemPrompt },
                         { role: "user", content: userPrompt },
                     ],
-                    max_tokens: 512,
+                    max_tokens: 800,
                     temperature: 0,  // Deterministic — no creativity
                 }),
             }
@@ -581,6 +540,95 @@ ${resumeSnippet}`;
     } catch (error) {
         console.error("[LlamaEvaluator] Error:", error.message);
         return null;
+    }
+};
+
+/**
+ * STRUCTURED V2 MODE — ATS-targeted optimization of structured resumeData JSON.
+ * Takes resumeData + ATS analysis context. Returns improved resumeData JSON.
+ * Falls back to original resumeData with llmFallback: true if LLM fails.
+ *
+ * @param {Object} resumeData    — structured resume object
+ * @param {string} jobDescription
+ * @param {Object} atsContext    — { atsScore, breakdown, missingCriticalSkills, weakSections, matchedSkills }
+ * @returns {Promise<{ optimizedResumeData, optimizationSummary, llmFallback }>}
+ */
+export const improveResumeStructuredV2 = async (resumeData, jobDescription, atsContext = {}) => {
+    const { atsScore, missingCriticalSkills = [], weakSections = [], matchedSkills = [] } = atsContext;
+
+    const systemPrompt = `You are an ATS optimization engine. Your job is to maximize the ATS score of a resume for a specific job description WITHOUT fabricating any skills, experience, or qualifications.
+
+STRICT RULES:
+- Strengthen existing bullet points with stronger action verbs and measurable outcomes.
+- Surface implicitly present required skills that are already evident in the experience (but not explicitly stated).
+- Improve keyword density naturally within existing context.
+- Improve the summary to better align with the job description.
+- DO NOT add new roles, companies, or years of experience.
+- DO NOT invent tools, technologies, or certifications not present in the original.
+- DO NOT reorder or remove sections.
+- Preserve all dates exactly as given.
+- Return ONLY valid JSON matching the exact resumeData schema provided. No markdown. No explanation.`;
+
+    const userPrompt = `Current ATS Score: ${atsScore ?? 'unknown'}
+Matched Skills: ${matchedSkills.slice(0, 8).join(', ')}
+Missing Critical Skills: ${missingCriticalSkills.slice(0, 8).join(', ')}
+Weak Sections: ${weakSections.join(', ')}
+
+Job Description:
+${jobDescription?.substring(0, 1500) || 'Not provided'}
+
+Resume Data (JSON):
+${JSON.stringify(resumeData, null, 2).substring(0, 3000)}
+
+Return the improved resumeData as VALID JSON exactly matching this schema:
+{
+  "personalInfo": { "fullName":"","title":"","email":"","phone":"","linkedin":"","github":"" },
+  "summary": "",
+  "skills": { "languages":[],"core":[],"frontend":[],"backend":[],"databases":[],"cloud":[],"tools":[] },
+  "projects": [{ "name":"","link":"","descriptionPoints":[] }],
+  "experience": [{ "role":"","organization":"","startDate":"","endDate":"","points":[] }],
+  "education": [{ "degree":"","institution":"","startYear":"","endYear":"" }]
+}`;
+
+    try {
+        const raw = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
+        // Strip markdown fences if present
+        const jsonStr = raw.replace(/```json|```/gi, '').trim();
+
+        // Find first { and last } to extract JSON safely
+        const start = jsonStr.indexOf('{');
+        const end = jsonStr.lastIndexOf('}');
+        if (start === -1 || end === -1) throw new Error('No JSON object found in response');
+
+        const parsed = JSON.parse(jsonStr.slice(start, end + 1));
+
+        // Basic schema validation
+        if (!parsed.personalInfo || !parsed.experience || !parsed.skills) {
+            throw new Error('Parsed JSON missing required fields');
+        }
+
+        // Preserve original dates — never let LLM change them
+        if (Array.isArray(parsed.experience) && Array.isArray(resumeData.experience)) {
+            parsed.experience = parsed.experience.map((exp, i) => ({
+                ...exp,
+                startDate: resumeData.experience[i]?.startDate ?? exp.startDate,
+                endDate: resumeData.experience[i]?.endDate ?? exp.endDate,
+                organization: resumeData.experience[i]?.organization ?? exp.organization,
+            }));
+        }
+
+        return {
+            optimizedResumeData: parsed,
+            optimizationSummary: `ATS optimization applied. Missing skills addressed: ${missingCriticalSkills.slice(0, 5).join(', ')}.`,
+            llmFallback: false,
+        };
+    } catch (error) {
+        console.error('[improveResumeStructuredV2] Fallback triggered:', error.message);
+        return {
+            optimizedResumeData: resumeData,
+            optimizationSummary: 'AI optimization could not be parsed. Your original resume is preserved.',
+            llmFallback: true,
+        };
     }
 };
 
