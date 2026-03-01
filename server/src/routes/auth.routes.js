@@ -3,7 +3,10 @@ import {
     signup,
     login,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    changePassword,
+    deleteAccount,
+    updateProfile
 } from "../controllers/auth.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import passport from "passport";
@@ -22,6 +25,15 @@ router.post("/forgot-password", forgotPassword);
 // Route to submit the new password using the token from the email
 router.post("/reset-password/:token", resetPassword);
 
+// Route for logged-in users to change their password
+router.post("/change-password", authMiddleware, changePassword);
+
+// Route for logged-in users to update their profile (username)
+router.post("/update-profile", authMiddleware, updateProfile);
+
+// Route for logged-in users to delete their account
+router.delete("/delete-account", authMiddleware, deleteAccount);
+
 // --- Google OAuth ---
 router.get("/google", passport.authenticate("google", {
     scope: ["profile", "email"],
@@ -33,7 +45,7 @@ router.get("/google/callback", passport.authenticate("google", {
     session: false
 }), (req, res) => {
     const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
-    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5174"}/login?token=${token}`);
+    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/login?token=${token}`);
 });
 
 // --- GitHub OAuth ---
@@ -47,7 +59,7 @@ router.get("/github/callback", passport.authenticate("github", {
     session: false
 }), (req, res) => {
     const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
-    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5174"}/login?token=${token}`);
+    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/login?token=${token}`);
 });
 
 // --- Protected Routes ---

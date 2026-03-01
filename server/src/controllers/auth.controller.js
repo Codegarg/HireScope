@@ -7,11 +7,11 @@ export const signup = async (req, res) => {
     try {
         // Use 'username' to match the database schema while providing 'name' in response for the frontend
         const { username, email, password } = req.body;
-        
+
         if (!username || !email || !password) {
             return res.status(400).json({ message: "All fields are required" });
         }
-        
+
         const existingUser = await User.findOne({ email });
         if (existingUser) return res.status(400).json({ message: "User already exists" });
 
@@ -19,15 +19,15 @@ export const signup = async (req, res) => {
         await user.save();
 
         const token = generateToken(user._id);
-        
+
         // Response matches the keys expected by AuthContext (id, name, email)
-        res.status(201).json({ 
-            user: { 
-                id: user._id, 
-                name: user.username, 
-                email: user.email 
-            }, 
-            token 
+        res.status(201).json({
+            user: {
+                id: user._id,
+                name: user.username,
+                email: user.email
+            },
+            token
         });
     } catch (error) {
         console.error("Signup Error:", error);
@@ -39,21 +39,21 @@ export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-        
+
         if (!user || !(await user.comparePassword(password))) {
             return res.status(401).json({ message: "Invalid credentials" });
         }
-        
+
         const token = generateToken(user._id);
-        
+
         // Consistent response structure ensures AuthContext.jsx triggers redirection
-        res.status(200).json({ 
-            user: { 
-                id: user._id, 
-                name: user.username, 
-                email: user.email 
-            }, 
-            token 
+        res.status(200).json({
+            user: {
+                id: user._id,
+                name: user.username,
+                email: user.email
+            },
+            token
         });
     } catch (error) {
         console.error("Login Error:", error);
@@ -116,7 +116,7 @@ export const resetPassword = async (req, res) => {
     try {
         const { token } = req.params;
         const { password } = req.body;
-        
+
         const user = await User.findOne({
             resetPasswordToken: token,
             resetPasswordExpires: { $gt: Date.now() }
@@ -127,12 +127,93 @@ export const resetPassword = async (req, res) => {
         user.password = password;
         user.resetPasswordToken = null;
         user.resetPasswordExpires = null;
-        
+
         await user.save({ validateModifiedOnly: true });
 
         res.status(200).json({ message: "Password updated successfully." });
     } catch (error) {
         console.error("Reset Password Error:", error);
         res.status(500).json({ message: "Error resetting password." });
+    }
+};
+
+export const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        // Find user by ID, selecting password
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Check if user has a password set (e.g. might be Google Auth only)
+        if (!user.password) {
+            return res.status(400).json({ message: "Password cannot be changed for this account type." });
+        }
+
+        // Verify current password
+        const isMatch = await user.comparePassword(currentPassword);
+        if (!isMatch) {
+            return res.status(400).json({ message: "Incorrect current password" });
+        }
+
+        // Update with new password
+        user.password = newPassword;
+        await user.save();
+
+        res.status(200).json({ message: "Password updated successfully" });
+    } catch (error) {
+        console.error("Change Password Error:", error);
+        res.status(500).json({ message: "Server error changing password" });
+    }
+};
+
+export const updateProfile = async (req, res) => {
+    try {
+        const { username } = req.body;
+        const userId = req.user.id;
+
+        if (!username || username.trim() === '') {
+            return res.status(400).json({ message: "Username cannot be empty" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.username = username.trim();
+        await user.save();
+
+        res.status(200).json({
+            message: "Profile updated successfully",
+            user: {
+                id: user._id,
+                name: user.username,
+                email: user.email
+            }
+        });
+    } catch (error) {
+        console.error("Update Profile Error:", error);
+        res.status(500).json({ message: "Server error updating profile" });
+    }
+};
+
+export const deleteAccount = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        // Find and delete the user
+        const deletedUser = await User.findByIdAndDelete(userId);
+
+        if (!deletedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({ message: "Account deleted successfully" });
+    } catch (error) {
+        console.error("Delete Account Error:", error);
+        res.status(500).json({ message: "Server error deleting account" });
     }
 };

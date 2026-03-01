@@ -168,19 +168,23 @@ const Navbar = () => {
                     {user ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             {/* User Avatar */}
-                            <div style={{
-                                width: '34px', height: '34px',
-                                borderRadius: '50%',
-                                background: 'var(--gradient-primary)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: '0.75rem', fontWeight: '800', color: 'white',
-                                flexShrink: 0,
-                                boxShadow: '0 4px 12px var(--primary-glow)',
-                                cursor: 'default',
-                                title: user.name,
-                            }} title={user.name}>
-                                {initials}
-                            </div>
+                            <Link to="/profile" style={{ textDecoration: 'none' }}>
+                                <motion.div
+                                    whileHover={{ scale: 1.05 }}
+                                    style={{
+                                        width: '34px', height: '34px',
+                                        borderRadius: '50%',
+                                        background: 'var(--gradient-primary)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '0.75rem', fontWeight: '800', color: 'white',
+                                        flexShrink: 0,
+                                        boxShadow: '0 4px 12px var(--primary-glow)',
+                                        cursor: 'pointer',
+                                        title: user.name,
+                                    }} title="Go to Profile">
+                                    {initials}
+                                </motion.div>
+                            </Link>
 
                             {/* Logout button */}
                             <button

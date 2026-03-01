@@ -9,6 +9,7 @@ import ResumeEditor from "./pages/ResumeEditor";
 // NEW IMPORTS
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Profile from "./pages/Profile";
 
 const RoutesConfig = () => {
   const { user, loading } = useContext(AuthContext);
@@ -20,21 +21,22 @@ const RoutesConfig = () => {
       {/* Auth Routes */}
       <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
       <Route path="/signup" element={!user ? <Signup /> : <Navigate to="/" />} />
-      
+
       {/* NEW: Password Recovery Routes (Public) */}
-      <Route 
-        path="/forgot-password" 
-        element={!user ? <ForgotPassword /> : <Navigate to="/" />} 
+      <Route
+        path="/forgot-password"
+        element={!user ? <ForgotPassword /> : <Navigate to="/" />}
       />
-      <Route 
-        path="/reset-password/:token" 
-        element={!user ? <ResetPassword /> : <Navigate to="/" />} 
+      <Route
+        path="/reset-password/:token"
+        element={!user ? <ResetPassword /> : <Navigate to="/" />}
       />
 
       {/* Main App Routes */}
       <Route path="/" element={<Home />} />
       <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
       <Route path="/editor/:id" element={user ? <ResumeEditor /> : <Navigate to="/login" />} />
+      <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to={user ? "/" : "/login"} />} />
