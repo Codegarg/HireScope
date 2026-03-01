@@ -7,6 +7,9 @@ import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
 import { ArrowLeft, Download, Sparkles, Save, Edit3, Check, X, MessageSquare, BarChart3, Bot, ChevronDown, AlertTriangle } from 'lucide-react';
 import ATSAnalysis from '../components/ATSAnalysis';
+import ResumeRenderer from '../components/resume/ResumeRenderer';
+import PDFPreview from '../components/resume/PDFPreview';
+import ResumeLayout from '../components/resume/ResumeLayout';
 
 // ─── Templates Configuration ──────────────────────────────────────────────────
 const TEMPLATE_CONFIGS = {
@@ -110,7 +113,30 @@ function isHeadingLine(line, prevLine, nextLine, strictOnly = false) {
     if (upperRaw.trim().length >= 3 && upperRaw.trim() === upperRaw.trim().toUpperCase()) {
         return true;
     }
+    // ── Dynamic Font Scaling Logic ──────────────────────────────────────────
+    useLayoutEffect(() => {
+        if (!resumeContainerRef.current || resume?.originalFileKey) return;
 
+        const container = resumeContainerRef.current;
+        const targetHeight = 1123; // A4 height @ 96 DPI
+        const minFs = 11.5; // Slightly lower min to be safe
+        const maxFs = 16;
+
+        // Use a small delay to ensure DOM is fully painted if needed, but 
+        // usually scrollHeight is ready in useLayoutEffect.
+        const scrollH = container.scrollHeight;
+
+        // If too big, shrink
+        if (scrollH > targetHeight + 2 && fontScale > minFs) {
+            setFontScale(prev => Math.max(minFs, prev - 0.25));
+        }
+        // If too small (less than 94% of page), grow
+        else if (scrollH < targetHeight * 0.94 && fontScale < maxFs) {
+            setFontScale(prev => Math.min(maxFs, prev + 0.25));
+        }
+
+        setIsOverflowing(scrollH > targetHeight + 10 && fontScale <= minFs);
+    }, [currentContent, sections, fontScale, selectedTemplate]);
     // 3. Title Case + short + surrounded by blank lines
     const isTitleCase = raw.split(/\s+/).every(w => /^[A-Z\/&(]/.test(w) || w.length <= 2);
     const prevBlank = !prevLine || prevLine.trim() === '';
@@ -443,6 +469,9 @@ const ResumeEditor = () => {
     const [jobDescription, setJobDescription] = useState(location.state?.analysisResults?.jdText || '');
 
     const [currentContent, setCurrentContent] = useState('');
+    const [fontScale, setFontScale] = useState(14); // 14px default
+    const [isOverflowing, setIsOverflowing] = useState(false);
+    const resumeContainerRef = useRef(null);
     const [activeVersion, setActiveVersion] = useState(0);
     const [isImproving, setIsImproving] = useState(false);
     const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'unsaved' | 'saving'
@@ -531,9 +560,11 @@ const ResumeEditor = () => {
 
     // Magic Improve comparison states
     const [improvedContent, setImprovedContent] = useState('');
+    const [improvedResumeData, setImprovedResumeData] = useState(null); // structured JSON from V2 mode
     const [improvementsSummary, setImprovementsSummary] = useState([]);
     const [originalSnapshot, setOriginalSnapshot] = useState(null); // pre-improve snapshot for restore
     const [postImproveAts, setPostImproveAts] = useState(null); // ATS_UPDATE from backend after improve
+    const [previewTab, setPreviewTab] = useState('original'); // 'original' | 'improved'
 
     // ATS Integration State
     const [isComparing, setIsComparing] = useState(false);
@@ -594,274 +625,18 @@ const ResumeEditor = () => {
         updateContent(updated);
     };
 
-    // ── PDF Download (browser-side via jsPDF — always 1 page) ───────────────────
+    // ── PDF Download (WYSIWYG via Window.Print) ──────────────────────────────
     const handleDownload = () => {
-        setIsDownloading(true);
-        try {
-            const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-            const pageW = doc.internal.pageSize.getWidth();
-            const pageH = doc.internal.pageSize.getHeight(); // 297mm
-            const margin = 14;
-            const contentW = pageW - margin * 2;
-            const maxH = pageH - margin * 2; // usable height = ~269mm
-
-            const monthNames = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)";
-            const datePart = `(?:${monthNames}\\s+)?(?:[0-9]{4}|Present)`;
-            const dateRegex = new RegExp(`^(.+?)\\s+(${datePart}\\s*[-–]\\s*${datePart})$`, 'i');
-
-            const measureHeight = (nameFz, contactFz, headingFz, bodyFz, lineH, sectionGap) => {
-                let h = 0;
-                sections.forEach(section => {
-                    if (section.title === '__header__') {
-                        const hdrLines = section.body.split('\n').filter(Boolean);
-                        const name = hdrLines[0] || '';
-                        if (name) h += nameFz * 0.352 + 0.8;
-                        const contact = hdrLines.slice(1).join('  |  ');
-                        if (contact) h += contactFz * 0.352 + 1.5;
-                        h += 1.5;
-                    } else {
-                        h += headingFz * 0.352 + 1.2 + 2.5;
-                        if (section.body) {
-                            const bodyLines = section.body.split('\n');
-                            bodyLines.forEach((line) => {
-                                const trimmed = line.trim();
-                                if (!trimmed) { h += 1.5; return; }
-                                if (trimmed.match(dateRegex)) { h += lineH; return; }
-
-                                const isBullet = trimmed.startsWith('•') || trimmed.startsWith('-');
-                                doc.setFontSize(bodyFz);
-                                if (isBullet) {
-                                    const textOnly = trimmed.replace(/^[•-]\s*/, '');
-                                    const bulletW = doc.getTextWidth('• ');
-                                    const wrapped = doc.splitTextToSize(textOnly, contentW - bulletW);
-                                    h += wrapped.length * lineH;
-                                } else {
-                                    const wrapped = doc.splitTextToSize(trimmed, contentW);
-                                    h += wrapped.length * lineH;
-                                }
-                            });
-                        }
-                        h += sectionGap;
-                    }
-                });
-                return h;
-            };
-
-            // ── Base font sizes ───────────────────────────────────────────────────
-            const isModern = selectedTemplate === 'modern';
-            const isMinimalist = selectedTemplate === 'minimalist';
-            const pdfFont = isModern ? 'helvetica' : 'times';
-            const pdfHeadingFont = isModern ? 'helvetica' : 'times';
-            const accentColor = isModern ? [37, 99, 235] : [0, 0, 0];
-
-            const baseNameFz = 15, baseContactFz = 9, baseHeadingFz = 10, baseBodyFz = 9;
-            const baseLineH = 4.5, baseSectionGap = 4;
-
-            const rawH = measureHeight(baseNameFz, baseContactFz, baseHeadingFz, baseBodyFz, baseLineH, baseSectionGap);
-
-            // ── Compute scale to fit within maxH ──────────────────────────────────
-            const scale = rawH > maxH ? maxH / rawH : 1;
-
-            const nameFz = baseNameFz * scale;
-            const contactFz = baseContactFz * scale;
-            const headingFz = baseHeadingFz * scale;
-            const bodyFz = baseBodyFz * scale;
-            const lineH = baseLineH * scale;
-            const sectionGap = baseSectionGap * scale;
-
-            // Map accent color from template
-            const hexToRgb = (hex) => {
-                if (!hex) return [0, 0, 0];
-                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-                return result ? [
-                    parseInt(result[1], 16),
-                    parseInt(result[2], 16),
-                    parseInt(result[3], 16)
-                ] : [0, 0, 0];
-            };
-            const themeRgb = hexToRgb(templateConfig.accentColor);
-
-            // ── Render ────────────────────────────────────────────────────────────
-            let y = margin;
-
-            sections.forEach(section => {
-                if (section.title === '__header__') {
-                    const hdrLines = section.body.split('\n').filter(Boolean);
-                    const name = hdrLines[0] || '';
-                    const contact = hdrLines.slice(1).join('  |  ');
-
-                    const align = templateConfig.headerAlignment;
-                    const headerX = align === 'center' ? pageW / 2 : margin;
-
-                    if (name) {
-                        doc.setFont(pdfHeadingFont, 'bold');
-                        doc.setFontSize(nameFz);
-                        doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
-                        doc.text(name, headerX, y, { align: align });
-                        y += nameFz * 0.352 + 0.8 * scale;
-                    }
-                    if (contact) {
-                        doc.setFont(pdfFont, 'normal');
-                        doc.setFontSize(contactFz);
-                        doc.setTextColor(0, 0, 0);
-                        doc.text(contact, headerX, y, { align: align });
-                        y += contactFz * 0.352 + 1.5 * scale;
-                    }
-                    y += 1.5 * scale;
-                } else {
-                    // Section heading
-                    doc.setFont(pdfHeadingFont, 'bold');
-                    doc.setFontSize(headingFz);
-                    doc.setTextColor(themeRgb[0], themeRgb[1], themeRgb[2]);
-
-                    const headingText = templateConfig.id === 'modern' ? section.title.toUpperCase() : section.title;
-                    doc.text(headingText, margin, y);
-                    y += headingFz * 0.352 + 0.5 * scale;
-
-                    if (templateConfig.sectionLine) {
-                        doc.setDrawColor(accentColor[0], accentColor[1], accentColor[2]);
-                        doc.setLineWidth(0.3);
-                        doc.line(margin, y, pageW - margin, y);
-                        y += 3.8 * scale;
-                    } else {
-                        y += 1.5 * scale;
-                    }
-
-                    // Body text
-                    if (section.body) {
-                        const bodyLines = section.body.split('\n').filter(l => l.trim());
-                        const isCoursework = section.title.toLowerCase().includes('coursework');
-
-                        if (isCoursework) {
-                            const colW = contentW / 2;
-                            let startY = y;
-                            let maxColumnY = y;
-
-                            // Split by NEWLINE or BULLET character to handle bunched items
-                            const courseworkItems = section.body
-                                .split(/[\n•]/)
-                                .map(t => t.trim())
-                                .filter(t => t.length > 0);
-
-                            courseworkItems.forEach((item, bIdx) => {
-                                const colIndex = bIdx % 2;
-                                const finalColX = margin + (colIndex * colW);
-
-                                // Reset Y for the second column item if we are on a new row
-                                if (colIndex === 0 && bIdx > 0) {
-                                    y = maxColumnY;
-                                    startY = y;
-                                } else if (colIndex === 1) {
-                                    y = startY;
-                                }
-
-                                doc.setFont(pdfFont, 'normal');
-                                doc.setFontSize(bodyFz);
-                                doc.text('•', finalColX, y);
-                                doc.text(item.replace(/^[•-]\s*/, ''), finalColX + 2, y);
-
-                                const currentItemHeight = lineH;
-                                y += currentItemHeight;
-                                if (y > maxColumnY) maxColumnY = y;
-                            });
-                            y = maxColumnY;
-                        }
-                        else {
-                            bodyLines.forEach((line, idx) => {
-                                const trimmed = line.trim();
-                                if (!trimmed) { y += 2 * scale; return; }
-
-                                // 1. Sub-heading with Date (Split left/right)
-                                const dateMatch = trimmed.match(dateRegex);
-                                if (dateMatch) {
-                                    doc.setFont(pdfFont, 'bold');
-                                    doc.setFontSize(bodyFz);
-                                    doc.setTextColor(0, 0, 0);
-                                    doc.text(dateMatch[1].trim(), margin, y);
-                                    doc.text(dateMatch[2].trim(), pageW - margin, y, { align: 'right' });
-                                    y += lineH;
-                                    return;
-                                }
-
-                                // 2. Subtitle or Project (bold per "proper ui")
-                                const prevLine = bodyLines[idx - 1] || '';
-                                const isProject = (trimmed.includes('—') || trimmed.includes('–') || (trimmed.includes(' - ') && trimmed.length < 80)) && !trimmed.startsWith('•');
-                                if ((prevLine.match(dateRegex) || isProject) && trimmed.length < 90 && !trimmed.startsWith('•')) {
-                                    doc.setFont(pdfFont, 'bold');
-                                    doc.setFontSize(bodyFz);
-                                    doc.setTextColor(0, 0, 0);
-                                    doc.text(trimmed, margin, y);
-                                    y += lineH;
-                                    return;
-                                }
-
-                                // 3. Bold Keys (e.g., "Languages: ...") - Technical Skills
-                                if (trimmed.includes(':') && trimmed.indexOf(':') < 35 && !trimmed.startsWith('•')) {
-                                    const splitIdx = trimmed.indexOf(':');
-                                    const skillKey = trimmed.slice(0, splitIdx + 1).trim();
-                                    const skillVal = trimmed.slice(splitIdx + 1).trim();
-
-                                    doc.setFont(pdfFont, 'bold');
-                                    doc.setFontSize(bodyFz);
-                                    doc.text(skillKey, margin, y);
-
-                                    const keyW = doc.getTextWidth(skillKey + ' ');
-                                    doc.setFont(pdfFont, 'normal');
-                                    const wrappedVal = doc.splitTextToSize(skillVal, contentW - keyW);
-                                    wrappedVal.forEach((rl, vIdx) => {
-                                        doc.text(rl, margin + (vIdx === 0 ? keyW : 0), y);
-                                        y += lineH;
-                                    });
-                                    return;
-                                }
-
-                                // 4. Regular or Bullet (with hanging indent)
-                                doc.setFont(pdfFont, 'normal');
-                                doc.setFontSize(bodyFz);
-                                doc.setTextColor(0, 0, 0);
-
-                                if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
-                                    const textOnly = trimmed.replace(/^[•-]\s*/, '');
-                                    const bulletChar = '•';
-                                    const bulletW = doc.getTextWidth(bulletChar + ' ');
-
-                                    doc.text(bulletChar, margin, y);
-                                    const wrapped = doc.splitTextToSize(textOnly, contentW - bulletW);
-                                    wrapped.forEach(rl => {
-                                        doc.text(rl, margin + bulletW, y);
-                                        y += lineH;
-                                    });
-                                } else {
-                                    const wrapped = doc.splitTextToSize(trimmed, contentW);
-                                    wrapped.forEach(rl => {
-                                        doc.text(rl, margin, y);
-                                        y += lineH;
-                                    });
-                                }
-                            });
-                        }
-                    }
-                    y += sectionGap;
-                }
-            });
-
-            doc.save(`${resume?.title || 'resume'}.pdf`);
-        } catch (err) {
-            console.error('PDF generation error:', err);
-            alert('Failed to generate PDF. Please try again.');
-        } finally {
-            setIsDownloading(false);
-        }
+        window.print();
     };
-
 
     const handleAcceptImprovement = () => {
         if (!improvedContent) return;
-        // Persist the pre-improve snapshot so user can restore later
         setOriginalSnapshot(currentContent);
         setCurrentContent(improvedContent);
         setSections(parseResumeIntoSections(improvedContent));
         setImprovedContent('');
+        setImprovedResumeData(null);
         setIsComparing(false);
         // Apply post-improve ATS score if we got one from the backend
         if (postImproveAts) {
@@ -879,6 +654,7 @@ const ResumeEditor = () => {
 
     const handleRejectImprovement = () => {
         setImprovedContent('');
+        setImprovedResumeData(null);
         setIsComparing(false);
         setPostImproveAts(null);
     };
@@ -911,62 +687,91 @@ const ResumeEditor = () => {
         // ── Snapshot the current content before we overwrite it ──────────────────
         setOriginalSnapshot(contentToUse);
         setPostImproveAts(null);
-
         setIsImproving(true);
-        setIsComparing(false);
+        setIsComparing(true); // Open overlay immediately to see the stream
         setImprovedContent('');
+        setImprovedResumeData(null);
         setImprovementsSummary([]);
-        let fullContent = '';
-        let buffer = '';
-        let startedComparing = false;
 
         try {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('Authentication token missing. Please log in again.');
 
-            const res = await axios.post(`http://localhost:5000/api/resumes/${id}/improve`, {
-                content: contentToUse,
-                jobDescription,
-                mode: improveMode,
-                previousScore: atsAnalysis?.atsScore || null
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+            // Use fetch for streaming (ReadableStream)
+            const response = await fetch(`${apiBase}/resumes/${id}/improve-stream`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    content: contentToUse,
+                    jobDescription,
+                    mode: improveMode,
+                    previousScore: atsAnalysis?.atsScore || null
+                })
             });
 
-            const { optimizedResume, improvementSummary, newScore, scoreDelta, newAnalysis } = res.data;
-
-            if (optimizedResume) {
-                setImprovedContent(optimizedResume);
-
-                // Parse summary if it's a string or array
-                if (typeof improvementSummary === 'string') {
-                    setImprovementsSummary(improvementSummary.split('\n').filter(l => l.trim().length > 3));
-                } else if (Array.isArray(improvementSummary)) {
-                    setImprovementsSummary(improvementSummary);
-                }
-
-                if (newAnalysis) {
-                    setAtsAnalysis(newAnalysis);
-                    setPostImproveAts({
-                        atsScore: newScore,
-                        scoreDelta: scoreDelta,
-                        analysis: newAnalysis
-                    });
-                }
-
-                setIsComparing(true);
-            } else {
-                throw new Error('AI returned an empty response.');
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.message || 'Failed to start improvement stream');
             }
 
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedText = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const dataStr = line.slice(6).trim();
+                        if (!dataStr || dataStr === '[DONE]') continue;
+
+                        try {
+                            const data = JSON.parse(dataStr);
+
+                            if (data.response) {
+                                accumulatedText += data.response;
+                                setImprovedContent(accumulatedText);
+                            } else if (data.type === 'metadata') {
+                                // Final metadata updates
+                                if (data.newAnalysis) {
+                                    setAtsAnalysis(data.newAnalysis);
+                                    setPostImproveAts({
+                                        atsScore: data.newScore,
+                                        scoreDelta: data.scoreDelta,
+                                        analysis: data.newAnalysis
+                                    });
+                                }
+                                if (data.improvementSummary) {
+                                    setImprovementsSummary([data.improvementSummary]);
+                                }
+                            } else if (data.error) {
+                                throw new Error(data.error);
+                            }
+                        } catch (e) {
+                            // Ignored: likely non-JSON chunk or mid-stream cut
+                        }
+                    }
+                }
+            }
         } catch (err) {
             console.error('Improvement error:', err);
-            alert(`Magic Improve Error: ${err.response?.data?.message || err.message}`);
+            alert(`Magic Improve Error: ${err.message}`);
             setIsComparing(false);
         } finally {
             setIsImproving(false);
         }
     };
+
 
 
     if (!resume) return (
@@ -1162,24 +967,7 @@ const ResumeEditor = () => {
                     </AnimatePresence>
                 </div>
 
-                {/* Experimental Mode Warning */}
-                {improveMode === 'regenerate' && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        style={{
-                            position: 'absolute', top: '100%', right: '180px', marginTop: '0.5rem',
-                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                            padding: '0.4rem 0.8rem', background: 'rgba(245,158,11,0.15)',
-                            borderRadius: '0.6rem', border: '1px solid rgba(245,158,11,0.3)',
-                            color: '#fbbf24', fontSize: '0.75rem', fontWeight: '800', backdropFilter: 'blur(8px)', zIndex: 50,
-                            whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-                        }}
-                    >
-                        <AlertTriangle size={14} />
-                        <span>⚠ Experimental mode may modify formatting. Review carefully.</span>
-                    </motion.div>
-                )}
+
 
                 <button
                     onClick={handleDownload}
@@ -1229,20 +1017,105 @@ const ResumeEditor = () => {
                 {/* Main layout */}
                 <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '100%' }}>
 
-                    {/* ── Resume Preview (A4-style white card) ─────────────────────────── */}
-                    <main style={{ flex: 1, minWidth: 0 }}>
+                    {/* ── Resume Preview (Fixed A4 One-Page WYSIWYG) ───────────────────── */}
+                    <main style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+                        {/* Overflow Warning */}
+                        <AnimatePresence>
+                            {isOverflowing && (
+                                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                                    style={{
+                                        position: 'absolute', top: '2rem', right: '-16rem', width: '14rem',
+                                        background: 'rgba(239, 68, 68, 0.95)', color: 'white', padding: '1rem',
+                                        borderRadius: '0.8rem', fontSize: '0.75rem', fontWeight: '600',
+                                        boxShadow: '0 10px 25px rgba(239, 68, 68, 0.3)', border: '1px solid rgba(255,255,255,0.2)',
+                                        zIndex: 10
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                        <AlertTriangle size={16} /> Content Overflow!
+                                    </div>
+                                    Resume exceeds one page. Please reduce content or sections to fit the professional limit.
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
                         <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            style={{
-                                background: '#ffffff', color: '#000',
-                                borderRadius: '0.75rem', padding: '2.5rem 3rem',
-                                minHeight: '900px', maxWidth: '760px',
-                                margin: '0 auto',
-                                boxShadow: '0 25px 60px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)',
-                                fontFamily: templateConfig.fontFamily,
-                            }}
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            style={{ display: 'flex', justifyContent: 'center' }}
                         >
+                            <div
+                                id="resume-container"
+                                ref={resumeContainerRef}
+                                style={{
+                                    width: '794px', // A4 at 96 DPI
+                                    height: '1123px', // A4 at 96 DPI
+                                    background: '#ffffff',
+                                    padding: '0',
+                                    boxShadow: '0 25px 60px -12px rgba(0,0,0,0.7)',
+                                    overflow: 'hidden',
+                                    fontSize: `${fontScale}px`,
+                                    position: 'relative'
+                                }}
+                            >
+                                {/* Print CSS */}
+                                <style>{`
+                                    @media print {
+                                        body * { visibility: hidden; }
+                                        #resume-container, #resume-container * { visibility: visible; }
+                                        #resume-container {
+                                            position: fixed;
+                                            left: 0;
+                                            top: 0;
+                                            margin: 0;
+                                            padding: 0;
+                                            box-shadow: none;
+                                            width: 210mm;
+                                            height: 297mm;
+                                            background: white;
+                                            z-index: 9999;
+                                        }
+                                        @page {
+                                            size: A4;
+                                            margin: 0;
+                                        }
+                                    }
+                                `}</style>
+
+                                {resume?.originalFileKey
+                                    ? <PDFPreview
+                                        key={`pdf-${resume._id}`}
+                                        resumeId={resume._id}
+                                        fallbackText={currentContent}
+                                        templateConfig={templateConfig}
+                                    />
+                                    : <ResumeRenderer
+                                        text={currentContent}
+                                        templateConfig={templateConfig}
+                                    />
+                                }
+                            </div>
+                        </motion.div>
+                    </main>
+
+                    {/* ── Edit Sections Panel ─────────────────────────────────────────── */}
+                    <details
+                        style={{
+                            marginTop: '1.5rem', maxWidth: '760px', margin: '1.5rem auto 0',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: '1rem', overflow: 'hidden',
+                            background: 'rgba(255,255,255,0.02)',
+                        }}
+                    >
+                        <summary style={{
+                            padding: '0.85rem 1.5rem', cursor: 'pointer', listStyle: 'none',
+                            fontWeight: '700', fontSize: '0.82rem', color: '#94a3b8',
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            userSelect: 'none',
+                        }}>
+                            <Edit3 size={14} /> Edit Individual Sections
+                        </summary>
+                        <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                             {sections.map((section, i) => (
                                 <SectionCard
                                     key={i}
@@ -1251,20 +1124,13 @@ const ResumeEditor = () => {
                                     onSave={(newBody) => handleSectionSave(i, newBody)}
                                 />
                             ))}
-
                             {sections.length === 0 && (
-                                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '4rem 2rem' }}>
-                                    <p style={{ fontSize: '1.1rem' }}>No resume content yet.</p>
-                                    <p style={{ fontSize: '0.85rem' }}>Go back and run an analysis first, or use Magic Improve to generate content.</p>
-                                </div>
+                                <p style={{ color: '#64748b', fontSize: '0.85rem' }}>No sections found. Upload a resume first.</p>
                             )}
-                        </motion.div>
-
-                    </main>
-
+                        </div>
+                    </details>
                 </div>
-
-            </div> {/* end scrollable content area */}
+            </div>
 
             {/* ── Magic Improve Comparison Overlay ──────────────────────────────── */}
             <AnimatePresence>
@@ -1331,16 +1197,11 @@ const ResumeEditor = () => {
                                 <div style={{
                                     background: '#ffffff', color: '#000', borderRadius: '0.5rem', padding: '3rem',
                                     maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
-                                    fontFamily: templateConfig.fontFamily
+                                    fontFamily: templateConfig.fontFamily,
+                                    display: 'flex', flexDirection: 'column',
+                                    alignItems: 'center'
                                 }}>
-                                    {sections.map((s, i) => (
-                                        <SectionCard
-                                            key={i}
-                                            section={s}
-                                            templateConfig={templateConfig}
-                                            readOnly={true}
-                                        />
-                                    ))}
+                                    <ResumeRenderer text={currentContent} templateConfig={templateConfig} />
                                 </div>
                             </div>
 
@@ -1378,37 +1239,44 @@ const ResumeEditor = () => {
                                 <div style={{
                                     background: '#ffffff', color: '#000', borderRadius: '0.5rem', padding: '3rem',
                                     maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(124,58,237,0.1)',
-                                    fontFamily: templateConfig.fontFamily
+                                    fontFamily: templateConfig.fontFamily,
+                                    minHeight: '600px',
+                                    display: 'flex', flexDirection: 'column',
+                                    justifyContent: (isImproving && !improvedContent) ? 'center' : 'flex-start'
                                 }}>
                                     {isImproving ? (
-                                        <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', color: '#1e293b' }}>
-                                            {improvedContent}
-                                        </div>
+                                        improvedContent ? (
+                                            // Real-time typewriter streaming view
+                                            <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.6', color: '#1e293b', width: '100%' }}>
+                                                {improvedContent}
+                                                <motion.span
+                                                    animate={{ opacity: [1, 0] }}
+                                                    transition={{ repeat: Infinity, duration: 0.8 }}
+                                                    style={{ display: 'inline-block', width: '8px', height: '1.2em', background: '#7c3aed', marginLeft: '4px', verticalAlign: 'middle' }}
+                                                />
+                                            </div>
+                                        ) : (
+                                            // Loading spinner before stream starts
+                                            <div style={{ textAlign: 'center' }}>
+                                                <div style={{
+                                                    display: 'inline-block',
+                                                    width: '40px', height: '40px',
+                                                    border: '3px solid rgba(124,58,237,0.2)', borderTopColor: '#7c3aed',
+                                                    borderRadius: '50%',
+                                                    animation: 'spin 1s linear infinite',
+                                                    marginBottom: '1rem'
+                                                }} />
+                                                <p style={{ fontSize: '0.9rem', color: '#7c3aed', fontWeight: '700', margin: 0 }}>
+                                                    {improvementsSummary.length > 0 ? 'Polishing the highlights...' : 'AI is weaving magic...'}
+                                                </p>
+                                                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.4rem' }}>Wait for the magic to appear...</p>
+                                            </div>
+                                        )
                                     ) : (
-                                        parseResumeIntoSections(improvedContent).map((s, i) => (
-                                            <SectionCard
-                                                key={i}
-                                                section={s}
-                                                templateConfig={templateConfig}
-                                                readOnly={true}
-                                            />
-                                        ))
-                                    )}
-                                    {isImproving && (
-                                        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-                                            <div style={{
-                                                display: 'inline-block',
-                                                width: '24px', height: '24px',
-                                                border: '3px solid #7c3aed', borderTopColor: 'transparent',
-                                                borderRadius: '50%',
-                                                animation: 'spin 1s linear infinite'
-                                            }} />
-                                            <p style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem' }}>
-                                                {improvementsSummary.length > 0 ? 'Polishing the highlights...' : 'AI is weaving magic...'}
-                                            </p>
-                                        </div>
+                                        <ResumeRenderer text={improvedContent} templateConfig={templateConfig} />
                                     )}
                                 </div>
+
                             </div>
                         </div>
                     </motion.div>
@@ -1508,7 +1376,7 @@ const ResumeEditor = () => {
                     </div>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     );
 };
 

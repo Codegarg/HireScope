@@ -316,7 +316,6 @@ input:-webkit-autofill:active {
 .progress-bar-fill {
     height: 100%;
     border-radius: 9999px;
-    background: var(--gradient-primary);
     transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
