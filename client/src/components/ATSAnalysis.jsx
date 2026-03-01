@@ -64,15 +64,15 @@ const ScoreRing = ({ score }) => {
    Animated Progress Bar
    ───────────────────────────────────────────── */
 const ProgressBar = ({ label, value, delay = 0 }) => {
-  const color = value >= 80 ? 'var(--success)'
-    : value >= 50 ? 'var(--warning)'
-      : 'var(--error)';
+  // Use hardcoded hex — CSS var() cannot be concatenated in JS template literals
+  const hex = value >= 80 ? '#10b981' : value >= 50 ? '#f59e0b' : '#ef4444';
+  const hexFaded = value >= 80 ? '#10b98155' : value >= 50 ? '#f59e0b55' : '#ef444455';
 
   return (
     <div style={{ marginBottom: '0.875rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>{label}</span>
-        <span style={{ fontSize: '0.8rem', color, fontWeight: '700' }}>{value}%</span>
+        <span style={{ fontSize: '0.8rem', color: hex, fontWeight: '700' }}>{value}%</span>
       </div>
       <div className="progress-bar-track">
         <motion.div
@@ -80,12 +80,13 @@ const ProgressBar = ({ label, value, delay = 0 }) => {
           initial={{ width: '0%' }}
           animate={{ width: `${value}%` }}
           transition={{ duration: 1, ease: [0.4, 0, 0.2, 1], delay }}
-          style={{ background: `linear-gradient(90deg, ${color}99, ${color})` }}
+          style={{ background: `linear-gradient(90deg, ${hexFaded}, ${hex})` }}
         />
       </div>
     </div>
   );
 };
+
 
 /* ─────────────────────────────────────────────
    Main ATSAnalysis Component
@@ -96,11 +97,22 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
   // Helper to normalize data structure between "Simple" (Home) and "Advanced" (Editor) engines
   const normalizeData = (data) => {
     if (!data) return null;
-    // If it has 'analysis' object (Advanced engine), return as is
-    if (data.analysis && data.score !== undefined) return data;
+    // Always ensure the nested analysis object has the fields we render
+    const ensureAnalysis = (d) => ({
+      ...d,
+      analysis: {
+        formattingIssues: [],
+        strengths: [],
+        missingKeywords: [],
+        ...(d.analysis || {}),
+      },
+    });
 
-    // Otherwise map Simple engine (Home page) to expected structure
-    return {
+    // If it already has 'analysis' object (Advanced engine), normalise and return
+    if (data.analysis && data.score !== undefined) return ensureAnalysis(data);
+
+    // Map Simple engine (Home page) to expected structure
+    return ensureAnalysis({
       score: data.atsScore || 0,
       analysis: {
         formattingIssues: [],
@@ -108,7 +120,7 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
         missingKeywords: data.missingSkills || []
       },
       matchRate: 0
-    };
+    });
   };
 
   const [analysis, setAnalysis] = useState(normalizeData(initialData));
@@ -204,8 +216,19 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
     setValidationError("");
   };
 
-  // Compute score breakdown for progress bars
-  const getBreakdown = (score) => {
+  // Build real score breakdown from backend data when available,
+  // falling back to estimate from overall score
+  const getBreakdown = (score, breakdown) => {
+    if (breakdown) {
+      return [
+        { label: 'Required Skills', value: Math.round((breakdown.requiredSkills / 30) * 100), delay: 0.3 },
+        { label: 'Preferred Skills', value: Math.round((breakdown.preferredSkills / 15) * 100), delay: 0.4 },
+        { label: 'Experience Match', value: Math.round((breakdown.experienceMatch / 15) * 100), delay: 0.5 },
+        { label: 'Keyword Density', value: Math.round((breakdown.densityScore / 10) * 100), delay: 0.6 },
+        { label: 'Section Quality', value: Math.round((breakdown.sectionScore / 10) * 100), delay: 0.7 },
+      ];
+    }
+    // Fallback estimate
     const base = Math.max(0, score - 10);
     return [
       { label: 'Keyword Match', value: Math.min(100, base + 15), delay: 0.3 },
@@ -213,6 +236,7 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
       { label: 'Format Score', value: Math.min(100, base + 12), delay: 0.6 },
     ];
   };
+
 
   return (
     <div style={{
@@ -368,30 +392,30 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
               {/* Score Breakdown Progress Bars */}
               <div style={{ marginBottom: '1.5rem' }}>
                 <p style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '1rem' }}>Score Breakdown</p>
-                {getBreakdown(analysis.score).map(bar => (
+                {getBreakdown(analysis.score, analysis.breakdown).map(bar => (
                   <ProgressBar key={bar.label} {...bar} />
                 ))}
               </div>
 
               {/* Formatting Issues */}
-              {analysis.analysis.formattingIssues.length > 0 && (
+              {(analysis.analysis?.formattingIssues?.length ?? 0) > 0 && (
                 <div style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
                   <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--error)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
                     <AlertTriangle size={14} /> Formatting Alerts
                   </h4>
-                  {analysis.analysis.formattingIssues.map((issue, i) => (
+                  {(analysis.analysis?.formattingIssues || []).map((issue, i) => (
                     <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.25rem', paddingLeft: '1.4rem' }}>• {issue}</div>
                   ))}
                 </div>
               )}
 
               {/* Strengths */}
-              {analysis.analysis.strengths.length > 0 && (
+              {(analysis.analysis?.strengths?.length ?? 0) > 0 && (
                 <div style={{ padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
                   <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
                     <CheckCircle size={14} /> Profile Strengths
                   </h4>
-                  {analysis.analysis.strengths.map((strength, i) => (
+                  {(analysis.analysis?.strengths || []).map((strength, i) => (
                     <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.25rem', paddingLeft: '1.4rem' }}>• {strength}</div>
                   ))}
                 </div>

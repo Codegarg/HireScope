@@ -2,6 +2,9 @@ import { calculateATSScore } from "../services/atsScorer.js";
 import { extractTextFromFile } from "../services/textExtractor.service.js";
 import { generateSuggestions } from "../services/ai.service.js";
 import Resume from "../models/resume.model.js";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { r2, R2_BUCKET } from "../utils/r2Client.js";
+import { parseResumeToStructured } from "../utils/structuredResumeParser.js";
 
 export const analyzeResume = async (req, res) => {
   try {
@@ -45,8 +48,27 @@ export const analyzeResume = async (req, res) => {
     // ── Auto-save resume if user is logged in ─────────────────────────────
     let savedResumeId = null;
     if (req.user) {
+      const userId = req.user.id;
+      const timestamp = Date.now();
+
+      // ── Upload original PDF to Cloudflare R2 (non-fatal) ─────────────────
+      let originalFileKey = "";
+      try {
+        originalFileKey = `resumes/${userId}-${timestamp}.pdf`;
+        await r2.send(new PutObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: originalFileKey,
+          Body: resumeFile.buffer,
+          ContentType: "application/pdf",
+        }));
+        console.log(`[R2] Uploaded: ${originalFileKey}`);
+      } catch (r2Err) {
+        console.error("[R2] Upload failed (non-fatal):", r2Err.message);
+        originalFileKey = "";
+      }
+
       const newResume = new Resume({
-        user: req.user.id,
+        user: userId,
         title: (() => {
           const titleMatch = jdText.match(/(?:Job Title|Role|Position):\s*([^\n]+)/i);
           if (titleMatch?.[1]) return `Target: ${titleMatch[1].trim().substring(0, 40)}`;
@@ -59,6 +81,8 @@ export const analyzeResume = async (req, res) => {
         atsScore: atsResult.atsScore || 0,
         suggestionsCount: aiSuggestions?.length || 0,
         versions: [{ content: resumeText, feedback: "Initial Analysis" }],
+        originalFileKey,
+        resumeData: parseResumeToStructured(resumeText),
       });
       const saved = await newResume.save();
       savedResumeId = saved._id;

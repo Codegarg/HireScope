@@ -333,7 +333,6 @@ const scoreFormatting = (resumeText, sections) => {
     const contact = extractContactInfo(resumeText);
 
     if (!contact.email) { score -= 2; issues.push("Missing email address"); }
-    if (!contact.phone) { score -= 1; issues.push("Missing phone number"); }
     if (!contact.linkedin && !contact.github) { score -= 1; issues.push("No professional links (LinkedIn/GitHub)"); }
 
     const summaryText = sections.summary || "";
