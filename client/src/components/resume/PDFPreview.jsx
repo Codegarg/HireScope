@@ -44,31 +44,13 @@ const PDFPreview = ({ resumeId, fallbackText, templateConfig }) => {
         setLoading(false);
     }, []);
 
-    // No resume ID or no file stored → fall back to text preview
+    // No resume ID or no file stored
     if (!fileObject || pdfError) {
-        return (
-            <pre style={{
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                fontFamily: templateConfig?.fontFamily || "'Times New Roman', Georgia, serif",
-                fontSize: templateConfig?.fontSize || '0.88rem',
-                lineHeight: templateConfig?.lineSpacing || '1.55',
-                color: '#000',
-                margin: 0,
-                padding: 0,
-            }}>
-                {fallbackText || 'No resume content available.'}
-            </pre>
-        );
+        return null; // Let ResumeEditor fallback to ResumeLayout if no PDF
     }
 
     return (
         <div style={{ width: '100%' }}>
-            {loading && (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem 0' }}>
-                    Loading PDF…
-                </div>
-            )}
             <Document
                 file={fileObject}
                 onLoadSuccess={onDocumentLoadSuccess}

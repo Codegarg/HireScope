@@ -1,264 +1,265 @@
-/**
- * ResumeLayout.jsx
- *
- * Professional, ATS-friendly resume layout component.
- * Renders from a structured `resumeData` object — no raw text, no dangerouslySetInnerHTML.
- * All dates right-aligned via flexbox. All links clickable via <a> tags.
- */
+import React, { useMemo } from 'react';
 
-import React from 'react';
-
-// ── Shared styles ─────────────────────────────────────────────────────────────
-const s = {
-    page: {
-        fontFamily: "'Times New Roman', Georgia, serif",
-        fontSize: '1em', // Base font size controlled by parent
-        lineHeight: '1.45',
-        color: '#000',
-        padding: '2.5em 2.8em',
-        width: '100%',
-        height: '100%',
-        background: '#fff',
-        boxSizing: 'border-box',
+export const RESUME_THEMES = {
+    modern: {
+        fontFamily: "'Inter', sans-serif",
+        headingColor: '#1e293b',
+        textColor: '#334155',
+        primaryColor: '#3b82f6', // blue accent
+        fontSize: '0.9rem',
+        lineHeight: '1.5',
+        sectionSpacing: '1.2rem',
     },
-    name: {
-        fontSize: '1.8em',
-        fontWeight: '700',
-        textAlign: 'center',
-        letterSpacing: '0.04em',
-        marginBottom: '0.15em',
+    classic: {
+        fontFamily: "'Times New Roman', Times, serif",
+        headingColor: '#000000',
+        textColor: '#000000',
+        primaryColor: '#000000',
+        accentColor: '#0000EE', // traditional blue for links
+        fontSize: '11pt',
+        lineHeight: '1.3',
+        sectionSpacing: '0.8rem',
     },
-    title: {
-        fontSize: '1em',
-        textAlign: 'center',
-        color: '#444',
-        marginBottom: '0.3em',
-    },
-    contacts: {
-        display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        gap: '0.4em 1.2em',
-        fontSize: '0.85em',
-        color: '#222',
-        marginBottom: '0.6em',
-    },
-    link: {
-        color: '#1a56db',
-        textDecoration: 'none',
-    },
-    divider: {
-        borderTop: '1.5px solid #000',
-        margin: '0.4em 0 0.5em',
-    },
-    sectionHeading: {
-        fontWeight: '700',
-        fontSize: '1em',
-        textTransform: 'uppercase',
-        letterSpacing: '0.07em',
-        marginBottom: '0.25em',
-        marginTop: '0',
-    },
-    section: {
-        marginBottom: '0.75em',
-    },
-    flexRow: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'baseline',
-        gap: '0.5em',
-    },
-    roleTitle: {
-        fontWeight: '700',
-        fontSize: '1em',
-    },
-    orgName: {
-        fontStyle: 'italic',
-        fontSize: '0.95em',
-        marginTop: '0.04em',
-        marginBottom: '0.08em',
-    },
-    dateRight: {
-        fontSize: '0.9em',
-        color: '#333',
-        whiteSpace: 'nowrap',
-        marginLeft: 'auto',
-    },
-    bullet: {
-        display: 'flex',
-        gap: '0.4em',
-        marginBottom: '0.1em',
-        fontSize: '0.95em',
-    },
-    bulletDot: {
-        flexShrink: 0,
-        marginTop: '0.05em',
-    },
-    skillRow: {
-        display: 'flex',
-        gap: '0.5em',
-        flexWrap: 'wrap',
-        marginBottom: '0.15em',
-        fontSize: '0.95em',
-    },
-    skillCategory: {
-        fontWeight: '700',
-        minWidth: '80px',
-    },
-    eduRow: {
-        marginBottom: '0.35em',
-    },
+    minimalist: {
+        fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+        headingColor: '#0f172a',
+        textColor: '#475569',
+        primaryColor: '#64748b',
+        fontSize: '0.85rem',
+        lineHeight: '1.6',
+        sectionSpacing: '1.5rem',
+    }
 };
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-const SectionDivider = ({ title }) => (
-    <div style={s.section}>
-        <div style={s.divider} />
-        <div style={s.sectionHeading}>{title}</div>
-    </div>
-);
-
-const BulletList = ({ points = [] }) => (
-    <>
-        {points.filter(p => p?.trim()).map((p, i) => (
-            <div key={i} style={s.bullet}>
-                <span style={s.bulletDot}>•</span>
-                <span>{p.trim()}</span>
-            </div>
-        ))}
-    </>
-);
-
-const DateRange = ({ start, end }) => {
-    if (!start && !end) return null;
-    const label = [start, end].filter(Boolean).join(' – ');
-    return <span style={s.dateRight}>{label}</span>;
-};
-
-const LinkTag = ({ href, children }) => {
+const LinkTag = ({ href, children, activeTheme }) => {
     if (!href) return <span>{children}</span>;
     const fullHref = href.startsWith('http') ? href : `https://${href}`;
-    return <a href={fullHref} target="_blank" rel="noopener noreferrer" style={s.link}>{children || href}</a>;
+    const color = activeTheme?.accentColor || activeTheme?.primaryColor || 'inherit';
+    return <a href={fullHref} target="_blank" rel="noopener noreferrer" style={{ color, textDecoration: 'none' }}>{children || href}</a>;
 };
 
-// ── Main Component ────────────────────────────────────────────────────────────
+const linkifyText = (text, activeTheme) => {
+    const parts = text.split(/(https?:\/\/[^\s)\]>,"']+|(?:linkedin|github)\.com\/[^\s)\]>,"']+)/i);
+    if (parts.length <= 1) return text;
 
-const ResumeLayout = ({ resumeData }) => {
-    if (!resumeData) {
+    return parts.map((part, pi) => {
+        if (!part) return null;
+        if (/^https?:\/\/.+$|^(?:linkedin|github)\.com\/.+$/i.test(part)) {
+            return <LinkTag key={pi} href={part} activeTheme={activeTheme}>{part}</LinkTag>;
+        }
+        return part;
+    });
+};
+
+const renderText = (text, activeTheme) => {
+    if (!text) return null;
+    return text.split('\n').map((line, i) => (
+        <React.Fragment key={i}>
+            {linkifyText(line, activeTheme)}
+            {i < text.split('\n').length - 1 && <br />}
+        </React.Fragment>
+    ));
+};
+
+const parseHeaderBlock = (content, activeTheme) => {
+    const lines = content.split('\n').filter(l => l.trim() !== '');
+    if (lines.length === 0) return null;
+
+    const name = lines[0];
+    const details = lines.slice(1);
+
+    return (
+        <div style={{ textAlign: 'center', marginBottom: '1.2rem' }}>
+            <h1 style={{
+                fontSize: '1.8em',
+                fontWeight: 'normal',
+                textTransform: 'uppercase',
+                margin: '0 0 0.3rem 0',
+                color: activeTheme.headingColor,
+                letterSpacing: '0.03em'
+            }}>
+                {name}
+            </h1>
+            {details.map((line, i) => (
+                <div key={i} style={{
+                    fontSize: '0.95em',
+                    color: activeTheme.textColor,
+                    marginBottom: '0.15rem'
+                }}>
+                    {renderText(line, activeTheme)}
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const parseContentBlock = (content, activeTheme) => {
+    const lines = content.split('\n').filter(l => l.trim() !== '');
+
+    // Simple paragraph (summary or arbitrary short text)
+    if (lines.length === 1 && !lines[0].trim().startsWith('-') && !lines[0].trim().startsWith('•')) {
+        return <p style={{ margin: '0 0 0.5rem 0' }}>{renderText(lines[0], activeTheme)}</p>;
+    }
+
+    return lines.map((line, index) => {
+        // Match standard right-aligned items like Dates
+        // Example: "Software Engineer, Google | Jan 2020 - Present"
+        const separatorIdx = line.lastIndexOf('|');
+        let potentialDate = null;
+        let mainText = line;
+
+        if (separatorIdx !== -1) {
+            const rightSide = line.slice(separatorIdx + 1).trim();
+            if (rightSide.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)|\d{4}/i)) {
+                potentialDate = rightSide;
+                mainText = line.slice(0, separatorIdx).trim();
+            }
+        } else {
+            // Backup check with copious whitespace
+            const parts = line.split(/\s{3,}/);
+            if (parts.length > 1) {
+                const rightSide = parts[parts.length - 1];
+                if (rightSide.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)|\d{4}/i)) {
+                    potentialDate = rightSide;
+                    mainText = parts.slice(0, -1).join(' ').trim();
+                }
+            }
+
+            // Rescue smudged dates from raw PDF extraction (e.g., "MemberSep 2024 - Present")
+            if (!potentialDate) {
+                const smudgeMatch = line.match(/([a-z])((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s*\d{4}.*)/);
+                if (smudgeMatch) {
+                    mainText = line.substring(0, smudgeMatch.index + 1).trim();
+                    potentialDate = smudgeMatch[2].trim();
+                }
+            }
+
+            // Rescue smudged GitHub/LinkedIn links (e.g., "PlatformGitHub")
+            if (!potentialDate) {
+                const linkSmudge = line.match(/([a-z])(GitHub|LinkedIn|https?:\/\/[^\s]+)$/i);
+                if (linkSmudge && !line.includes(' ')) {
+                    // Only if it's not a single isolated word
+                } else if (linkSmudge) {
+                    mainText = line.substring(0, linkSmudge.index + 1).trim();
+                    potentialDate = linkSmudge[2].trim();
+                }
+            }
+        }
+
+        // Detect if line is likely an Organization + Role Header
+        const isHeaderLike = !line.trim().startsWith('-') && !line.trim().startsWith('•') && (potentialDate || line.length < 100);
+
+        if (isHeaderLike && potentialDate) {
+            return (
+                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontWeight: 'bold', minHeight: '1.2em' }}>
+                    <span>{renderText(mainText, activeTheme)}</span>
+                    <span style={{ fontSize: '0.9em', color: activeTheme.primaryColor, whiteSpace: 'nowrap' }}>{potentialDate}</span>
+                </div>
+            );
+        } else if (isHeaderLike) {
+            return (
+                <div key={index} style={{ fontWeight: 'bold' }}>
+                    {renderText(mainText, activeTheme)}
+                </div>
+            );
+        }
+
+        // Bullet points
+        if (line.trim().startsWith('-') || line.trim().startsWith('•')) {
+            return (
+                <div key={index} style={{ display: 'flex', paddingLeft: '1rem', alignItems: 'flex-start', margin: '0' }}>
+                    <span style={{ marginRight: '0.5rem' }}>•</span>
+                    <span style={{ flex: 1 }}>{renderText(line.replace(/^[-•]\s*/, ''), activeTheme)}</span>
+                </div>
+            );
+        }
+
+        // Fallback for everything else
+        return <div key={index} style={{ margin: '0' }}>{renderText(line, activeTheme)}</div>;
+    });
+};
+
+const ResumeLayout = ({ text, theme = 'modern' }) => {
+    const activeTheme = RESUME_THEMES[theme] || RESUME_THEMES.modern;
+
+    // A lightweight parser identical to the one in ResumeEditor but standalone
+    const sections = useMemo(() => {
+        if (!text) return [];
+        const lines = text.replace(/\r\n/g, '\n').split('\n');
+        const parsed = [];
+        let currentSection = { title: '', body: '' };
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const isAllcapsWithShortLength = line === line.toUpperCase() && line.trim().length > 0 && line.trim().length <= 30 && !line.includes('|');
+
+            if (isAllcapsWithShortLength && !line.trim().startsWith('-')) {
+                if (currentSection.title || currentSection.body) {
+                    parsed.push({ ...currentSection });
+                }
+                currentSection = { title: line.trim(), body: '' };
+            } else {
+                currentSection.body += line + '\n';
+            }
+        }
+        if (currentSection.title || currentSection.body.trim()) {
+            parsed.push(currentSection);
+        }
+        return parsed;
+    }, [text]);
+
+    if (!text) {
         return (
             <div style={{ textAlign: 'center', color: '#94a3b8', padding: '4rem 2rem' }}>
-                <p>No structured resume data available.</p>
+                <p>No resume content yet.</p>
+                <p style={{ fontSize: '0.82rem' }}>Upload a resume or use Magic Improve to generate content.</p>
             </div>
         );
     }
 
-    const { personalInfo = {}, summary, skills = {}, projects = [], experience = [], education = [] } = resumeData;
-
-    const skillBuckets = [
-        { label: 'Languages', items: skills.languages },
-        { label: 'Frontend', items: skills.frontend },
-        { label: 'Backend', items: skills.backend },
-        { label: 'Databases', items: skills.databases },
-        { label: 'Cloud', items: skills.cloud },
-        { label: 'Tools', items: skills.tools },
-        { label: 'Core', items: skills.core },
-    ].filter(b => b.items?.length);
-
-    const hasSkills = skillBuckets.length > 0;
-    const hasSummary = summary && summary.trim();
-    const hasExperience = experience.length > 0;
-    const hasProjects = projects.length > 0;
-    const hasEducation = education.length > 0;
-
     return (
-        <div style={s.page}>
-            {/* ── Header ──────────────────────────────────────────────── */}
-            {personalInfo.fullName && <div style={s.name}>{personalInfo.fullName}</div>}
-            {personalInfo.title && <div style={s.title}>{personalInfo.title}</div>}
+        <div
+            className="resume-a4-container"
+            style={{
+                width: '100%',
+                margin: '0',
+                padding: '2rem 2.8rem', // Tighter margins to fit denser content
+                background: 'white',
+                boxSizing: 'border-box',
+                fontFamily: activeTheme.fontFamily,
+                fontSize: activeTheme.fontSize,
+                lineHeight: activeTheme.lineHeight,
+                color: activeTheme.textColor,
+                textAlign: 'left'
+            }}
+        >
+            {sections?.map((section, idx) => {
+                const isUnnamedFirstSection = !section.title && idx === 0;
 
-            <div style={s.contacts}>
-                {personalInfo.email && <span>{personalInfo.email}</span>}
-                {personalInfo.phone && <span>{personalInfo.phone}</span>}
-                {personalInfo.linkedin && <LinkTag href={personalInfo.linkedin}>LinkedIn</LinkTag>}
-                {personalInfo.github && <LinkTag href={personalInfo.github}>GitHub</LinkTag>}
-            </div>
-
-            {/* ── Summary ─────────────────────────────────────────────── */}
-            {hasSummary && (
-                <>
-                    <SectionDivider title="Summary" />
-                    <p style={{ marginTop: 0, marginBottom: '0.45em', fontSize: '0.95em' }}>{summary}</p>
-                </>
-            )}
-
-            {/* ── Skills ──────────────────────────────────────────────── */}
-            {hasSkills && (
-                <>
-                    <SectionDivider title="Skills" />
-                    <div style={{ marginBottom: '0.5rem' }}>
-                        {skillBuckets.map(({ label, items }) => (
-                            <div key={label} style={s.skillRow}>
-                                <span style={s.skillCategory}>{label}:</span>
-                                <span>{items.join(', ')}</span>
-                            </div>
-                        ))}
+                return (
+                    <div key={idx} style={{ marginBottom: activeTheme.sectionSpacing }}>
+                        {section.title && (
+                            <h2 style={{
+                                fontSize: '1.2em',
+                                fontWeight: 'bold',
+                                color: activeTheme.primaryColor,
+                                textTransform: 'uppercase',
+                                borderBottom: `1px solid ${activeTheme.primaryColor}`,
+                                paddingBottom: '0.15rem',
+                                marginBottom: '0.35rem',
+                                marginTop: '0'
+                            }}>
+                                {section.title}
+                            </h2>
+                        )}
+                        <div style={{ fontSize: activeTheme.fontSize, color: activeTheme.textColor, lineHeight: activeTheme.lineHeight }}>
+                            {isUnnamedFirstSection
+                                ? parseHeaderBlock(section.body, activeTheme)
+                                : parseContentBlock(section.body, activeTheme)}
+                        </div>
                     </div>
-                </>
-            )}
-
-            {/* ── Experience ──────────────────────────────────────────── */}
-            {hasExperience && (
-                <>
-                    <SectionDivider title="Experience" />
-                    {experience.map((exp, i) => (
-                        <div key={i} style={{ marginBottom: '0.65rem' }}>
-                            <div style={s.flexRow}>
-                                <span style={s.roleTitle}>{exp.role}</span>
-                                <DateRange start={exp.startDate} end={exp.endDate} />
-                            </div>
-                            {exp.organization && (
-                                <div style={s.orgName}>{exp.organization}</div>
-                            )}
-                            <BulletList points={exp.points} />
-                        </div>
-                    ))}
-                </>
-            )}
-
-            {/* ── Projects ────────────────────────────────────────────── */}
-            {hasProjects && (
-                <>
-                    <SectionDivider title="Projects" />
-                    {projects.map((proj, i) => (
-                        <div key={i} style={{ marginBottom: '0.6rem' }}>
-                            <div style={s.flexRow}>
-                                <span style={s.roleTitle}>{proj.name}</span>
-                                {proj.link && (
-                                    <LinkTag href={proj.link}>GitHub</LinkTag>
-                                )}
-                            </div>
-                            <BulletList points={proj.descriptionPoints} />
-                        </div>
-                    ))}
-                </>
-            )}
-
-            {/* ── Education ───────────────────────────────────────────── */}
-            {hasEducation && (
-                <>
-                    <SectionDivider title="Education" />
-                    {education.map((edu, i) => (
-                        <div key={i} style={s.eduRow}>
-                            <div style={s.flexRow}>
-                                <span style={s.roleTitle}>{edu.degree}</span>
-                                <DateRange start={edu.startYear} end={edu.endYear} />
-                            </div>
-                            {edu.institution && <div style={s.orgName}>{edu.institution}</div>}
-                        </div>
-                    ))}
-                </>
-            )}
+                );
+            })}
         </div>
     );
 };

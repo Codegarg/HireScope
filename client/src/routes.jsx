@@ -5,7 +5,8 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
-import ResumeEditor from "./pages/ResumeEditor";
+import ResumeWizard from "./pages/ResumeWizard";
+import ResumeEditor from "./pages/ResumeEditor"; // Keep for fallback if needed, or remove later
 // NEW IMPORTS
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -35,6 +36,7 @@ const RoutesConfig = () => {
       {/* Main App Routes */}
       <Route path="/" element={<Home />} />
       <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
+      <Route path="/wizard/:id" element={user ? <ResumeWizard /> : <Navigate to="/login" />} />
       <Route path="/editor/:id" element={user ? <ResumeEditor /> : <Navigate to="/login" />} />
       <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
 

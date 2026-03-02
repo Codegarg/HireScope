@@ -70,6 +70,7 @@ const Home = () => {
   const [jdFile, setJdFile] = useState(null);
   const [jdText, setJdText] = useState("");
   const [result, setResult] = useState(null);
+  const [storedNames, setStoredNames] = useState({ resumeName: "", jdName: "" });
   const [error, setError] = useState("");
   const [validationError, setValidationError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -77,21 +78,39 @@ const Home = () => {
 
   // Save analysis results to sessionStorage whenever they change
   useEffect(() => {
-    if (result) sessionStorage.setItem('hireScope_analysisResults', JSON.stringify(result));
-  }, [result]);
+    if (result) {
+      const dataToSave = {
+        result,
+        resumeName: resume?.name || storedNames.resumeName,
+        jdName: jdFile?.name || storedNames.jdName,
+        jdText: jdText
+      };
+      sessionStorage.setItem('hireScope_analysisResults', JSON.stringify(dataToSave));
+    }
+  }, [result, resume, jdFile, jdText, storedNames]);
 
   // Restore analysis results from sessionStorage on mount
   useEffect(() => {
-    const savedResults = sessionStorage.getItem('hireScope_analysisResults');
-    if (savedResults) {
-      try { setResult(JSON.parse(savedResults)); }
+    const savedData = sessionStorage.getItem('hireScope_analysisResults');
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.result) {
+          setResult(parsed.result);
+          setStoredNames({ resumeName: parsed.resumeName || "", jdName: parsed.jdName || "" });
+          if (parsed.jdText) setJdText(parsed.jdText);
+        } else if (parsed.atsScore !== undefined) {
+          // Fallback for older session structure
+          setResult(parsed);
+        }
+      }
       catch { sessionStorage.removeItem('hireScope_analysisResults'); }
     }
   }, []);
 
   const handleAnalyze = async () => {
     setValidationError(""); setError(""); setResult(null);
-    if (!resume) { setValidationError("Please upload your Resume to begin analysis."); return; }
+    if (!resume) { setValidationError("Please re-upload your Resume file to run a new analysis."); return; }
     if (!jdText.trim() && !jdFile) { setValidationError("Please provide a Job Description (paste text or upload file)."); return; }
     const formData = new FormData();
     formData.append("resume", resume);
@@ -157,7 +176,7 @@ const Home = () => {
         {result && (
           <div style={{ maxWidth: '1200px', margin: '0 auto 1.5rem' }}>
             <button
-              onClick={() => { setResult(null); setShowChat(false); sessionStorage.removeItem('hireScope_analysisResults'); }}
+              onClick={() => { setResult(null); setShowChat(false); sessionStorage.removeItem('hireScope_analysisResults'); setStoredNames({ resumeName: "", jdName: "" }); setJdText(""); setResume(null); setJdFile(null); }}
               className="ghost-btn"
               style={{ marginBottom: '0.5rem' }}
             >
@@ -208,7 +227,9 @@ const Home = () => {
                     <input type="file" id="resume-upload" hidden disabled={!user} onChange={(e) => setResume(e.target.files[0])} accept=".pdf,.doc,.docx" />
                     <Upload size={28} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', display: 'block', margin: '0 auto 0.75rem', opacity: user ? 1 : 0.4 }} />
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                      {resume ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{resume.name}</span> : "Drop your PDF / Word here"}
+                      {resume ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{resume.name}</span>
+                        : storedNames.resumeName ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{storedNames.resumeName}</span>
+                          : "Drop your PDF / Word here"}
                     </p>
                   </div>
                 </div>
@@ -237,7 +258,9 @@ const Home = () => {
                     <input type="file" id="jd-upload" hidden disabled={!user} onChange={(e) => setJdFile(e.target.files[0])} accept=".pdf,.doc,.docx" />
                     <FileUp size={24} style={{ color: 'var(--text-muted)', display: 'block', margin: '0 auto 0.5rem', opacity: user ? 1 : 0.4 }} />
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {jdFile ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{jdFile.name}</span> : "Upload Target JD"}
+                      {jdFile ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{jdFile.name}</span>
+                        : storedNames.jdName ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{storedNames.jdName}</span>
+                          : "Upload Target JD"}
                     </p>
                   </div>
 

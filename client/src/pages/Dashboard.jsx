@@ -63,7 +63,7 @@ const ResumeCard = ({ resume, navigate }) => {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             whileHover={{ y: -5, borderColor: 'var(--primary)' }}
-            onClick={() => navigate(`/editor/${resume._id}`)}
+            onClick={() => navigate(`/wizard/${resume._id}`)}
             style={{
                 background: 'var(--bg-card)',
                 backdropFilter: 'var(--blur)',
@@ -93,9 +93,12 @@ const ResumeCard = ({ resume, navigate }) => {
                 <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.3rem', lineHeight: 1.3 }}>
                     {resume.title || 'Untitled Resume'}
                 </h3>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-faint)' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-faint)', marginBottom: '0.3rem' }}>
                     Edited {new Date(resume.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </p>
+                <span style={{ fontSize: '0.72rem', color: 'var(--primary-light)', background: 'rgba(124,58,237,0.1)', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                    {resume.versions?.length || 1} Version{(resume.versions?.length || 1) !== 1 ? 's' : ''} saved
+                </span>
             </div>
 
             {/* Footer */}

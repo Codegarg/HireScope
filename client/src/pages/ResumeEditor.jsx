@@ -7,9 +7,9 @@ import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
 import { ArrowLeft, Download, Sparkles, Save, Edit3, Check, X, MessageSquare, BarChart3, Bot, ChevronDown, AlertTriangle } from 'lucide-react';
 import ATSAnalysis from '../components/ATSAnalysis';
-import ResumeRenderer from '../components/resume/ResumeRenderer';
-import PDFPreview from '../components/resume/PDFPreview';
 import ResumeLayout from '../components/resume/ResumeLayout';
+import PDFPreview from '../components/resume/PDFPreview';
+import html2pdf from 'html2pdf.js';
 
 // ─── Templates Configuration ──────────────────────────────────────────────────
 const TEMPLATE_CONFIGS = {
@@ -454,8 +454,9 @@ const smallBtnStyle = {
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const ResumeEditor = () => {
-    const { id } = useParams();
+const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = null, setNextDisabled }) => {
+    const { id: paramId } = useParams();
+    const id = passedId || paramId;
     const navigate = useNavigate();
     const location = useLocation();
     const { search } = location;
@@ -507,7 +508,8 @@ const ResumeEditor = () => {
             if (location.state?.initialResume) {
                 const initial = location.state.initialResume;
                 setResume(initial);
-                const content = initial.content || initial.resumeText || '';
+                // If initialContent is passed from Wizard, use it, otherwise fallback
+                const content = initialContent || initial.content || initial.resumeText || '';
                 setCurrentContent(content);
                 lastSavedRef.current = content;
                 setSections(parseResumeIntoSections(content));
@@ -625,9 +627,31 @@ const ResumeEditor = () => {
         updateContent(updated);
     };
 
-    // ── PDF Download (WYSIWYG via Window.Print) ──────────────────────────────
+    // ── PDF Download (html2pdf.js) ──────────────────────────────────────────────
     const handleDownload = () => {
-        window.print();
+        if (!resumeContainerRef.current) return;
+        const element = resumeContainerRef.current;
+
+        // Temporarily adjust styles for perfect PDF capture
+        const originalBoxShadow = element.style.boxShadow;
+        const originalTransform = element.style.transform;
+
+        element.style.boxShadow = 'none';
+        element.style.transform = 'none';
+
+        const opt = {
+            margin: 0,
+            filename: `${resume?.personalInfo?.fullName || 'Professional'}_Resume.pdf`,
+            image: { type: 'jpeg', quality: 1 },
+            html2canvas: { scale: 2, useCORS: true, windowWidth: 794 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(element).save().then(() => {
+            // Restore styles after generation
+            element.style.boxShadow = originalBoxShadow;
+            element.style.transform = originalTransform;
+        });
     };
 
     const handleAcceptImprovement = () => {
@@ -736,29 +760,34 @@ const ResumeEditor = () => {
                         if (!dataStr || dataStr === '[DONE]') continue;
 
                         try {
-                            const data = JSON.parse(dataStr);
+                            const parsed = JSON.parse(dataStr);
 
-                            if (data.response) {
-                                accumulatedText += data.response;
+                            if (parsed.error) {
+                                throw new Error(parsed.error);
+                            }
+
+                            // Cloudflare AI streams 'response' key, not 'content'
+                            const streamedText = parsed.response || parsed.content;
+                            if (streamedText) {
+                                accumulatedText += streamedText;
                                 setImprovedContent(accumulatedText);
-                            } else if (data.type === 'metadata') {
-                                // Final metadata updates
-                                if (data.newAnalysis) {
-                                    setAtsAnalysis(data.newAnalysis);
+                            } else if (parsed.type === 'metadata') {
+                                if (parsed.newAnalysis) {
+                                    setAtsAnalysis(parsed.newAnalysis);
                                     setPostImproveAts({
-                                        atsScore: data.newScore,
-                                        scoreDelta: data.scoreDelta,
-                                        analysis: data.newAnalysis
+                                        atsScore: parsed.newScore,
+                                        scoreDelta: parsed.scoreDelta,
+                                        analysis: parsed.newAnalysis
                                     });
                                 }
-                                if (data.improvementSummary) {
-                                    setImprovementsSummary([data.improvementSummary]);
+                                if (parsed.improvementSummary) {
+                                    setImprovementsSummary([parsed.improvementSummary]);
                                 }
-                            } else if (data.error) {
-                                throw new Error(data.error);
                             }
                         } catch (e) {
-                            // Ignored: likely non-JSON chunk or mid-stream cut
+                            if (e.message && !e.message.includes('JSON')) {
+                                throw e; // rethrow actual errors shipped from backend
+                            }
                         }
                     }
                 }
@@ -789,27 +818,29 @@ const ResumeEditor = () => {
     const saveStatusLabel = saveStatus === 'saved' ? '✓ Saved' : saveStatus === 'saving' ? '⏳ Saving...' : '● Unsaved';
 
     return (
-        <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-deep)', color: 'var(--text-main)', overflow: 'hidden' }}>
-            <Navbar />
+        <div style={{ height: wizardMode ? '100%' : '100vh', display: 'flex', flexDirection: 'column', background: wizardMode ? 'transparent' : 'var(--bg-deep)', color: 'var(--text-main)', overflow: 'hidden' }}>
+            {!wizardMode && <Navbar />}
 
             {/* Spacer for fixed floating navbar (~80px from top + navbar pill height) */}
-            <div style={{ height: '88px', flexShrink: 0 }} />
+            {!wizardMode && <div style={{ height: '88px', flexShrink: 0 }} />}
 
             {/* Top toolbar — always visible, never scrolls */}
             <div style={{
                 flexShrink: 0, zIndex: 50,
-                background: 'var(--nav-bg)', backdropFilter: 'var(--blur)',
-                WebkitBackdropFilter: 'var(--blur)',
-                borderBottom: '1px solid var(--border)',
+                background: wizardMode ? 'transparent' : 'var(--nav-bg)', backdropFilter: wizardMode ? 'none' : 'var(--blur)',
+                WebkitBackdropFilter: wizardMode ? 'none' : 'var(--blur)',
+                borderBottom: wizardMode ? 'none' : '1px solid var(--border)',
                 padding: '0.75rem 2rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap'
             }}>
-                <button
-                    onClick={() => navigate(-1)}
-                    className="ghost-btn"
-                    style={{ fontSize: '0.85rem' }}
-                >
-                    <ArrowLeft size={15} /> Back
-                </button>
+                {!wizardMode && (
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="ghost-btn"
+                        style={{ fontSize: '0.85rem' }}
+                    >
+                        <ArrowLeft size={15} /> Back
+                    </button>
+                )}
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>
@@ -1082,16 +1113,16 @@ const ResumeEditor = () => {
                                     }
                                 `}</style>
 
-                                {resume?.originalFileKey
+                                {resume?.originalFileKey && (!currentContent || currentContent === resume?.content || currentContent === resume?.resumeText)
                                     ? <PDFPreview
                                         key={`pdf-${resume._id}`}
                                         resumeId={resume._id}
                                         fallbackText={currentContent}
                                         templateConfig={templateConfig}
                                     />
-                                    : <ResumeRenderer
+                                    : <ResumeLayout
                                         text={currentContent}
-                                        templateConfig={templateConfig}
+                                        theme={selectedTemplate}
                                     />
                                 }
                             </div>
@@ -1195,13 +1226,12 @@ const ResumeEditor = () => {
                                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'var(--bg-elevated)', padding: '0.3rem 0.8rem', borderRadius: '9999px', backdropFilter: 'var(--blur)' }}>Original Version</span>
                                 </div>
                                 <div style={{
-                                    background: '#ffffff', color: '#000', borderRadius: '0.5rem', padding: '3rem',
+                                    background: '#ffffff', color: '#000', borderRadius: '0.5rem', padding: '0',
                                     maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
-                                    fontFamily: templateConfig.fontFamily,
                                     display: 'flex', flexDirection: 'column',
-                                    alignItems: 'center'
+                                    alignItems: 'center', overflow: 'hidden'
                                 }}>
-                                    <ResumeRenderer text={currentContent} templateConfig={templateConfig} />
+                                    <ResumeLayout text={currentContent} theme={selectedTemplate} />
                                 </div>
                             </div>
 
@@ -1273,7 +1303,7 @@ const ResumeEditor = () => {
                                             </div>
                                         )
                                     ) : (
-                                        <ResumeRenderer text={improvedContent} templateConfig={templateConfig} />
+                                        <ResumeLayout text={improvedContent} theme={selectedTemplate} />
                                     )}
                                 </div>
 
