@@ -494,7 +494,7 @@ ${resumeSnippet}`;
                         { role: "system", content: systemPrompt },
                         { role: "user", content: userPrompt },
                     ],
-                    max_tokens: 800,
+                    max_tokens: 2048,
                     temperature: 0,  // Deterministic — no creativity
                 }),
             }
@@ -607,14 +607,52 @@ Return the improved resumeData as VALID JSON exactly matching this schema:
             throw new Error('Parsed JSON missing required fields');
         }
 
-        // Preserve original dates — never let LLM change them
+        // STRICT MODE ENFORCEMENT: Preserve exact array lengths and critical fields
+        // 1. Experience
         if (Array.isArray(parsed.experience) && Array.isArray(resumeData.experience)) {
-            parsed.experience = parsed.experience.map((exp, i) => ({
-                ...exp,
-                startDate: resumeData.experience[i]?.startDate ?? exp.startDate,
-                endDate: resumeData.experience[i]?.endDate ?? exp.endDate,
-                organization: resumeData.experience[i]?.organization ?? exp.organization,
-            }));
+            // Force length to match original (slice or pad with original)
+            parsed.experience = resumeData.experience.map((originalExp, i) => {
+                const aiExp = parsed.experience[i] || {};
+                return {
+                    ...aiExp, // Take AI improvements (mostly descriptionPoints)
+                    role: originalExp.role, // NEVER change role
+                    organization: originalExp.organization, // NEVER change company
+                    startDate: originalExp.startDate, // NEVER change dates
+                    endDate: originalExp.endDate
+                };
+            });
+        } else {
+            parsed.experience = resumeData.experience; // Revert if LLM messed up structure completely
+        }
+
+        // 2. Education
+        if (Array.isArray(parsed.education) && Array.isArray(resumeData.education)) {
+            parsed.education = resumeData.education.map((originalEdu, i) => {
+                const aiEdu = parsed.education[i] || {};
+                return {
+                    ...aiEdu,
+                    degree: originalEdu.degree,
+                    institution: originalEdu.institution,
+                    startYear: originalEdu.startYear,
+                    endYear: originalEdu.endYear
+                };
+            });
+        } else {
+            parsed.education = resumeData.education;
+        }
+
+        // 3. Projects
+        if (Array.isArray(parsed.projects) && Array.isArray(resumeData.projects)) {
+            parsed.projects = resumeData.projects.map((originalProj, i) => {
+                const aiProj = parsed.projects[i] || {};
+                return {
+                    ...aiProj,
+                    name: originalProj.name,
+                    link: originalProj.link
+                };
+            });
+        } else {
+            parsed.projects = resumeData.projects;
         }
 
         return {
@@ -627,6 +665,92 @@ Return the improved resumeData as VALID JSON exactly matching this schema:
         return {
             optimizedResumeData: resumeData,
             optimizationSummary: 'AI optimization could not be parsed. Your original resume is preserved.',
+            llmFallback: true,
+        };
+    }
+};
+
+/**
+ * REGENERATE MODE V2 — Structural rewrite of resumeData JSON.
+ * Allows reordering, heavy summary rewrites, and structural improvements.
+ * Still forbids fabricating experience years/roles/dates.
+ */
+export const improveResumeRegenerateV2 = async (resumeData, jobDescription, atsContext = {}) => {
+    const { atsScore, missingCriticalSkills = [], weakSections = [], matchedSkills = [] } = atsContext;
+
+    const systemPrompt = `You are an elite Executive Resume Writer and ATS Architect. Your job is to fundamentally restructure and rewrite a resume to maximize impact and ATS score for a specific job description.
+
+STRICT RULES:
+- You MAY rewrite the professional summary completely.
+- You MAY reorganize bullet points by impact.
+- You MAY merge or heavily edit bullet points for better flow and keyword density.
+- You MUST naturally integrate the requested missing skills.
+- DO NOT add new jobs, companies, or degrees.
+- DO NOT change the start/end dates of any experience.
+- DO NOT fabricate tools, technologies, or certifications not present in the original.
+- Return ONLY valid JSON matching the exact resumeData schema provided. No markdown. No explanation.`;
+
+    const userPrompt = `Current ATS Score: ${atsScore ?? 'unknown'}
+Matched Skills: ${matchedSkills.slice(0, 8).join(', ')}
+Missing Critical Skills: ${missingCriticalSkills.slice(0, 8).join(', ')}
+Weak Sections: ${weakSections.join(', ')}
+
+Job Description:
+${jobDescription?.substring(0, 1500) || 'Not provided'}
+
+Resume Data (JSON):
+${JSON.stringify(resumeData, null, 2).substring(0, 3000)}
+
+Return the perfectly restructured resumeData as VALID JSON exactly matching this schema:
+{
+  "personalInfo": { "fullName":"","title":"","email":"","phone":"","linkedin":"","github":"" },
+  "summary": "",
+  "skills": { "languages":[],"core":[],"frontend":[],"backend":[],"databases":[],"cloud":[],"tools":[] },
+  "projects": [{ "name":"","link":"","descriptionPoints":[] }],
+  "experience": [{ "role":"","organization":"","startDate":"","endDate":"","points":[] }],
+  "education": [{ "degree":"","institution":"","startYear":"","endYear":"" }]
+}`;
+
+    try {
+        const raw = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
+        const jsonStr = raw.replace(/```json|```/gi, '').trim();
+        const start = jsonStr.indexOf('{');
+        const end = jsonStr.lastIndexOf('}');
+        if (start === -1 || end === -1) throw new Error('No JSON object found in response');
+
+        const parsed = JSON.parse(jsonStr.slice(start, end + 1));
+
+        if (!parsed.personalInfo || !parsed.experience || !parsed.skills) {
+            throw new Error('Parsed JSON missing required fields');
+        }
+
+        // Guardrails: Even in regenerate, never corrupt dates or core facts
+        if (Array.isArray(parsed.experience) && Array.isArray(resumeData.experience)) {
+            // Match up by company to preserve dates if order changed
+            parsed.experience = parsed.experience.map(aiExp => {
+                const originalExp = resumeData.experience.find(e =>
+                    e.organization && aiExp.organization &&
+                    e.organization.toLowerCase() === aiExp.organization.toLowerCase()
+                ) || aiExp; // fallback to AI if not matched perfectly
+
+                return {
+                    ...aiExp,
+                    startDate: originalExp.startDate || aiExp.startDate,
+                    endDate: originalExp.endDate || aiExp.endDate
+                };
+            });
+        }
+
+        return {
+            optimizedResumeData: parsed,
+            optimizationSummary: 'Full structural regeneration applied. Summary rewritten and experience restructured for maximum impact.',
+            llmFallback: false,
+        };
+    } catch (error) {
+        console.error('[improveResumeRegenerateV2] Fallback triggered:', error.message);
+        return {
+            optimizedResumeData: resumeData,
+            optimizationSummary: 'AI regeneration could not be parsed. Your original resume is preserved.',
             llmFallback: true,
         };
     }

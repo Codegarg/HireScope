@@ -1,7 +1,8 @@
+import crypto from 'crypto';
 import Resume from "../models/resume.model.js";
 import { calculateATSScore as ruleBasedScore } from "../utils/atsEngine.js";
 import { calculateATSScore as hybridScore } from "../services/atsScorer.js";
-import { generateInterviewPrep, callCloudflareAIStreaming, improveResumeStructured, improveResumeRegenerate, improveResumeStructuredV2 } from "../services/ai.service.js";
+import { generateInterviewPrep, callCloudflareAIStreaming, improveResumeStructured, improveResumeRegenerate, improveResumeStructuredV2, improveResumeRegenerateV2 } from "../services/ai.service.js";
 import { extractTextFromFile } from "../services/textExtractor.service.js";
 import { resumeDataToText } from "../utils/structuredResumeParser.js";
 import { GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
@@ -94,38 +95,93 @@ export const getUserResumeById = async (req, res) => {
 
 export const updateResume = async (req, res) => {
     try {
+        const resume = await Resume.findOne({ _id: req.params.id, user: req.user.id });
+        if (!resume) return res.status(404).json({ message: "Resume not found" });
+
+        // Update top-level document with new body fields (e.g., resumeData, title, etc)
         const updatedResume = await Resume.findOneAndUpdate(
             { _id: req.params.id, user: req.user.id },
             { $set: req.body },
             { new: true }
         );
+
+        // Auto-commit a version on every save
+        if (updatedResume && updatedResume.resumeData) {
+            updatedResume.versions.push({
+                versionId: crypto.randomUUID(),
+                atsScore: updatedResume.atsScore || 0,
+                resumeData: updatedResume.resumeData,
+                type: "manual_edit",
+                createdAt: new Date()
+            });
+            await updatedResume.save();
+        }
+
         res.status(200).json({ success: true, data: updatedResume });
     } catch (error) {
+        console.error("Update resume error:", error);
         res.status(500).json({ message: "Error updating resume" });
     }
 };
 
 // --- Versioning ---
+// This is used for generating an explicit version snapshot if needed outside the normal update cycle
 export const createResumeVersion = async (req, res) => {
     try {
-        const { resumeId, content, feedback } = req.body;
+        const { resumeId, resumeData, atsScore, type } = req.body;
 
         const resume = await Resume.findOne({ _id: resumeId, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
 
         resume.versions.push({
-            content,
-            feedback: feedback || "Manual save",
+            versionId: crypto.randomUUID(),
+            resumeData: resumeData || resume.resumeData,
+            atsScore: atsScore || resume.atsScore || 0,
+            type: type || "manual_edit",
             createdAt: new Date()
         });
 
-        resume.currentVersionIndex = resume.versions.length - 1;
         await resume.save();
 
         res.status(200).json({ success: true, data: resume });
     } catch (error) {
         console.error("Version creation error:", error);
         res.status(500).json({ message: "Error creating version" });
+    }
+};
+
+export const restoreVersion = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { versionId } = req.body;
+
+        const resume = await Resume.findOne({ _id: id, user: req.user.id });
+        if (!resume) return res.status(404).json({ message: "Resume not found" });
+
+        const targetVersion = resume.versions.find(v => v.versionId === versionId);
+        if (!targetVersion) {
+            return res.status(404).json({ message: "Target version not found" });
+        }
+
+        // Restoring pushes a NEW snapshot acting as the "restored" state
+        // and updates the top level document
+        resume.resumeData = targetVersion.resumeData;
+        resume.atsScore = targetVersion.atsScore;
+
+        resume.versions.push({
+            versionId: crypto.randomUUID(),
+            resumeData: targetVersion.resumeData,
+            atsScore: targetVersion.atsScore,
+            type: "restored",
+            createdAt: new Date()
+        });
+
+        const updatedResume = await resume.save();
+
+        res.status(200).json({ success: true, data: updatedResume });
+    } catch (error) {
+        console.error("Restore version error:", error);
+        res.status(500).json({ message: "Error restoring version" });
     }
 };
 
@@ -194,10 +250,16 @@ export const improveResume = async (req, res) => {
                 };
 
                 // ── Pass 1 ────────────────────────────────────────────────────
-                let v2Result = await improveResumeStructuredV2(storedResumeData, jobDescription || '', atsContext);
-                optimizedResumeData = v2Result.optimizedResumeData;
-                improvementSummary = v2Result.optimizationSummary;
-                validationFallback = v2Result.llmFallback;
+                let aiResult;
+                if (mode === 'regenerate') {
+                    aiResult = await improveResumeRegenerateV2(storedResumeData, jobDescription || '', atsContext);
+                } else {
+                    aiResult = await improveResumeStructuredV2(storedResumeData, jobDescription || '', atsContext);
+                }
+
+                optimizedResumeData = aiResult.optimizedResumeData;
+                improvementSummary = aiResult.optimizationSummary;
+                validationFallback = aiResult.llmFallback;
                 optimizedResume = resumeDataToText(optimizedResumeData);
 
                 // ── Auto re-score after Pass 1 ────────────────────────────────
@@ -206,9 +268,9 @@ export const improveResume = async (req, res) => {
                     try {
                         newScoreData = await hybridScore(optimizedResume, jobDescription, { previousScore });
 
-                        // ── Pass 2 (if score still low and delta small) ───────
+                        // ── Pass 2 (if optimize mode, score still low, and delta small) ───────
                         const delta = newScoreData.scoreDelta ?? 0;
-                        if (newScoreData.atsScore < 85 && delta < 5) {
+                        if (mode === 'optimize' && newScoreData.atsScore < 85 && delta < 5) {
                             console.log('[Magic Improve] Score low — running refinement pass 2');
                             const refineResult = await improveResumeStructuredV2(
                                 optimizedResumeData,
@@ -329,10 +391,10 @@ export const improveResumeStreaming = async (req, res) => {
         // 3. Prepare Prompt
         const systemPrompt = mode === 'regenerate'
             ? `You are an expert technical resume writer. Output ONLY the rewritten resume as plain text. No JSON. No preamble.`
-            : `You are a precise resume optimization engine. Output ONLY the improved resume as plain text. No JSON. No preamble.`;
+            : `You are a precise resume optimization engine. Surgically improve wording and action verbs for ATS. PRESERVE ALL ORIGINAL ROLES, DATES AND NUMBER OF BULLET POINTS. Output ONLY the improved resume as plain text. No JSON. No preamble.`;
 
         const keywordHint = missingKeywords.length > 0
-            ? `\nCRITICAL — Incorporate these keywords naturally: ${missingKeywords.join(', ')}\n`
+            ? `\nCRITICAL — Try to naturally incorporate these missing skills: ${missingKeywords.join(', ')}\n`
             : '';
 
         const userPrompt = `Improve this resume for the JD.\nRULES: No fabrication. Maintain headings. Natural keyword integration.\n${keywordHint}\nRESUME:\n${content}\n\nJD:\n${jobDescription || ''}`;

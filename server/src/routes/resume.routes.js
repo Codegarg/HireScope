@@ -6,6 +6,7 @@ import {
     updateResume,
     analyzeResumeATS,
     createResumeVersion,
+    restoreVersion,
     rewriteSection,
     getInterviewPrep,
     improveResume,
@@ -29,6 +30,7 @@ router.put("/:id", updateResume);
 
 // Versioning
 router.post("/version", createResumeVersion);
+router.post("/:id/restore", restoreVersion);
 
 // ATS Scoring & Analysis
 router.post("/:id/analyze", upload.single('jdFile'), analyzeResumeATS);

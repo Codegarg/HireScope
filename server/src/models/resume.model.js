@@ -87,19 +87,34 @@ const resumeSchema = new mongoose.Schema({
         default: ""
     },
 
+    parsedText: {
+        type: String,
+        default: ""
+    },
+
     versions: [{
-        content: String,
-        feedback: String,
+        versionId: {
+            type: String,
+            required: true
+        },
+        resumeData: {
+            type: Object, // Stores the structured json snapshot
+            default: {}
+        },
+        atsScore: {
+            type: Number,
+            default: 0
+        },
+        type: {
+            type: String,
+            enum: ['original', 'optimized', 'regenerated', 'manual_edit', 'restored'],
+            default: 'manual_edit'
+        },
         createdAt: {
             type: Date,
             default: Date.now
         }
     }],
-
-    currentVersionIndex: {
-        type: Number,
-        default: 0
-    },
 
     // R2 Storage — key of the original uploaded PDF in Cloudflare R2
     originalFileKey: {

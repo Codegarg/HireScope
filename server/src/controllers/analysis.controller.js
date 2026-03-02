@@ -17,13 +17,20 @@ export const analyzeResume = async (req, res) => {
     let resumeText = "";
     let jdText = "";
 
-    // Resume file is mandatory
-    if (!resumeFile) {
-      return res.status(400).json({ message: "Resume file is required" });
+    // Resume file or Resume ID is mandatory
+    if (!resumeFile && !req.body.resumeId) {
+      return res.status(400).json({ message: "Resume file or resumeId is required" });
     }
 
     // Extract resume text
-    resumeText = await extractTextFromFile(resumeFile);
+    if (resumeFile) {
+      resumeText = await extractTextFromFile(resumeFile);
+    } else if (req.body.resumeId) {
+      // Fetch existing resume content
+      const existing = await Resume.findById(req.body.resumeId);
+      if (!existing) return res.status(404).json({ message: "Resume not found" });
+      resumeText = existing.parsedText || existing.originalContent || "";
+    }
 
     // JD can be text OR file
     if (jdTextInput && jdTextInput.trim() !== "") {
@@ -53,18 +60,26 @@ export const analyzeResume = async (req, res) => {
 
       // ── Upload original PDF to Cloudflare R2 (non-fatal) ─────────────────
       let originalFileKey = "";
-      try {
-        originalFileKey = `resumes/${userId}-${timestamp}.pdf`;
-        await r2.send(new PutObjectCommand({
-          Bucket: R2_BUCKET,
-          Key: originalFileKey,
-          Body: resumeFile.buffer,
-          ContentType: "application/pdf",
-        }));
-        console.log(`[R2] Uploaded: ${originalFileKey}`);
-      } catch (r2Err) {
-        console.error("[R2] Upload failed (non-fatal):", r2Err.message);
-        originalFileKey = "";
+      if (resumeFile) {
+        try {
+          originalFileKey = `resumes/${userId}-${timestamp}.pdf`;
+          await r2.send(new PutObjectCommand({
+            Bucket: R2_BUCKET,
+            Key: originalFileKey,
+            Body: resumeFile.buffer,
+            ContentType: "application/pdf",
+          }));
+          console.log(`[R2] Uploaded: ${originalFileKey}`);
+        } catch (r2Err) {
+          console.error("[R2] Upload failed (non-fatal):", r2Err.message);
+          originalFileKey = "";
+        }
+      } else if (req.body.resumeId) {
+        // Carry over the existing PDF key so we don't lose the frontend PDF view
+        const existing = await Resume.findById(req.body.resumeId);
+        if (existing) {
+          originalFileKey = existing.originalFileKey || "";
+        }
       }
 
       const newResume = new Resume({
@@ -78,11 +93,18 @@ export const analyzeResume = async (req, res) => {
           })} - ${jdText.substring(0, 15)}...`;
         })(),
         originalContent: resumeText,
+        parsedText: resumeText, // Raw extracted text
         atsScore: atsResult.atsScore || 0,
         suggestionsCount: aiSuggestions?.length || 0,
-        versions: [{ content: resumeText, feedback: "Initial Analysis" }],
         originalFileKey,
-        resumeData: parseResumeToStructured(resumeText),
+        resumeData: parseResumeToStructured(resumeText), // Populating structured data
+        versions: [{
+          versionId: crypto.randomUUID(), // Generate a unique ID for this snapshot
+          atsScore: atsResult.atsScore || 0,
+          resumeData: parseResumeToStructured(resumeText),
+          type: "original",
+          createdAt: new Date()
+        }]
       });
       const saved = await newResume.save();
       savedResumeId = saved._id;
