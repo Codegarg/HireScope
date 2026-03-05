@@ -1,9 +1,9 @@
-import React, { useContext, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useContext, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, Stars, Gem, Menu, X, LayoutDashboard, Home } from 'lucide-react';
+import { Sun, Moon, Stars, Gem, Menu, X, LayoutDashboard, Home, User } from 'lucide-react';
 
 /* Theme icon map */
 const THEME_ICONS = {
@@ -16,12 +16,14 @@ const THEME_ICONS = {
 const Navbar = () => {
     const { user, logout } = useContext(AuthContext);
     const location = useLocation();
+    const navigate = useNavigate();
     const { theme, cycleTheme } = useTheme();
     const [mobileOpen, setMobileOpen] = useState(false);
 
     const navLinks = [
         { name: 'Home', path: '/', icon: <Home size={16} /> },
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={16} /> },
+        { name: 'Profile', path: '/profile', icon: <User size={16} /> },
     ];
 
     const isAuth = ['/login', '/signup', '/forgot-password'].some(p => location.pathname.startsWith(p));
@@ -295,18 +297,6 @@ const Navbar = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-
-            {/* Inline responsive styles for Navbar only */}
-            <style>{`
-        @media (max-width: 768px) {
-          .nav-links-desktop { display: none !important; }
-          .show-mobile { display: flex !important; }
-          .hide-mobile { display: none !important; }
-        }
-        @media (min-width: 769px) {
-          .show-mobile { display: none !important; }
-        }
-      `}</style>
         </>
     );
 };

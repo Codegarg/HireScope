@@ -15,16 +15,22 @@ import 'react-pdf/dist/Page/TextLayer.css';
 // Configure PDF.js worker (bundler-compatible CDN version)
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-const PDFPreview = ({ resumeId, fallbackText, templateConfig }) => {
+const PDFPreview = ({ resumeId, fallbackText, templateConfig, versionNumber }) => {
     const [numPages, setNumPages] = useState(null);
     const [pdfError, setPdfError] = useState(false);
     const [loading, setLoading] = useState(true);
 
     const token = localStorage.getItem('token');
     const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const pdfUrl = resumeId
-        ? `${apiBase}/resumes/${resumeId}/file`
-        : null;
+
+    let pdfUrl = null;
+    if (resumeId) {
+        if (versionNumber) {
+            pdfUrl = `${apiBase}/resumes/${resumeId}/version/${versionNumber}/view`;
+        } else {
+            pdfUrl = `${apiBase}/resumes/${resumeId}/file`;
+        }
+    }
 
     // Memoize the file object — react-pdf does a reference comparison on <Document file={}>.
     // Without this, a new object is created every parent render and the PDF reloads each time.

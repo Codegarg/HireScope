@@ -1,17 +1,45 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FileText, Upload, Lock, ArrowRight, ArrowLeft } from 'lucide-react';
+import { FileText, Upload, Lock, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import API from '../../services/api';
 
 const Step1Upload = ({ data, updateData, setNextDisabled, onNext, onBack }) => {
-    useEffect(() => {
-        // Disable Next if no resume is selected
-        setNextDisabled(!data.file && !data.fileName);
-    }, [data.file, data.fileName, setNextDisabled]);
+    const [uploading, setUploading] = React.useState(false);
+    const [error, setError] = React.useState('');
 
-    const handleFileChange = (e) => {
+    useEffect(() => {
+        // Disable Next if no resume is selected or if uploading
+        setNextDisabled(!data._id || uploading);
+    }, [data._id, uploading, setNextDisabled]);
+
+    const handleFileChange = async (e) => {
         const file = e.target.files[0];
-        if (file) {
-            updateData({ file, fileName: file.name });
+        if (!file) return;
+
+        setUploading(true);
+        setError('');
+
+        try {
+            const formData = new FormData();
+            formData.append("resume", file);
+
+            // Trigger the new standalone upload pipeline
+            const res = await API.post('/resumes/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            const uploadedResume = res.data.data;
+            updateData({
+                file,
+                fileName: file.name,
+                _id: uploadedResume._id,
+                content: uploadedResume.parsedText || ''
+            });
+        } catch (err) {
+            console.error("Upload failed:", err);
+            setError(err.response?.data?.message || err.response?.data?.error || "Failed to upload resume. Please ensure it is a valid PDF.");
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -49,37 +77,77 @@ const Step1Upload = ({ data, updateData, setNextDisabled, onNext, onBack }) => {
 
                 <div
                     className="upload-zone"
-                    onMouseOver={(e) => zoneHover(e, true)}
-                    onMouseOut={(e) => zoneHover(e, false)}
-                    onClick={(e) => { e.stopPropagation(); document.getElementById('resume-wizard-upload').click(); }}
-                    style={{ padding: '3rem 2rem', border: '2px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s' }}
+                    onMouseOver={(e) => !uploading && zoneHover(e, true)}
+                    onMouseOut={(e) => !uploading && zoneHover(e, false)}
+                    onClick={(e) => {
+                        if (uploading) return;
+                        e.stopPropagation();
+                        document.getElementById('resume-wizard-upload').click();
+                    }}
+                    style={{
+                        padding: '3rem 2rem',
+                        border: '2px dashed var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: uploading ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s',
+                        opacity: uploading ? 0.7 : 1,
+                        background: uploading ? 'rgba(124,58,237,0.02)' : 'var(--bg-card)'
+                    }}
                 >
-                    <input type="file" id="resume-wizard-upload" hidden onChange={handleFileChange} accept=".pdf,.doc,.docx" />
-                    <Upload size={36} style={{ color: 'var(--text-muted)', marginBottom: '1rem', display: 'block', margin: '0 auto 1rem' }} />
-                    <p style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>
-                        {data.file ? (
-                            <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{data.file.name}</span>
-                        ) : data.fileName ? (
-                            <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{data.fileName}</span>
-                        ) : (
-                            "Click or drag your PDF / Word here"
-                        )}
-                    </p>
+                    <input type="file" id="resume-wizard-upload" hidden onChange={handleFileChange} accept=".pdf" />
+
+                    {uploading ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                            <Loader2 className="animate-spin" size={36} style={{ color: 'var(--primary)' }} />
+                            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '600' }}>Processing & Extracting Text...</p>
+                        </div>
+                    ) : (
+                        <>
+                            <Upload size={36} style={{ color: 'var(--text-muted)', marginBottom: '1rem', display: 'block', margin: '0 auto 1rem' }} />
+                            <p style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>
+                                {data._id ? (
+                                    <span style={{ color: 'var(--success-light)', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                        <FileText size={18} /> {data.fileName} (Uploaded)
+                                    </span>
+                                ) : (
+                                    "Click to upload your Resume (PDF only)"
+                                )}
+                            </p>
+                        </>
+                    )}
                 </div>
+
+                {error && (
+                    <div style={{
+                        marginTop: '1.5rem',
+                        padding: '0.75rem',
+                        background: 'rgba(239,68,68,0.08)',
+                        border: '1px solid rgba(239,68,68,0.2)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--error-light)',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        textAlign: 'left'
+                    }}>
+                        <Lock size={14} /> {error}
+                    </div>
+                )}
             </div>
 
             {/* Inline Navigation */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2rem', maxWidth: '500px', margin: '2rem auto 0' }}>
-                <button onClick={onBack} className="ghost-btn" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button onClick={onBack} disabled={uploading} className="ghost-btn" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: uploading ? 0.5 : 1 }}>
                     <ArrowLeft size={18} /> Cancel
                 </button>
                 <button
                     onClick={onNext}
-                    disabled={!data.file && !data.fileName}
+                    disabled={!data._id || uploading}
                     className="glow-btn"
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 2rem', opacity: (!data.file && !data.fileName) ? 0.5 : 1 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 2rem', opacity: (!data._id || uploading) ? 0.5 : 1 }}
                 >
-                    Next Step <ArrowRight size={18} />
+                    {uploading ? 'Processing...' : <>Next Step <ArrowRight size={18} /></>}
                 </button>
             </div>
         </div>

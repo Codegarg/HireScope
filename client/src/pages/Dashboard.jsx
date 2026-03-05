@@ -4,11 +4,13 @@ import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import {
     FileText, Sparkles, ArrowRight, TrendingUp,
-    Plus, Target, Bot, X, Loader2, ArrowLeft
+    Plus, Target, Bot, X, Loader2, ArrowLeft,
+    Clock, RotateCcw, Eye, Download, ChevronDown, ChevronUp, AlertTriangle
 } from 'lucide-react';
 import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
 import { AuthContext } from '../context/AuthContext';
+import { SkeletonGrid } from '../components/SkeletonCard';
 
 /* ─────────────────────────────────────────────
    Stat Card
@@ -50,11 +52,15 @@ const StatCard = ({ title, value, icon: Icon, accent, delay }) => (
 /* ─────────────────────────────────────────────
    Resume Card
    ───────────────────────────────────────────── */
-const ResumeCard = ({ resume, navigate }) => {
+const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
     const scoreColor = resume.atsScore >= 70 ? 'var(--success-light)'
         : resume.atsScore >= 50 ? 'var(--warning)'
             : resume.atsScore > 0 ? 'var(--error-light)'
                 : 'var(--text-faint)';
+
+    const sortedVersions = [...(resume.versions || [])].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return (
         <motion.div
@@ -62,22 +68,25 @@ const ResumeCard = ({ resume, navigate }) => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            whileHover={{ y: -5, borderColor: 'var(--primary)' }}
-            onClick={() => navigate(`/resume/${resume._id}`)}
             style={{
                 background: 'var(--bg-card)',
                 backdropFilter: 'var(--blur)',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '1.5rem',
-                cursor: 'pointer',
                 display: 'flex', flexDirection: 'column',
-                height: '220px',
+                minHeight: '220px',
                 transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
+                position: 'relative'
             }}
+            whileHover={{ y: -5, borderColor: 'var(--primary)' }}
         >
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+            <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', cursor: 'pointer' }}
+                onClick={() => navigate(`/editor/${resume._id}`)}
+                title="Open inside Editor"
+            >
                 <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.15)', display: 'grid', placeItems: 'center', color: 'var(--primary-light)' }}>
                     <FileText size={20} />
                 </div>
@@ -89,25 +98,67 @@ const ResumeCard = ({ resume, navigate }) => {
             </div>
 
             {/* Content */}
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => navigate(`/editor/${resume._id}`)} title="Open inside Editor">
                 <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.3rem', lineHeight: 1.3 }}>
                     {resume.title || 'Untitled Resume'}
                 </h3>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-faint)', marginBottom: '0.3rem' }}>
                     Edited {new Date(resume.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </p>
-                <span style={{ fontSize: '0.72rem', color: 'var(--primary-light)', background: 'rgba(124,58,237,0.1)', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
-                    {resume.versions?.length || 1} Version{(resume.versions?.length || 1) !== 1 ? 's' : ''} saved
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-faint)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '4px' }}>A4 PDF</span>
+                    <ArrowRight size={14} color="var(--primary-light)" />
+                </div>
             </div>
 
-            {/* Footer */}
-            <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-faint)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '4px' }}>A4 PDF</span>
-                <motion.div whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'grid', placeItems: 'center', color: 'white', boxShadow: '0 4px 12px var(--primary-glow)' }}>
-                    <ArrowRight size={16} />
-                </motion.div>
+            {/* Versions Toggler */}
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                <button
+                    onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+                    style={{
+                        background: 'none', border: 'none', width: '100%', display: 'flex', justifyContent: 'space-between',
+                        alignItems: 'center', color: 'var(--text-sub)', fontSize: '0.85rem', cursor: 'pointer', padding: '0'
+                    }}
+                >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
+                        <Clock size={14} />
+                        {resume.versions?.length || 1} Version{(resume.versions?.length || 1) !== 1 ? 's' : ''} saved
+                    </span>
+                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
             </div>
+
+            {/* Expanded Version History */}
+            <AnimatePresence>
+                {isExpanded && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        style={{ overflow: 'hidden', marginTop: '1rem' }}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {sortedVersions.map((v, idx) => (
+                                <div key={v.versionNumber} style={{ padding: '0.75rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: '700', color: idx === 0 ? 'var(--primary-light)' : 'var(--text-main)' }}>
+                                            Version {v.versionNumber} {idx === 0 && '(Current)'}
+                                        </span>
+                                        <span style={{ fontSize: '0.7rem', color: 'var(--text-faint)' }}>{new Date(v.createdAt).toLocaleDateString()}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <button onClick={(e) => { e.stopPropagation(); onPreview(resume._id, v.versionNumber); }} title="Preview" style={{ flex: 1, padding: '0.4rem', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-sub)', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Eye size={14} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); onDownload(resume._id, v.versionNumber); }} title="Download PDF" style={{ flex: 1, padding: '0.4rem', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-sub)', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Download size={14} /></button>
+                                        {idx !== 0 && (
+                                            <button onClick={(e) => { e.stopPropagation(); onRestore(resume._id, v.versionNumber); }} disabled={isRestoring} title="Restore Version" style={{ flex: 1, padding: '0.4rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--error-light)', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center', opacity: isRestoring ? 0.5 : 1 }}><RotateCcw size={14} /></button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 };
@@ -164,9 +215,49 @@ const Dashboard = () => {
     const { user, logout } = useContext(AuthContext);
     const [resumes, setResumes] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(null);
     const [sortOrder, setSortOrder] = useState('desc');
     const [showChat, setShowChat] = useState(false);
+
+    // Version specific state
+    const [isRestoring, setIsRestoring] = useState(false);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState('');
+
     const navigate = useNavigate();
+
+    const handleRestore = async (resumeId, versionNumber) => {
+        if (!window.confirm(`Are you sure you want to restore Version ${versionNumber}? This will create a new 'restored' version as your current resume.`)) return;
+
+        setIsRestoring(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`http://localhost:5000/api/resumes/${resumeId}/restore/${versionNumber}`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            // Update the local list
+            setResumes(prev => prev.map(r => r._id === resumeId ? res.data.data : r));
+            alert("Version restored successfully!");
+        } catch (err) {
+            console.error("Restore failed", err);
+            alert("Failed to restore version: " + (err.response?.data?.message || err.message));
+        } finally {
+            setIsRestoring(false);
+        }
+    };
+
+    const handleDownload = (resumeId, versionNumber) => {
+        const token = localStorage.getItem('token');
+        window.location.href = `http://localhost:5000/api/resumes/${resumeId}/version/${versionNumber}/download?token=${token}`;
+    };
+
+    const openPreview = (resumeId, versionNumber) => {
+        const token = localStorage.getItem('token');
+        setPreviewUrl(`http://localhost:5000/api/resumes/${resumeId}/version/${versionNumber}/view?token=${token}`);
+        setIsPreviewOpen(true);
+    };
 
     useEffect(() => {
         const fetchResumes = async () => {
@@ -179,7 +270,12 @@ const Dashboard = () => {
                 setResumes(res.data.data);
             } catch (err) {
                 console.error("Failed to fetch resumes", err);
-                if (err.response?.status === 401) { logout(); navigate('/login'); }
+                if (err.response?.status === 401) {
+                    logout();
+                    navigate('/login');
+                } else {
+                    setFetchError("Unable to connect to the server. Please check your connection and try again.");
+                }
             } finally {
                 setIsLoading(false);
             }
@@ -261,7 +357,7 @@ const Dashboard = () => {
                 </motion.div>
 
                 {/* Stats Row */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.25rem', marginBottom: '2rem' }}>
+                <div className="stats-grid">
                     {/* Smal stat cards */}
                     <StatCard title="Total Resumes" value={stats.total} icon={FileText} accent="var(--primary)" delay={0.1} />
                     <StatCard title="Avg. ATS Score" value={stats.avgScore} icon={Target} accent="var(--secondary)" delay={0.2} />
@@ -303,9 +399,17 @@ const Dashboard = () => {
                     </div>
 
                     {isLoading ? (
-                        <div style={{ padding: '5rem', textAlign: 'center', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                            <Loader2 size={36} className="animate-spin" style={{ color: 'var(--primary)' }} />
-                            <p style={{ fontWeight: '600' }}>Loading your resumes...</p>
+                        <SkeletonGrid count={6} />
+                    ) : fetchError ? (
+                        <div style={{ padding: '5rem', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-xl)', textAlign: 'center', background: 'var(--bg-card)' }}>
+                            <div style={{ width: '64px', height: '64px', background: 'rgba(239,68,68,0.1)', borderRadius: '50%', margin: '0 auto 1.5rem', display: 'grid', placeItems: 'center' }}>
+                                <AlertTriangle size={28} style={{ color: '#ef4444' }} />
+                            </div>
+                            <h3 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Outfit', sans-serif", color: '#ef4444' }}>Connection Error</h3>
+                            <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>{fetchError}</p>
+                            <button onClick={() => window.location.reload()} className="glow-btn" style={{ padding: '0.8rem 2rem', background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)', color: '#ef4444' }}>
+                                Retry Connection
+                            </button>
                         </div>
                     ) : resumes.length === 0 ? (
                         <div style={{ padding: '5rem', border: '2px dashed var(--border)', borderRadius: 'var(--radius-xl)', textAlign: 'center', background: 'var(--bg-card)' }}>
@@ -319,7 +423,7 @@ const Dashboard = () => {
                             </Link>
                         </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                        <div className="dashboard-grid">
                             {resumes
                                 .sort((a, b) => {
                                     const dateA = new Date(a.updatedAt);
@@ -327,7 +431,15 @@ const Dashboard = () => {
                                     return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
                                 })
                                 .map(resume => (
-                                    <ResumeCard key={resume._id} resume={resume} navigate={navigate} />
+                                    <ResumeCard
+                                        key={resume._id}
+                                        resume={resume}
+                                        navigate={navigate}
+                                        onRestore={handleRestore}
+                                        onDownload={handleDownload}
+                                        onPreview={openPreview}
+                                        isRestoring={isRestoring}
+                                    />
                                 ))}
 
                             {/* New resume card */}
@@ -383,6 +495,49 @@ const Dashboard = () => {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Preview Modal */}
+            <AnimatePresence>
+                {isPreviewOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                            background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)',
+                            zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem'
+                        }}
+                        onClick={() => setIsPreviewOpen(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.9, y: 20 }}
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                width: '100%', maxWidth: '900px', height: '90vh',
+                                background: 'white', borderRadius: 'var(--radius-lg)',
+                                overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column'
+                            }}
+                        >
+                            <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)' }}>
+                                <h3 style={{ fontWeight: '700', fontFamily: "'Outfit', sans-serif" }}>Version Preview</h3>
+                                <button onClick={() => setIsPreviewOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                                    <X size={24} />
+                                </button>
+                            </div>
+                            <iframe
+                                src={previewUrl}
+                                width="100%"
+                                height="100%"
+                                style={{ border: 'none', flex: 1 }}
+                                title="Version PDF Preview"
+                            />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Responsive styles for Dashboard */}
             <style>{`
