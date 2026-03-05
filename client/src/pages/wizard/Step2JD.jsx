@@ -36,17 +36,16 @@ const Step2JD = ({ data, updateData, setNextDisabled, onAnalyze }) => {
 
         try {
             const formData = new FormData();
-            if (data.file) {
+
+            // Priority: Send only the resumeId if we already uploaded it in Step 1
+            if (data._id) {
+                formData.append("resumeId", data._id);
+            } else if (data.file) {
                 formData.append("resume", data.file);
             } else {
-                // If we don't have a fresh file but have an ID, ideally the backend supports analyzing by ID alone.
-                // For now, assume a file is required if it's a new upload.
-                if (!data._id) {
-                    setError("Resume file is missing. Please go back to step 1.");
-                    setIsAnalyzing(false);
-                    return;
-                }
-                formData.append("resumeId", data._id);
+                setError("Resume file is missing. Please go back to step 1.");
+                setIsAnalyzing(false);
+                return;
             }
 
             if (data.jdFile) formData.append("jd", data.jdFile);

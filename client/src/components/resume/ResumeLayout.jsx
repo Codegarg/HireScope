@@ -1,16 +1,59 @@
-import React from 'react';
+import React, { useRef, useState, useLayoutEffect } from 'react';
 import './ResumeLayout.css';
 
 /**
  * ResumeLayout
  * Renders structured resumeData JSON into a clean, fixed A4 layout
  * Supports theme switching via classes.
+ * Includes auto-scaling to fit content exactly on one page.
  * 
  * @param {Object} props
  * @param {Object} props.resumeData - The parsed, structured JSON resume data
  * @param {string} props.theme - The chosen theme (e.g., 'classic', 'modern', 'minimal')
  */
 const ResumeLayout = ({ resumeData, theme = 'classic' }) => {
+    const pageRef = useRef(null);
+    const [scaleFactor, setScaleFactor] = useState(1); // 1 = 10pt/11pt base depending on theme
+    const [isScaling, setIsScaling] = useState(true);
+
+    // Auto-scaling logic to fit single page (A4: 297mm height translates roughly to ~1122px at 96 DPI)
+    useLayoutEffect(() => {
+        if (!resumeData || !pageRef.current) return;
+
+        // Reset scale before measurement
+        setIsScaling(true);
+        setScaleFactor(1);
+
+        const checkScale = () => {
+            const el = pageRef.current;
+            if (!el) return;
+
+            // A4 pixel approximation height (slight buffer for safety)
+            const targetHeight = 1110;
+            const currentHeight = el.scrollHeight;
+
+            if (currentHeight > targetHeight) {
+                // Content is too long, need to shrink typography
+                const ratio = targetHeight / currentHeight;
+                // clamp min scale to avoid tiny unreadable text
+                const newScale = Math.max(0.7, ratio * 0.95);
+                setScaleFactor(newScale);
+            } else if (currentHeight < targetHeight * 0.7) {
+                // Content is very short, optionally grow typography slightly (max 1.2)
+                setScaleFactor(1.1);
+            } else {
+                // Content fits well
+                setScaleFactor(1);
+            }
+            setIsScaling(false);
+        };
+
+        // Allow DOM to paint initial size before calculating
+        requestAnimationFrame(() => {
+            setTimeout(checkScale, 50);
+        });
+
+    }, [resumeData, theme]);
 
     if (!resumeData) {
         return (
@@ -24,9 +67,18 @@ const ResumeLayout = ({ resumeData, theme = 'classic' }) => {
 
     const { personalInfo, summary, experience, education, projects, skills } = resumeData;
 
+    // Extract base font size based on theme to apply scale
+    const basePt = theme === 'classic' ? 11 : 10;
+    const dynamicFontSize = `${basePt * scaleFactor}pt`;
+
     return (
-        <div className="resume-layout-wrapper">
-            <div id="resume-pdf-container" className={`resume-layout-page theme-${theme}`}>
+        <div className="resume-layout-wrapper" style={{ opacity: isScaling ? 0 : 1, transition: 'opacity 0.2s' }}>
+            <div
+                id="resume-pdf-container"
+                ref={pageRef}
+                className={`resume-layout-page theme-${theme}`}
+                style={{ '--base-font-size': dynamicFontSize }}
+            >
 
                 {/* ── HEADER (Personal Info) ────────────────────────────── */}
                 {personalInfo && (

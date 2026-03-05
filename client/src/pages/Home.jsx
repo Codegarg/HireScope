@@ -224,7 +224,7 @@ const Home = () => {
                     onMouseOut={(e) => zoneHover(e, false)}
                     onClick={(e) => { if (!user) return; e.stopPropagation(); document.getElementById('resume-upload').click(); }}
                   >
-                    <input type="file" id="resume-upload" hidden disabled={!user} onChange={(e) => setResume(e.target.files[0])} accept=".pdf,.doc,.docx" />
+                    <input type="file" id="resume-upload" hidden disabled={!user} onClick={(e) => { e.target.value = null; }} onChange={(e) => setResume(e.target.files[0])} accept=".pdf,.doc,.docx" />
                     <Upload size={28} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', display: 'block', margin: '0 auto 0.75rem', opacity: user ? 1 : 0.4 }} />
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                       {resume ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{resume.name}</span>
@@ -255,7 +255,7 @@ const Home = () => {
                     onMouseOut={(e) => zoneHover(e, false)}
                     onClick={(e) => { if (!user) return; e.stopPropagation(); document.getElementById('jd-upload').click(); }}
                   >
-                    <input type="file" id="jd-upload" hidden disabled={!user} onChange={(e) => setJdFile(e.target.files[0])} accept=".pdf,.doc,.docx" />
+                    <input type="file" id="jd-upload" hidden disabled={!user} onClick={(e) => { e.target.value = null; }} onChange={(e) => setJdFile(e.target.files[0])} accept=".pdf,.doc,.docx" />
                     <FileUp size={24} style={{ color: 'var(--text-muted)', display: 'block', margin: '0 auto 0.5rem', opacity: user ? 1 : 0.4 }} />
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       {jdFile ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{jdFile.name}</span>
@@ -409,14 +409,14 @@ const Home = () => {
                     {/* Action Buttons */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                       <button
-                        onClick={() => navigate(`/editor/${result.resumeId}?improve=true`, { state: { initialResume: { ...result, content: result.resumeText }, analysisResults: result } })}
+                        onClick={() => navigate(`/editor/${result.resumeId}?improve=true`, { state: { initialResume: { ...result, _id: result.resumeId, content: result.resumeText }, analysisResults: result } })}
                         className="glow-btn"
                         style={{ justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent), #d97706)' }}
                       >
                         ✨ Magic AI Improve
                       </button>
                       <button
-                        onClick={() => navigate(`/editor/${result.resumeId}`, { state: { initialResume: { ...result, content: result.resumeText }, analysisResults: result } })}
+                        onClick={() => navigate(`/editor/${result.resumeId}`, { state: { initialResume: { ...result, _id: result.resumeId, content: result.resumeText }, analysisResults: result } })}
                         className="glow-btn"
                         style={{ justifyContent: 'center' }}
                       >

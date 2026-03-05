@@ -8,7 +8,8 @@
     align-items: flex-start;
     width: 100%;
     min-height: 100%;
-    background-color: #f1f5f9; /* Subtle backdrop like a PDF viewer */
+    background-color: #f1f5f9;
+    /* Subtle backdrop like a PDF viewer */
     padding: 2rem;
     overflow: auto;
 }
@@ -39,7 +40,8 @@
     font-family: var(--font-body);
     color: var(--color-text);
     line-height: 1.5;
-    font-size: 10pt; /* Standard PDF base size */
+    font-size: var(--base-font-size, 10pt);
+    /* Controlled by React for auto-fit */
 }
 
 /* 
@@ -69,7 +71,7 @@
 .theme-modern .layout-section-title {
     color: var(--color-primary);
     font-family: var(--font-heading);
-    font-size: 14pt;
+    font-size: 1.4em;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -86,27 +88,29 @@
     --color-primary: #111827;
     --color-secondary: #4b5563;
     --color-text: #1f2937;
-    --color-accent: #111827; /* Near black instead of blue */
+    --color-accent: #111827;
+    /* Near black instead of blue */
     --color-border: #9ca3af;
     --spacing-section: 1.25rem;
     padding: 15mm 20mm;
-    font-size: 11pt; /* Serif usually needs slightly larger base */
+    /* Removed fixed font size to allow root EM scaling */
 }
 
 .theme-classic .layout-header {
     text-align: center;
     margin-bottom: var(--spacing-section);
 }
+
 .theme-classic .layout-header h1 {
     font-weight: 400;
-    font-size: 24pt;
+    font-size: 2.4em;
     margin-bottom: 0.25rem;
 }
 
 .theme-classic .layout-section-title {
     color: var(--color-primary);
     font-family: var(--font-heading);
-    font-size: 13pt;
+    font-size: 1.3em;
     font-weight: 700;
     text-transform: uppercase;
     border-bottom: 1px solid var(--color-primary);
@@ -122,7 +126,8 @@
     --color-secondary: #71717a;
     --color-text: #3f3f46;
     --color-accent: #000000;
-    --color-border: transparent; /* Clean look */
+    --color-border: transparent;
+    /* Clean look */
     --spacing-section: 2rem;
     padding: 25mm 20mm;
 }
@@ -131,11 +136,13 @@
     text-align: left;
     margin-bottom: var(--spacing-section);
 }
+
 .theme-minimal .layout-header h1 {
     font-weight: 300;
-    font-size: 26pt;
+    font-size: 2.6em;
     letter-spacing: -0.02em;
 }
+
 .theme-minimal .contact-info {
     justify-content: flex-start !important;
 }
@@ -143,7 +150,7 @@
 .theme-minimal .layout-section-title {
     color: var(--color-primary);
     font-family: var(--font-heading);
-    font-size: 12pt;
+    font-size: 1.2em;
     font-weight: 600;
     margin-bottom: 1rem;
 }
@@ -156,7 +163,7 @@
 .layout-header h1 {
     font-family: var(--font-heading);
     color: var(--color-primary);
-    font-size: 22pt;
+    font-size: 2.2em;
     font-weight: 700;
     margin: 0 0 0.5rem 0;
     line-height: 1.1;
@@ -168,7 +175,7 @@
     justify-content: center;
     gap: 1rem;
     color: var(--color-secondary);
-    font-size: 9pt;
+    font-size: 0.9em;
 }
 
 .contact-info span {
@@ -183,6 +190,7 @@
 .layout-item {
     margin-bottom: var(--spacing-item);
 }
+
 .layout-item:last-child {
     margin-bottom: 0;
 }
@@ -197,7 +205,7 @@
 .item-title {
     font-weight: 600;
     color: var(--color-primary);
-    font-size: 11pt;
+    font-size: 1.1em;
 }
 
 .item-subtitle {
@@ -208,7 +216,7 @@
 
 .item-dates {
     color: var(--color-secondary);
-    font-size: 9.5pt;
+    font-size: 0.95em;
     white-space: nowrap;
 }
 
@@ -221,6 +229,7 @@
 .item-points li {
     margin-bottom: 0.25rem;
 }
+
 .item-points li:last-child {
     margin-bottom: 0;
 }
@@ -249,6 +258,7 @@
         background: none;
         min-height: auto;
     }
+
     .resume-layout-page {
         box-shadow: none;
         /* Browser usually adds own margins in print, to be safe force 0 */

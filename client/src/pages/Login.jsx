@@ -1,4 +1,5 @@
-
+import { useState, useEffect, useContext } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, LogIn, AlertCircle, Eye, EyeOff, Github, Chrome, Sparkles } from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
@@ -7,6 +8,7 @@ import Navbar from "../components/Navbar";
 const Login = () => {
   const { login, user, checkUserStatus } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -15,14 +17,13 @@ const Login = () => {
 
   // Handle OAuth Redirect
   useEffect(() => {
-    const location = useLocation();
     const params = new URLSearchParams(location.search);
     const token = params.get("token");
     if (token) {
       localStorage.setItem("token", token);
       checkUserStatus().then(() => { navigate("/"); });
     }
-  }, [checkUserStatus, navigate]);
+  }, [location.search, checkUserStatus, navigate]);
 
   useEffect(() => {
     if (user) navigate("/");

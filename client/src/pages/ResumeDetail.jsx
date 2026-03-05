@@ -45,14 +45,14 @@ const ResumeDetail = () => {
         fetchResume();
     }, [id, navigate, logout]);
 
-    const handleRestore = async (versionId) => {
-        if (!window.confirm("Are you sure you want to restore this version? This will create a new 'restored' version as your current resume.")) return;
+    const handleRestore = async (versionNumber) => {
+        if (!window.confirm(`Are you sure you want to restore Version ${versionNumber}? This will create a new 'restored' version as your current resume.`)) return;
 
         setIsRestoring(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`http://localhost:5000/api/resumes/${id}/restore`,
-                { versionId },
+            const res = await axios.post(`http://localhost:5000/api/resumes/${id}/restore/${versionNumber}`,
+                {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             setResume(res.data.data);
@@ -65,56 +65,9 @@ const ResumeDetail = () => {
         }
     };
 
-    const handleDownload = async (version) => {
-        setIsDownloading(true);
-        try {
-            // We'll use a hidden container to render the specific version for html2pdf
-            const element = document.createElement('div');
-            element.id = 'temp-pdf-render';
-            element.style.position = 'fixed';
-            element.style.left = '-9999px';
-            element.style.top = '0';
-            element.style.width = '210mm'; // A4 width
-            element.style.background = 'white';
-            document.body.appendChild(element);
-
-            // Render logic - conceptually we need to render ResumeLayout with version.resumeData
-            // Since we are in React, we could use a portal or just a temporary state-driven render
-            // For now, let's use the simplest approach: create a temporary root or use a hidden ref
-
-            // Actually, a better way for a clean PDF is to render it in the background
-            // But html2pdf needs a DOM element.
-
-            // Let's implement handles for this
-            const html2pdfModule = await import('html2pdf.js');
-            const html2pdf = html2pdfModule.default ? html2pdfModule.default : html2pdfModule;
-
-            const opt = {
-                margin: 0,
-                filename: `${resume.personalInfo?.fullName || 'Resume'}_V${version.versionId.substring(0, 4)}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, logging: false },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-
-            // Temporary render
-            import('react-dom/client').then(({ createRoot }) => {
-                const root = createRoot(element);
-                root.render(<div style={{ padding: '20mm' }}><ResumeLayout resumeData={version.resumeData} theme="classic" /></div>);
-
-                // Wait for render
-                setTimeout(async () => {
-                    await html2pdf().set(opt).from(element).save();
-                    document.body.removeChild(element);
-                    setIsDownloading(false);
-                }, 500);
-            });
-
-        } catch (err) {
-            console.error("PDF download failed", err);
-            alert("Failed to generate PDF");
-            setIsDownloading(false);
-        }
+    const handleDownload = (versionNumber) => {
+        const token = localStorage.getItem('token');
+        window.location.href = `http://localhost:5000/api/resumes/${id}/version/${versionNumber}/download?token=${token}`;
     };
 
     if (isLoading) return (
@@ -188,6 +141,40 @@ const ResumeDetail = () => {
                     </div>
                 </motion.div>
 
+                {/* PDF Preview Section */}
+                <section style={{ marginBottom: '4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                        <FileText size={20} color="var(--primary)" />
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', fontFamily: "'Outfit', sans-serif" }}>Original PDF</h2>
+                    </div>
+
+                    <div style={{
+                        width: '100%',
+                        height: '700px',
+                        background: 'white',
+                        borderRadius: '1rem',
+                        overflow: 'hidden',
+                        boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+                        border: '1px solid var(--border)',
+                        position: 'relative'
+                    }}>
+                        {resume.originalFileKey ? (
+                            <iframe
+                                src={`http://localhost:5000/api/resumes/${resume._id}/file?token=${localStorage.getItem('token')}`}
+                                width="100%"
+                                height="100%"
+                                style={{ border: 'none' }}
+                                title="Original Resume PDF"
+                            />
+                        ) : (
+                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: '1rem' }}>
+                                <AlertCircle size={48} style={{ opacity: 0.3 }} />
+                                <p>No original PDF file found for this resume.</p>
+                            </div>
+                        )}
+                    </div>
+                </section>
+
                 {/* Versions Section */}
                 <section>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
@@ -197,12 +184,12 @@ const ResumeDetail = () => {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {sortedVersions.map((v, idx) => {
-                            const isCurrent = idx === 0; // Assume first in sorted (latest) is current if index is correctly managed
-                            const vNum = sortedVersions.length - idx;
+                            const isCurrent = idx === 0;
+                            const vNum = v.versionNumber;
 
                             return (
                                 <motion.div
-                                    key={v.versionId}
+                                    key={vNum}
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: idx * 0.05 }}
@@ -254,7 +241,7 @@ const ResumeDetail = () => {
                                             <Eye size={16} /> Preview
                                         </button>
                                         <button
-                                            onClick={() => handleDownload(v)}
+                                            onClick={() => handleDownload(v.versionNumber)}
                                             className="ghost-btn"
                                             style={{ padding: '0.5rem 0.8rem' }}
                                             disabled={isDownloading}
@@ -264,7 +251,7 @@ const ResumeDetail = () => {
                                         </button>
                                         {!isCurrent && (
                                             <button
-                                                onClick={() => handleRestore(v.versionId)}
+                                                onClick={() => handleRestore(v.versionNumber)}
                                                 className="ghost-btn"
                                                 style={{ padding: '0.5rem 0.8rem', color: 'var(--warning)' }}
                                                 disabled={isRestoring}
@@ -314,7 +301,7 @@ const ResumeDetail = () => {
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                     <span style={{ fontWeight: '800', color: 'var(--text-main)' }}>
-                                        Previewing Version: {selectedVersion.type?.toUpperCase()}
+                                        Previewing Version: {selectedVersion.type?.toUpperCase()} ({selectedVersion.versionNumber})
                                     </span>
                                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                                         {new Date(selectedVersion.createdAt).toLocaleString()}
@@ -328,19 +315,19 @@ const ResumeDetail = () => {
                                 </button>
                             </div>
 
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '3rem', background: '#f5f5f7' }}>
-                                <div style={{
-                                    width: '100%', maxWidth: '800px', margin: '0 auto',
-                                    background: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
-                                    minHeight: '100%'
-                                }}>
-                                    <ResumeLayout resumeData={selectedVersion.resumeData} theme="classic" />
-                                </div>
+                            <div style={{ flex: 1, background: '#f5f5f7' }}>
+                                <iframe
+                                    src={`http://localhost:5000/api/resumes/${id}/version/${selectedVersion.versionNumber}/view?token=${localStorage.getItem('token')}`}
+                                    width="100%"
+                                    height="100%"
+                                    style={{ border: 'none' }}
+                                    title={`Version ${selectedVersion.versionNumber} Preview`}
+                                />
                             </div>
 
                             <div style={{ padding: '1.25rem', background: 'var(--bg-card)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                                 <button onClick={() => setIsPreviewOpen(false)} className="ghost-btn">Close</button>
-                                <button onClick={() => handleDownload(selectedVersion)} className="glow-btn" style={{ padding: '0.6rem 1.25rem' }}>
+                                <button onClick={() => handleDownload(selectedVersion.versionNumber)} className="glow-btn" style={{ padding: '0.6rem 1.25rem' }}>
                                     <Download size={16} /> Download
                                 </button>
                             </div>

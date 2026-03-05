@@ -18,11 +18,38 @@ const Step3Analysis = ({ data, updateData, setNextDisabled, onNext, onBack }) =>
 
     return (
         <div style={{ width: '100%', animation: 'fadeIn 0.4s ease' }}>
-            <ATSAnalysis
-                analysis={data.atsResult}
-                resumeName={data.file?.name || data.fileName || "Stored Resume"}
-                jdName={data.jdFile?.name || "Target JD"}
-            />
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)', gap: '2rem', alignItems: 'start' }}>
+                <ATSAnalysis
+                    analysis={data.atsResult}
+                    resumeName={data.file?.name || data.fileName || "Stored Resume"}
+                    jdName={data.jdFile?.name || "Target JD"}
+                />
+
+                <div style={{
+                    background: 'white',
+                    borderRadius: 'var(--radius-lg)',
+                    overflow: 'hidden',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
+                    border: '1px solid var(--border)',
+                    height: '750px',
+                    position: 'sticky',
+                    top: '2rem'
+                }}>
+                    {data._id ? (
+                        <iframe
+                            src={`http://localhost:5000/api/resumes/${data._id}/file?token=${localStorage.getItem('token')}`}
+                            width="100%"
+                            height="100%"
+                            style={{ border: 'none' }}
+                            title="Original Resume PDF"
+                        />
+                    ) : (
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                            PDF Preview Not Available
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* Inline Navigation */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3rem', maxWidth: '800px', margin: '3rem auto 0' }}>
