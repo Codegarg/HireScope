@@ -21,6 +21,12 @@ const resumeSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    analysis: {
+        matchedSkills: { type: [String], default: [] },
+        missingSkills: { type: [String], default: [] },
+        missingCriticalSkills: { type: [String], default: [] },
+        suggestions: { type: [String], default: [] }
+    },
 
     // Core Sections
     personalInfo: {
@@ -93,13 +99,21 @@ const resumeSchema = new mongoose.Schema({
     },
 
     versions: [{
-        versionId: {
-            type: String,
+        versionNumber: {
+            type: Number,
             required: true
         },
         resumeData: {
-            type: Object, // Stores the structured json snapshot
-            default: {}
+            type: Object, // Structured snapshot
+            default: null
+        },
+        content: {
+            type: String, // Text snapshot
+            default: ""
+        },
+        fileKey: {
+            type: String, // R2 PDF key
+            default: ""
         },
         atsScore: {
             type: Number,
@@ -107,14 +121,19 @@ const resumeSchema = new mongoose.Schema({
         },
         type: {
             type: String,
-            enum: ['original', 'optimized', 'regenerated', 'manual_edit', 'restored'],
-            default: 'manual_edit'
+            enum: ['original', 'optimized', 'regenerated', 'manual-edit', 'restored'],
+            default: 'manual-edit'
         },
         createdAt: {
             type: Date,
             default: Date.now
         }
     }],
+
+    versionCounter: {
+        type: Number,
+        default: 0
+    },
 
     // R2 Storage — key of the original uploaded PDF in Cloudflare R2
     originalFileKey: {

@@ -1,5 +1,5 @@
+import 'dotenv/config';
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
 
@@ -9,7 +9,6 @@ import chatRoutes from "./routes/chat.routes.js";
 import resumeRoutes from "./routes/resume.routes.js";
 import passport from "./config/passport.js";
 
-dotenv.config();
 connectDB();
 
 const app = express();

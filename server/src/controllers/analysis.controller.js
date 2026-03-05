@@ -3,8 +3,7 @@ import crypto from 'crypto';
 import { extractTextFromFile } from "../services/textExtractor.service.js";
 import { generateSuggestions } from "../services/ai.service.js";
 import Resume from "../models/resume.model.js";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { r2, R2_BUCKET } from "../utils/r2Client.js";
+import { uploadFile } from "../services/storage.service.js";
 import { parseResumeToStructured } from "../utils/structuredResumeParser.js";
 
 export const analyzeResume = async (req, res) => {
@@ -55,24 +54,21 @@ export const analyzeResume = async (req, res) => {
 
     // ── Auto-save resume if user is logged in ─────────────────────────────
     let savedResumeId = null;
+    let finalResumeData = null;
+    let finalOriginalFileKey = null;
+
     if (req.user) {
       const userId = req.user.id;
       const timestamp = Date.now();
 
-      // ── Upload original PDF to Cloudflare R2 (non-fatal) ─────────────────
+      // ── Upload original PDF to Storage (non-fatal) ─────────────────
       let originalFileKey = "";
       if (resumeFile) {
         try {
           originalFileKey = `resumes/${userId}-${timestamp}.pdf`;
-          await r2.send(new PutObjectCommand({
-            Bucket: R2_BUCKET,
-            Key: originalFileKey,
-            Body: resumeFile.buffer,
-            ContentType: "application/pdf",
-          }));
-          console.log(`[R2] Uploaded: ${originalFileKey}`);
-        } catch (r2Err) {
-          console.error("[R2] Upload failed (non-fatal):", r2Err.message);
+          await uploadFile(originalFileKey, resumeFile.buffer, "application/pdf");
+        } catch (uploadErr) {
+          console.error("[Storage] Upload failed (non-fatal):", uploadErr.message);
           originalFileKey = "";
         }
       } else if (req.body.resumeId) {
@@ -97,18 +93,29 @@ export const analyzeResume = async (req, res) => {
         parsedText: resumeText, // Raw extracted text
         atsScore: atsResult.atsScore || 0,
         suggestionsCount: aiSuggestions?.length || 0,
+        analysis: {
+          matchedSkills: atsResult.matchedSkills || [],
+          missingSkills: atsResult.missingSkills || [],
+          missingCriticalSkills: atsResult.missingCriticalSkills || [],
+          suggestions: atsResult.improvementSuggestions || []
+        },
         originalFileKey,
         resumeData: parseResumeToStructured(resumeText) || {}, // Populating structured data
         versions: [{
-          versionId: crypto.randomUUID(), // Generate a unique ID for this snapshot
+          versionNumber: 1,
           atsScore: atsResult.atsScore || 0,
           resumeData: parseResumeToStructured(resumeText) || {},
+          content: resumeText,
+          fileKey: originalFileKey,
           type: "original",
           createdAt: new Date()
-        }]
+        }],
+        versionCounter: 1
       });
       const saved = await newResume.save();
       savedResumeId = saved._id;
+      finalResumeData = saved.resumeData;
+      finalOriginalFileKey = saved.originalFileKey;
     }
 
     return res.status(200).json({
@@ -119,6 +126,8 @@ export const analyzeResume = async (req, res) => {
         resumeId: savedResumeId,
         resumeText,
         jdText,
+        resumeData: finalResumeData,
+        originalFileKey: finalOriginalFileKey,
       },
     });
   } catch (error) {

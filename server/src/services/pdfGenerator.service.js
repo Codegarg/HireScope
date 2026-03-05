@@ -21,12 +21,13 @@ export const generateResumePDF = async (resume) => {
             });
             doc.on('error', reject);
 
-            // Get current version content
+            // Use structured data if available, otherwise fallback to top-level fields
+            const data = resume.resumeData || resume;
             const currentVersion = resume.versions && resume.versions.length > 0
-                ? resume.versions[resume.currentVersionIndex || 0]
+                ? resume.versions[resume.versionCounter ? (resume.versions.length - 1) : 0]
                 : null;
 
-            const content = currentVersion?.content || resume.originalContent || '';
+            const content = currentVersion?.content || resume.parsedText || resume.originalContent || '';
 
             // Header - Name and Title
             doc.fontSize(24)
@@ -36,8 +37,8 @@ export const generateResumePDF = async (resume) => {
             doc.moveDown(0.5);
 
             // Personal Info Section
-            if (resume.personalInfo) {
-                const { fullName, email, phone, linkedin, github, website } = resume.personalInfo;
+            if (data.personalInfo) {
+                const { fullName, email, phone, linkedin, github, website } = data.personalInfo;
 
                 if (fullName) {
                     doc.fontSize(20)
@@ -63,18 +64,18 @@ export const generateResumePDF = async (resume) => {
             }
 
             // If we have structured data, format it nicely
-            if (resume.personalInfo?.summary) {
-                addSection(doc, 'PROFESSIONAL SUMMARY', resume.personalInfo.summary);
+            if (data.personalInfo?.summary) {
+                addSection(doc, 'PROFESSIONAL SUMMARY', data.personalInfo.summary);
             }
 
             // Experience Section
-            if (resume.experience && resume.experience.length > 0) {
+            if (data.experience && data.experience.length > 0) {
                 doc.fontSize(14)
                     .font('Helvetica-Bold')
                     .text('EXPERIENCE', { underline: true });
                 doc.moveDown(0.5);
 
-                resume.experience.forEach(exp => {
+                data.experience.forEach(exp => {
                     doc.fontSize(12)
                         .font('Helvetica-Bold')
                         .text(exp.position || 'Position');
@@ -93,13 +94,13 @@ export const generateResumePDF = async (resume) => {
             }
 
             // Education Section
-            if (resume.education && resume.education.length > 0) {
+            if (data.education && data.education.length > 0) {
                 doc.fontSize(14)
                     .font('Helvetica-Bold')
                     .text('EDUCATION', { underline: true });
                 doc.moveDown(0.5);
 
-                resume.education.forEach(edu => {
+                data.education.forEach(edu => {
                     doc.fontSize(12)
                         .font('Helvetica-Bold')
                         .text(edu.degree || 'Degree');
@@ -118,51 +119,51 @@ export const generateResumePDF = async (resume) => {
             }
 
             // Skills Section
-            if (resume.skills) {
+            if (data.skills) {
                 doc.fontSize(14)
                     .font('Helvetica-Bold')
                     .text('SKILLS', { underline: true });
                 doc.moveDown(0.5);
 
-                if (resume.skills.technical && resume.skills.technical.length > 0) {
+                if (data.skills.technical && data.skills.technical.length > 0) {
                     doc.fontSize(11)
                         .font('Helvetica-Bold')
                         .text('Technical: ');
                     doc.fontSize(10)
                         .font('Helvetica')
-                        .text(resume.skills.technical.join(', '));
+                        .text(data.skills.technical.join(', '));
                     doc.moveDown(0.3);
                 }
 
-                if (resume.skills.soft && resume.skills.soft.length > 0) {
+                if (data.skills.soft && data.skills.soft.length > 0) {
                     doc.fontSize(11)
                         .font('Helvetica-Bold')
                         .text('Soft Skills: ');
                     doc.fontSize(10)
                         .font('Helvetica')
-                        .text(resume.skills.soft.join(', '));
+                        .text(data.skills.soft.join(', '));
                     doc.moveDown(0.3);
                 }
 
-                if (resume.skills.tools && resume.skills.tools.length > 0) {
+                if (data.skills.tools && data.skills.tools.length > 0) {
                     doc.fontSize(11)
                         .font('Helvetica-Bold')
                         .text('Tools: ');
                     doc.fontSize(10)
                         .font('Helvetica')
-                        .text(resume.skills.tools.join(', '));
+                        .text(data.skills.tools.join(', '));
                 }
                 doc.moveDown(0.8);
             }
 
             // Projects Section
-            if (resume.projects && resume.projects.length > 0) {
+            if (data.projects && data.projects.length > 0) {
                 doc.fontSize(14)
                     .font('Helvetica-Bold')
                     .text('PROJECTS', { underline: true });
                 doc.moveDown(0.5);
 
-                resume.projects.forEach(project => {
+                data.projects.forEach(project => {
                     doc.fontSize(12)
                         .font('Helvetica-Bold')
                         .text(project.name || 'Project');
@@ -183,7 +184,8 @@ export const generateResumePDF = async (resume) => {
             }
 
             // If content is plain text (from editor), add it as fallback
-            if (content && !resume.personalInfo && !resume.experience) {
+            const hasStructuredData = (data.personalInfo?.fullName || data.personalInfo?.email || data.experience?.length > 0);
+            if (content && !hasStructuredData) {
                 doc.fontSize(10)
                     .font('Helvetica')
                     .text(content, {

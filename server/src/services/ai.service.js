@@ -429,13 +429,13 @@ export const callLlamaEvaluator = async (resumeText, jdText, ruleResult = {}) =>
     }
 
     // Build concise context (keep within token budget)
-    const resumeSnippet = resumeText.substring(0, 2500);
-    const jdSnippet = jdText.substring(0, 1500);
+    const resumeSnippet = resumeText.substring(0, 1500); // Shortened to save tokens
+    const jdSnippet = jdText.substring(0, 1000); // Shortened to save tokens
     const missingSkills = (ruleResult.missingCriticalSkills || []).slice(0, 6).join(", ") || "none";
     const matchedSkills = (ruleResult.matchedSkills || []).slice(0, 6).join(", ") || "none";
 
     const systemPrompt = `You are a strict, impartial ATS (Applicant Tracking System) evaluator.
-Output ONLY valid JSON. No markdown, no explanation, no extra text before or after.
+Output ONLY valid JSON. No markdown, no explanation, no extra text. Use extremely short strings for knockouts and risks.
 Base your evaluation ONLY on the resume text provided. Do NOT infer, assume, or fabricate any skills, experience, or facts.
 If information is absent from the resume, treat it as absent — never invent it.`;
 
@@ -443,13 +443,13 @@ If information is absent from the resume, treat it as absent — never invent it
 
 {
   "score": <integer 0-100>,
-  "knockouts": [<string: hard disqualifier reason or empty array>],
-  "risks": [<string: potential concern or empty array>],
+  "knockouts": [<string: short knockout reason or empty array>],
+  "risks": [<string: short risk or empty array>],
   "roleAlignment": <integer 0-100>,
   "experienceYearsRequired": <integer or null>,
   "experienceYearsFound": <integer or null>,
   "yearsMismatch": <boolean>,
-  "evaluationNotes": <string: max 1 sentence summary>
+  "evaluationNotes": <string: max 5 words>
 }
 
 SCORING RULES (follow strictly):
@@ -494,7 +494,7 @@ ${resumeSnippet}`;
                         { role: "system", content: systemPrompt },
                         { role: "user", content: userPrompt },
                     ],
-                    max_tokens: 2048,
+                    max_tokens: 1024,
                     temperature: 0,  // Deterministic — no creativity
                 }),
             }
@@ -516,12 +516,37 @@ ${resumeSnippet}`;
 
         // Extract JSON object
         const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-            console.warn("[LlamaEvaluator] No JSON object found in response:", rawText.substring(0, 200));
-            return null;
+
+        let parsed = null;
+
+        if (jsonMatch) {
+            try {
+                parsed = JSON.parse(jsonMatch[0]);
+            } catch (e) {
+                // If it fails to parse, we will attempt regex fallback below
+            }
         }
 
-        const parsed = JSON.parse(jsonMatch[0]);
+        if (!parsed) {
+            // Truncation salvage logic
+            const scoreMatch = cleaned.match(/"score"\s*:\s*(\d+)/i);
+            if (scoreMatch) {
+                console.warn("[LlamaEvaluator] Truncated JSON response. Salvaging score from raw text.");
+                parsed = {
+                    score: parseInt(scoreMatch[1], 10),
+                    knockouts: [],
+                    risks: [],
+                    roleAlignment: parseInt(scoreMatch[1], 10),
+                    experienceYearsRequired: null,
+                    experienceYearsFound: null,
+                    yearsMismatch: false,
+                    evaluationNotes: "Truncated evaluation"
+                };
+            } else {
+                console.warn("[LlamaEvaluator] Failed to evaluate valid JSON. Raw text preview:", rawText.substring(0, 100));
+                return null;
+            }
+        }
 
         // Validate expected shape
         if (typeof parsed.score !== "number" || parsed.score < 0 || parsed.score > 100) {

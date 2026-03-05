@@ -6,8 +6,127 @@ import { generateInterviewPrep, callCloudflareAIStreaming, improveResumeStructur
 import { extractTextFromFile } from "../services/textExtractor.service.js";
 import { resumeDataToText, parseResumeToStructured } from "../utils/structuredResumeParser.js";
 import { extractStructuredResume } from "../services/resumeStructure.service.js";
-import { GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { r2, R2_BUCKET } from "../utils/r2Client.js";
+import { uploadFile, getFileStream, deleteFile } from "../services/storage.service.js";
+
+// --- Versioning Helper ---
+const createAndUploadVersion = async (resume, type) => {
+    try {
+        console.log(`[Versioning] Creating ${type} version for resume ${resume._id}`);
+        const { generateResumePDF } = await import("../services/pdfGenerator.service.js");
+        const pdfBuffer = await generateResumePDF(resume);
+
+        if (!pdfBuffer || pdfBuffer.length === 0) {
+            console.error("[Versioning] Generated PDF buffer is empty");
+            throw new Error("Generated PDF is empty");
+        }
+        console.log(`[Versioning] PDF generated: ${pdfBuffer.length} bytes`);
+
+        const versionNumber = (resume.versionCounter || 0) + 1;
+        const fileKey = `resumes/${resume.user}/v${versionNumber}-${Date.now()}.pdf`;
+
+        await uploadFile(fileKey, pdfBuffer, "application/pdf");
+        console.log(`[Versioning] PDF uploaded: ${fileKey}`);
+
+        resume.versions.push({
+            versionNumber,
+            type,
+            fileKey,
+            atsScore: resume.atsScore || 0,
+            resumeData: resume.resumeData,
+            content: resume.parsedText || resume.originalContent || "",
+            createdAt: new Date()
+        });
+
+        resume.versionCounter = versionNumber;
+        await resume.save();
+        console.log(`[Versioning] Version ${versionNumber} saved to DB`);
+        return versionNumber;
+    } catch (err) {
+        console.error("[Versioning] Error creating/uploading version:", err);
+        throw err;
+    }
+};
+
+// --- Upload Pipeline ---
+export const uploadResume = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const file = req.file;
+
+        if (!file) {
+            return res.status(400).json({ message: "No resume file uploaded" });
+        }
+
+        // Validate file types: Accept PDF, DOCX, TXT
+        const allowedMimetypes = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'text/plain'
+        ];
+        if (!allowedMimetypes.includes(file.mimetype) && !file.originalname.match(/\.(pdf|doc|docx|txt)$/i)) {
+            return res.status(400).json({ message: "Only PDF, DOCX, and TXT files are allowed" });
+        }
+
+        // Extract Text immediately after upload
+        let parsedText = "";
+        try {
+            parsedText = await extractTextFromFile(file);
+        } catch (err) {
+            console.error(`[Upload] Text Extraction Error for ${file.originalname}:`, err);
+            return res.status(500).json({ message: "Failed to extract text from resume" });
+        }
+
+        if (!parsedText || parsedText.trim().length < 50) {
+            return res.status(400).json({ message: "Could not extract sufficient text from the file. Please ensure it's not scanned or empty." });
+        }
+
+        // Generate unique key for R2 storage
+        const timestamp = Date.now();
+        const extension = file.originalname.includes('.') ? file.originalname.split('.').pop().toLowerCase() : 'pdf';
+        const originalFileKey = `resumes/${userId}/${timestamp}.${extension}`;
+
+        console.log(`[Upload] Uploading ${file.originalname} for user ${userId} to ${originalFileKey}`);
+
+        // Upload to Cloudflare R2
+        try {
+            await uploadFile(originalFileKey, file.buffer, file.mimetype);
+        } catch (storageError) {
+            console.error(`[Upload] Storage Upload failed:`, storageError);
+            return res.status(500).json({ message: "Cloud storage upload failed" });
+        }
+
+        // Store metadata in MongoDB (Resume Document creation)
+        const resume = new Resume({
+            user: userId,
+            title: (file.originalname || "Uploaded Resume").replace(/\.[^/.]+$/, ""),
+            originalFileKey, // Ensure originalFileKey is always saved
+            versionCounter: 1,
+            parsedText,
+            originalContent: parsedText,
+            atsScore: 0,
+            versions: [{
+                versionNumber: 1,
+                atsScore: 0,
+                type: 'original',
+                fileKey: originalFileKey,
+                content: parsedText,
+                createdAt: new Date()
+            }]
+        });
+
+        await resume.save();
+        console.log(`[Upload] Successfully saved resume record to DB: ${resume._id}`);
+
+        res.status(201).json({
+            success: true,
+            data: resume
+        });
+    } catch (error) {
+        console.error(`[Upload] Global Resume Upload Error:`, error);
+        res.status(500).json({ message: "Error uploading and processing resume" });
+    }
+};
 
 // --- ATS Analysis ---
 export const analyzeResumeATS = async (req, res) => {
@@ -37,6 +156,7 @@ export const analyzeResumeATS = async (req, res) => {
         const resumeContent =
             manualContent ||
             resume.versions?.[resume.currentVersionIndex]?.content ||
+            resume.parsedText ||
             resume.originalContent ||
             "";
 
@@ -46,6 +166,12 @@ export const analyzeResumeATS = async (req, res) => {
         // ── Persist new score to DB ─────────────────────────────────────────
         if (analysisResults && typeof analysisResults.atsScore === 'number') {
             resume.atsScore = analysisResults.atsScore;
+            resume.analysis = {
+                matchedSkills: analysisResults.matchedSkills || [],
+                missingSkills: analysisResults.missingSkills || [],
+                missingCriticalSkills: analysisResults.missingCriticalSkills || [],
+                suggestions: analysisResults.improvementSuggestions || []
+            };
             const issuesCount =
                 (analysisResults.missingCriticalSkills?.length || 0) +
                 (analysisResults.weakSections?.length || 0) +
@@ -79,21 +205,8 @@ export const saveResume = async (req, res) => {
             return noExp && noEdu && noProj && noName;
         };
 
-        // Auto-convert parsedText -> resumeData on upload side if not provided
-        if ((!reqBody.resumeData || Object.keys(reqBody.resumeData).length === 0) && reqBody.parsedText) {
-            reqBody.resumeData = parseResumeToStructured(reqBody.parsedText);
-            if (!reqBody.versions || reqBody.versions.length === 0) {
-                reqBody.versions = [{
-                    versionId: crypto.randomUUID(),
-                    resumeData: reqBody.resumeData,
-                    atsScore: reqBody.atsScore || 0,
-                    type: "initial",
-                    content: reqBody.parsedText,
-                    createdAt: new Date()
-                }];
-                reqBody.currentVersionIndex = 0;
-            }
-        }
+        // Removed mandatory parsedText -> resumeData conversion
+        // Structured data is now optional.
 
         const resume = new Resume(reqBody);
         await resume.save();
@@ -119,37 +232,8 @@ export const getUserResumeById = async (req, res) => {
         if (!resume) return res.status(404).json({ message: "Resume not found" });
 
         console.log(`[getUserResumeById] Checking resume ${resume._id}`);
-        // Auto-convert for old legacy resumes (pre-resumeData)
-        if (!resume.resumeData && resume.parsedText) {
-            console.log(`[getUserResumeById] Migrating legacy resume ${resume._id} via AI-powered service`);
-            try {
-                resume.resumeData = await extractStructuredResume(resume.parsedText);
-            } catch (aiError) {
-                console.warn(`[getUserResumeById] AI extraction failed, falling back to rule-based parser:`, aiError.message);
-                resume.resumeData = parseResumeToStructured(resume.parsedText);
-            }
-
-            // Ensure first version exists
-            if (!resume.versions || resume.versions.length === 0) {
-                resume.versions = [{
-                    versionId: crypto.randomUUID(),
-                    resumeData: resume.resumeData,
-                    atsScore: resume.atsScore || 0,
-                    type: "initial",
-                    content: resume.parsedText,
-                    createdAt: new Date()
-                }];
-                resume.currentVersionIndex = 0;
-            }
-
-            resume.markModified('resumeData');
-            resume.markModified('versions');
-            await resume.save();
-
-            // Re-fetch to ensure clean state
-            const updatedResume = await Resume.findById(resume._id);
-            return res.status(200).json({ success: true, data: updatedResume });
-        }
+        // Removed automated migration logic for legacy resumes.
+        // The system now handles resumes without structured data gracefully.
 
         return res.status(200).json({ success: true, data: resume });
     } catch (error) {
@@ -163,90 +247,152 @@ export const updateResume = async (req, res) => {
         const resume = await Resume.findOne({ _id: req.params.id, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
 
-        // Update top-level document with new body fields (e.g., resumeData, title, etc)
-        const updatedResume = await Resume.findOneAndUpdate(
-            { _id: req.params.id, user: req.user.id },
-            { $set: req.body },
-            { new: true }
-        );
+        // Update top-level document
+        Object.assign(resume, req.body);
+        await resume.save();
 
-        // Auto-commit a version on every save
-        if (updatedResume && updatedResume.resumeData) {
-            updatedResume.versions.push({
-                versionId: crypto.randomUUID(),
-                atsScore: updatedResume.atsScore || 0,
-                resumeData: updatedResume.resumeData,
-                type: "manual_edit",
-                createdAt: new Date()
-            });
-            await updatedResume.save();
-        }
+        // Auto-commit a version on manual save
+        await createAndUploadVersion(resume, "manual-edit");
 
-        res.status(200).json({ success: true, data: updatedResume });
+        res.status(200).json({ success: true, data: resume });
     } catch (error) {
         console.error("Update resume error:", error);
         res.status(500).json({ message: "Error updating resume" });
     }
 };
 
-// --- Versioning ---
-// This is used for generating an explicit version snapshot if needed outside the normal update cycle
-export const createResumeVersion = async (req, res) => {
+// --- Versioning Management ---
+export const getResumeVersions = async (req, res) => {
     try {
-        const { resumeId, resumeData, atsScore, type } = req.body;
-
-        const resume = await Resume.findOne({ _id: resumeId, user: req.user.id });
+        const resume = await Resume.findOne({ _id: req.params.id, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
 
-        resume.versions.push({
-            versionId: crypto.randomUUID(),
-            resumeData: resumeData || resume.resumeData,
-            atsScore: atsScore || resume.atsScore || 0,
-            type: type || "manual_edit",
-            createdAt: new Date()
+        res.status(200).json({
+            success: true,
+            data: resume.versions.sort((a, b) => b.versionNumber - a.versionNumber)
         });
-
-        await resume.save();
-
-        res.status(200).json({ success: true, data: resume });
     } catch (error) {
-        console.error("Version creation error:", error);
-        res.status(500).json({ message: "Error creating version" });
+        res.status(500).json({ message: "Error fetching versions" });
     }
 };
 
-export const restoreVersion = async (req, res) => {
+export const restoreResumeVersion = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { versionId } = req.body;
+        const { id, versionNumber } = req.params;
+        const resume = await Resume.findOne({ _id: id, user: req.user.id });
+        if (!resume) return res.status(404).json({ message: "Resume not found" });
+
+        const targetVersion = resume.versions.find(v => v.versionNumber === Number(versionNumber));
+        if (!targetVersion) {
+            return res.status(404).json({ message: "Version not found" });
+        }
+
+        // Restore the data to the top-level document
+        resume.resumeData = targetVersion.resumeData;
+        resume.parsedText = targetVersion.content;
+        resume.atsScore = targetVersion.atsScore;
+
+        // Also update the pointer for visual rendering in some views if needed
+        // but primarily the restore creates a NEW version snapshot too
+        await resume.save();
+        await createAndUploadVersion(resume, "restored");
+
+        res.status(200).json({ success: true, data: resume });
+    } catch (error) {
+        console.error("Restore version error:", error);
+        res.status(500).json({ message: "Error restoring version" });
+    }
+};
+
+export const downloadVersionPDF = async (req, res) => {
+    try {
+        const { id, versionNumber } = req.params;
+        const resume = await Resume.findOne({ _id: id, user: req.user.id });
+        if (!resume) return res.status(404).json({ message: "Resume not found" });
+
+        const version = resume.versions.find(v => v.versionNumber === Number(versionNumber));
+        if (!version || !version.fileKey) {
+            return res.status(404).json({ message: "Version PDF not found" });
+        }
+
+        const { stream, contentLength } = await getFileStream(version.fileKey);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="Resume_${versionNumber}.pdf"`);
+        if (contentLength) {
+            res.setHeader('Content-Length', contentLength);
+        }
+
+        stream.pipe(res);
+    } catch (error) {
+        console.error("Version download error:", error);
+        res.status(500).json({ message: "Error downloading version" });
+    }
+};
+
+export const uploadVersionPDF = async (req, res) => {
+    try {
+        const { id, versionNumber } = req.params;
+        const file = req.file;
+
+        if (!file) {
+            return res.status(400).json({ message: "No PDF file uploaded" });
+        }
 
         const resume = await Resume.findOne({ _id: id, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
 
-        const targetVersion = resume.versions.find(v => v.versionId === versionId);
-        if (!targetVersion) {
-            return res.status(404).json({ message: "Target version not found" });
+        const versionIndex = resume.versions.findIndex(v => v.versionNumber === Number(versionNumber));
+        if (versionIndex === -1) {
+            return res.status(404).json({ message: "Version not found" });
         }
 
-        // Restoring pushes a NEW snapshot acting as the "restored" state
-        // and updates the top level document
-        resume.resumeData = targetVersion.resumeData;
-        resume.atsScore = targetVersion.atsScore;
+        // Upload the new perfectly-rendered PDF blob to overwrite the backend `pdfkit` version
+        const newFileKey = `resumes/${resume.user}/v${versionNumber}-${Date.now()}-rendered.pdf`;
 
-        resume.versions.push({
-            versionId: crypto.randomUUID(),
-            resumeData: targetVersion.resumeData,
-            atsScore: targetVersion.atsScore,
-            type: "restored",
-            createdAt: new Date()
-        });
+        await uploadFile(newFileKey, file.buffer, "application/pdf");
 
-        const updatedResume = await resume.save();
+        console.log(`[UploadVersionPDF] Overwritten version ${versionNumber} PDF: ${newFileKey}`);
 
-        res.status(200).json({ success: true, data: updatedResume });
+        // Note: we let the old fileKey exist idly (or we could delete it, but S3 objects are cheap)
+        resume.versions[versionIndex].fileKey = newFileKey;
+        resume.markModified('versions');
+        await resume.save();
+
+        res.status(200).json({ success: true, message: "Version PDF uploaded successfully", newFileKey });
     } catch (error) {
-        console.error("Restore version error:", error);
-        res.status(500).json({ message: "Error restoring version" });
+        console.error("Version PDF upload error:", error);
+        res.status(500).json({ message: "Error uploading version PDF" });
+    }
+};
+
+export const viewVersionPDF = async (req, res) => {
+    try {
+        const { id, versionNumber } = req.params;
+        console.log(`[ViewVersion] Request for resume ${id}, version ${versionNumber}`);
+        const resume = await Resume.findOne({ _id: id, user: req.user.id });
+        if (!resume) return res.status(404).json({ message: "Resume not found" });
+
+        const version = resume.versions.find(v => v.versionNumber === Number(versionNumber));
+        if (!version || !version.fileKey) {
+            console.error(`[ViewVersion] Version ${versionNumber} or fileKey not found`);
+            return res.status(404).json({ message: "Version PDF not found" });
+        }
+
+        console.log(`[ViewVersion] Fetching from storage: ${version.fileKey}`);
+        const { stream, contentLength } = await getFileStream(version.fileKey);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${resume.title}-v${versionNumber}.pdf"`);
+        if (contentLength) {
+            res.setHeader('Content-Length', contentLength);
+        }
+
+        stream.pipe(res);
+        console.log(`[ViewVersion] Streaming started for ${version.fileKey}`);
+    } catch (error) {
+        console.error("[ViewVersion] Error:", error);
+        res.status(500).json({ message: "Error viewing version" });
     }
 };
 
@@ -270,12 +416,14 @@ export const cloneResume = async (req, res) => {
             // Explicitly don't copy versions history to keep new entity clean.
             // Start a new version array.
             versions: [{
-                versionId: crypto.randomUUID(),
+                versionNumber: 1,
                 resumeData: resumeData || originalResume.resumeData,
                 atsScore: atsScore || originalResume.atsScore || 0,
                 type: "original", // Treat as the baseline for this new document
+                fileKey: originalResume.originalFileKey || "",
                 createdAt: new Date()
-            }]
+            }],
+            versionCounter: 1
         });
 
         await clonedResume.save();
@@ -352,10 +500,15 @@ export const improveResume = async (req, res) => {
 
                 // ── Pass 1 ────────────────────────────────────────────────────
                 let aiResult;
-                if (mode === 'regenerate') {
-                    aiResult = await improveResumeRegenerateV2(storedResumeData, jobDescription || '', atsContext);
-                } else {
-                    aiResult = await improveResumeStructuredV2(storedResumeData, jobDescription || '', atsContext);
+                try {
+                    if (mode === 'regenerate') {
+                        aiResult = await improveResumeRegenerateV2(storedResumeData, jobDescription || '', atsContext);
+                    } else {
+                        aiResult = await improveResumeStructuredV2(storedResumeData, jobDescription || '', atsContext);
+                    }
+                } catch (aiErr) {
+                    console.error("[Magic Improve] AI Processing Error:", aiErr);
+                    return res.status(503).json({ message: "AI Assistant is currently unavailable or timed out. Please try again later.", error: aiErr.message });
                 }
 
                 optimizedResumeData = aiResult.optimizedResumeData;
@@ -373,16 +526,23 @@ export const improveResume = async (req, res) => {
                         const delta = newScoreData.scoreDelta ?? 0;
                         if (mode === 'optimize' && newScoreData.atsScore < 85 && delta < 5) {
                             console.log('[Magic Improve] Score low — running refinement pass 2');
-                            const refineResult = await improveResumeStructuredV2(
-                                optimizedResumeData,
-                                jobDescription,
-                                {
-                                    atsScore: newScoreData.atsScore,
-                                    missingCriticalSkills: newScoreData.missingCriticalSkills || [],
-                                    weakSections: newScoreData.weakSections || [],
-                                    matchedSkills: newScoreData.matchedSkills || [],
-                                }
-                            );
+                            let refineResult;
+                            try {
+                                refineResult = await improveResumeStructuredV2(
+                                    optimizedResumeData,
+                                    jobDescription,
+                                    {
+                                        atsScore: newScoreData.atsScore,
+                                        missingCriticalSkills: newScoreData.missingCriticalSkills || [],
+                                        weakSections: newScoreData.weakSections || [],
+                                        matchedSkills: newScoreData.matchedSkills || [],
+                                    }
+                                );
+                            } catch (aiErr) {
+                                console.error("[Magic Improve] AI Pass 2 Error:", aiErr);
+                                // Non-fatal, just continue with Pass 1 results
+                                refineResult = { llmFallback: true };
+                            }
                             if (!refineResult.llmFallback) {
                                 optimizedResumeData = refineResult.optimizedResumeData;
                                 optimizedResume = resumeDataToText(optimizedResumeData);
@@ -395,6 +555,51 @@ export const improveResume = async (req, res) => {
                     }
                 }
 
+                // ── Versioning Integration (Candidate Isolation) ────────────────
+                // We DO NOT overwrite the root resume. We create a candidate version.
+                // We temporarily construct the candidate to generate the PDF.
+                const candidateObj = {
+                    ...resume.toObject(),
+                    resumeData: optimizedResumeData,
+                    parsedText: optimizedResume,
+                    atsScore: newScoreData?.atsScore || resume.atsScore,
+                    versions: [] // Prevent infinite recursion during PDF generation
+                };
+
+                let newVersionNumber = null;
+                try {
+                    const { generateResumePDF } = await import("../services/pdfGenerator.service.js");
+                    const pdfBuffer = await generateResumePDF(candidateObj);
+
+                    const fileKey = `resumes/${req.user.id}/${Date.now()}_v${(resume.versionCounter || 0) + 1}.pdf`;
+                    await uploadFile(fileKey, pdfBuffer, 'application/pdf');
+
+                    const versionType = mode === 'regenerate' ? 'regenerated' : 'optimized';
+
+                    const newVersion = {
+                        versionNumber: (resume.versionCounter || 0) + 1,
+                        type: versionType,
+                        fileKey: fileKey,
+                        resumeData: optimizedResumeData,
+                        content: optimizedResume,
+                        atsScore: newScoreData?.atsScore || resume.atsScore,
+                        analysis: newScoreData ? {
+                            matchedSkills: newScoreData.matchedSkills || [],
+                            missingSkills: newScoreData.missingSkills || [],
+                            missingCriticalSkills: newScoreData.missingCriticalSkills || [],
+                            suggestions: newScoreData.improvementSuggestions || []
+                        } : undefined,
+                        createdAt: new Date()
+                    };
+
+                    resume.versions.push(newVersion);
+                    resume.versionCounter = (resume.versionCounter || 0) + 1;
+                    await resume.save();
+                    newVersionNumber = newVersion.versionNumber;
+                } catch (pdfErr) {
+                    console.error("[Candidate PDF] Error generating or saving version:", pdfErr);
+                }
+
                 return res.status(200).json({
                     success: true,
                     optimizedResume,
@@ -404,6 +609,7 @@ export const improveResume = async (req, res) => {
                     scoreDelta: newScoreData?.scoreDelta || null,
                     llmFallback: validationFallback,
                     newAnalysis: newScoreData,
+                    newVersionNumber // NEW: Tell frontend which version to render right-side
                 });
             }
             // Fall through to classic mode if resumeData is empty
@@ -447,6 +653,52 @@ export const improveResume = async (req, res) => {
             }
         }
 
+        // ── Versioning Integration (Classic Candidate Isolation) ─────────────
+        let newVersionNumber = null;
+        if (id) {
+            const resume = await Resume.findOne({ _id: id, user: req.user.id });
+            if (resume) {
+                const candidateObj = {
+                    ...resume.toObject(),
+                    parsedText: classicResume,
+                    atsScore: newScoreData?.atsScore || resume.atsScore,
+                    versions: []
+                };
+
+                try {
+                    const { generateResumePDF } = await import("../services/pdfGenerator.service.js");
+                    const pdfBuffer = await generateResumePDF(candidateObj);
+
+                    const fileKey = `resumes/${req.user.id}/${Date.now()}_v${(resume.versionCounter || 0) + 1}.pdf`;
+                    await uploadFile(fileKey, pdfBuffer, 'application/pdf');
+
+                    const versionType = mode === 'regenerate' ? 'regenerated' : 'optimized';
+
+                    const newVersion = {
+                        versionNumber: (resume.versionCounter || 0) + 1,
+                        type: versionType,
+                        fileKey: fileKey,
+                        content: classicResume,
+                        atsScore: newScoreData?.atsScore || resume.atsScore,
+                        analysis: newScoreData ? {
+                            matchedSkills: newScoreData.matchedSkills || [],
+                            missingSkills: newScoreData.missingSkills || [],
+                            missingCriticalSkills: newScoreData.missingCriticalSkills || [],
+                            suggestions: newScoreData.improvementSuggestions || []
+                        } : undefined,
+                        createdAt: new Date()
+                    };
+
+                    resume.versions.push(newVersion);
+                    resume.versionCounter = (resume.versionCounter || 0) + 1;
+                    await resume.save();
+                    newVersionNumber = newVersion.versionNumber;
+                } catch (pdfErr) {
+                    console.error("[Classic Candidate PDF] Error generating or saving version:", pdfErr);
+                }
+            }
+        }
+
         return res.status(200).json({
             success: true,
             optimizedResume: classicResume,
@@ -456,6 +708,7 @@ export const improveResume = async (req, res) => {
             scoreDelta: newScoreData?.scoreDelta || null,
             llmFallback: classicFallback || false,
             newAnalysis: newScoreData,
+            newVersionNumber // NEW: Tell frontend which version to target
         });
 
     } catch (error) {
@@ -521,7 +774,59 @@ export const improveResumeStreaming = async (req, res) => {
                     scoreDelta: finalAnalysis?.scoreDelta || null,
                     newAnalysis: finalAnalysis
                 };
-                res.write(`data: ${JSON.stringify(meta)}\n\n`);
+
+                // ── Versioning Integration (Streaming Candidate Isolation) ─────
+                let newVersionNumber = null;
+                if (id && finalText && finalText.length > 100) {
+                    try {
+                        const resume = await Resume.findOne({ _id: id, user: req.user.id });
+                        if (resume) {
+                            const candidateObj = {
+                                ...resume.toObject(),
+                                parsedText: finalText,
+                                atsScore: finalAnalysis?.atsScore || resume.atsScore,
+                                versions: []
+                            };
+
+                            const { generateResumePDF } = await import("../services/pdfGenerator.service.js");
+                            const pdfBuffer = await generateResumePDF(candidateObj);
+
+                            const fileKey = `resumes/${req.user.id}/${Date.now()}_v${(resume.versionCounter || 0) + 1}.pdf`;
+                            await uploadFile(fileKey, pdfBuffer, 'application/pdf');
+
+                            const versionType = mode === 'regenerate' ? 'regenerated' : 'optimized';
+
+                            const newVersion = {
+                                versionNumber: (resume.versionCounter || 0) + 1,
+                                type: versionType,
+                                fileKey: fileKey,
+                                content: finalText,
+                                atsScore: finalAnalysis?.atsScore || resume.atsScore,
+                                analysis: finalAnalysis ? {
+                                    matchedSkills: finalAnalysis.matchedSkills || [],
+                                    missingSkills: finalAnalysis.missingSkills || [],
+                                    missingCriticalSkills: finalAnalysis.missingCriticalSkills || [],
+                                    suggestions: finalAnalysis.improvementSuggestions || []
+                                } : undefined,
+                                createdAt: new Date()
+                            };
+
+                            resume.versions.push(newVersion);
+                            resume.versionCounter = (resume.versionCounter || 0) + 1;
+                            await resume.save();
+                            newVersionNumber = newVersion.versionNumber;
+                        }
+                    } catch (vErr) {
+                        console.error("[Streaming Versioning Candidate Fallback] Failed:", vErr.message);
+                    }
+                }
+
+                // Append newVersionNumber to the final meta event
+                const finalMeta = {
+                    ...meta,
+                    newVersionNumber
+                };
+                res.write(`data: ${JSON.stringify(finalMeta)}\n\n`);
             }
         });
 
@@ -558,28 +863,33 @@ export const downloadResumePDF = async (req, res) => {
 export const streamResumeFile = async (req, res) => {
     try {
         const { id } = req.params;
+        console.log(`[StreamFile] Request for resume ${id}`);
         const resume = await Resume.findOne({ _id: id, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
         if (!resume.originalFileKey) {
+            console.error(`[StreamFile] No originalFileKey for resume ${id}`);
             return res.status(404).json({ message: "No original file stored for this resume" });
         }
 
-        const command = new GetObjectCommand({
-            Bucket: R2_BUCKET,
-            Key: resume.originalFileKey,
-        });
-        const r2Response = await r2.send(command);
+        console.log(`[StreamFile] Fetching from storage: ${resume.originalFileKey}`);
+        let fileData;
+        try {
+            fileData = await getFileStream(resume.originalFileKey);
+        } catch (err) {
+            console.error(`[StreamFile] Fetch Failed: ${err.message}`);
+            return res.status(404).json({ message: "File not found in storage" });
+        }
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="${resume.title || 'resume'}.pdf"`);
-        if (r2Response.ContentLength) {
-            res.setHeader('Content-Length', r2Response.ContentLength);
+        if (fileData.contentLength) {
+            res.setHeader('Content-Length', fileData.contentLength);
         }
 
-        // Stream body directly to response
-        r2Response.Body.pipe(res);
+        fileData.stream.pipe(res);
+        console.log(`[StreamFile] Streaming started for ${resume.originalFileKey}`);
     } catch (error) {
-        console.error("[R2] Stream error:", error.message);
+        console.error("[StreamFile] Error:", error.message);
         res.status(500).json({ message: "Error streaming resume file" });
     }
 };
@@ -597,17 +907,14 @@ export const deleteResume = async (req, res) => {
                 const count = await Resume.countDocuments({ originalFileKey: resume.originalFileKey });
                 // Note: count includes the one we are about to delete, so if it's strictly > 1, don't delete from S3
                 if (count <= 1) {
-                    await r2.send(new DeleteObjectCommand({
-                        Bucket: R2_BUCKET,
-                        Key: resume.originalFileKey,
-                    }));
-                    console.log(`[R2] Deleted: ${resume.originalFileKey}`);
+                    await deleteFile(resume.originalFileKey);
+                    console.log(`[Storage] Deleted: ${resume.originalFileKey}`);
                 } else {
-                    console.log(`[R2] Skipping deletion of ${resume.originalFileKey} because ${count - 1} other resumes reference it.`);
+                    console.log(`[Storage] Skipping deletion of ${resume.originalFileKey} because ${count - 1} other resumes reference it.`);
                 }
-            } catch (r2Err) {
-                // Log but continue — don't block DB deletion if R2 fails
-                console.error(`[R2] Delete failed for key ${resume.originalFileKey}:`, r2Err.message);
+            } catch (storageErr) {
+                // Log but continue — don't block DB deletion if storage fails
+                console.error(`[Storage] Delete failed for key ${resume.originalFileKey}:`, storageErr.message);
             }
         }
 
@@ -665,3 +972,43 @@ export const generateResumeStructure = async (req, res) => {
     }
 };
 
+/**
+ * Commits a generated Magic Improve candidate version to the active root document.
+ * This is called when the user clicks "Use Improved" after comparing visually.
+ */
+export const commitVersion = async (req, res) => {
+    try {
+        const { id, versionNumber } = req.params;
+        const resume = await Resume.findOne({ _id: id, user: req.user.id });
+
+        if (!resume) {
+            return res.status(404).json({ success: false, message: "Resume not found" });
+        }
+
+        const exactVersion = resume.versions.find(v => v.versionNumber === parseInt(versionNumber, 10));
+        if (!exactVersion) {
+            return res.status(404).json({ success: false, message: "Specified candidate version not found" });
+        }
+
+        // Promote candidate version data to the active root state
+        resume.parsedText = exactVersion.content || resume.parsedText;
+        if (exactVersion.resumeData) {
+            resume.resumeData = exactVersion.resumeData;
+        }
+        resume.atsScore = exactVersion.atsScore || resume.atsScore;
+        if (exactVersion.analysis) {
+            resume.analysis = exactVersion.analysis;
+        }
+
+        await resume.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Version successfully committed to active state.",
+            data: resume
+        });
+    } catch (error) {
+        console.error("Error committing version:", error);
+        return res.status(500).json({ success: false, message: "Failed to commit improved version" });
+    }
+};

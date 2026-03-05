@@ -5,8 +5,6 @@ import {
     getUserResumeById,
     updateResume,
     analyzeResumeATS,
-    createResumeVersion,
-    restoreVersion,
     rewriteSection,
     getInterviewPrep,
     improveResume,
@@ -15,7 +13,14 @@ import {
     streamResumeFile,
     deleteResume,
     cloneResume,
-    generateResumeStructure
+    generateResumeStructure,
+    uploadResume,
+    getResumeVersions,
+    restoreResumeVersion,
+    downloadVersionPDF,
+    viewVersionPDF,
+    commitVersion,
+    uploadVersionPDF
 } from "../controllers/resume.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
@@ -26,13 +31,21 @@ router.use(authMiddleware);
 
 // Core CRUD
 router.post("/", saveResume);
+router.post("/upload", upload.single('resume'), uploadResume);
 router.get("/", getUserResumes);
 router.get("/:id", getUserResumeById);
 router.put("/:id", updateResume);
+router.delete("/:id", deleteResume);
 
-// Versioning & Cloning
-router.post("/version", createResumeVersion);
-router.post("/:id/restore", restoreVersion);
+// Versioning
+router.get("/:id/versions", getResumeVersions);
+router.post("/:id/restore/:versionNumber", restoreResumeVersion);
+router.put("/:id/version/:versionNumber/pdf", upload.single('pdf'), uploadVersionPDF);
+router.get("/:id/version/:versionNumber/download", downloadVersionPDF);
+router.get("/:id/version/:versionNumber/view", viewVersionPDF);
+router.post("/:id/commit/:versionNumber", commitVersion);
+
+// Cloning
 router.post("/:id/clone", cloneResume);
 
 // ATS Scoring & Analysis
