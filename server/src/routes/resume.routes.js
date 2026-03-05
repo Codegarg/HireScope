@@ -13,7 +13,9 @@ import {
     improveResumeStreaming,
     downloadResumePDF,
     streamResumeFile,
-    deleteResume
+    deleteResume,
+    cloneResume,
+    generateResumeStructure
 } from "../controllers/resume.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
@@ -28,9 +30,10 @@ router.get("/", getUserResumes);
 router.get("/:id", getUserResumeById);
 router.put("/:id", updateResume);
 
-// Versioning
+// Versioning & Cloning
 router.post("/version", createResumeVersion);
 router.post("/:id/restore", restoreVersion);
+router.post("/:id/clone", cloneResume);
 
 // ATS Scoring & Analysis
 router.post("/:id/analyze", upload.single('jdFile'), analyzeResumeATS);
@@ -40,6 +43,7 @@ router.post("/rewrite", rewriteSection);
 router.post("/interview-prep", getInterviewPrep);
 router.post("/:id/improve", improveResume);
 router.post("/:id/improve-stream", improveResumeStreaming);
+router.post("/:id/structure", generateResumeStructure);
 
 // PDF Download (generated from DB data)
 router.get("/:id/download", downloadResumePDF);

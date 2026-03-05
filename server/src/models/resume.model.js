@@ -126,42 +126,8 @@ const resumeSchema = new mongoose.Schema({
     // Used for: professional rendering, AI optimization, structured editing
     // parsedText / versions / originalContent continue to drive ATS scoring
     resumeData: {
-        personalInfo: {
-            fullName: { type: String, default: '' },
-            title: { type: String, default: '' },
-            email: { type: String, default: '' },
-            phone: { type: String, default: '' },
-            linkedin: { type: String, default: '' },
-            github: { type: String, default: '' },
-        },
-        summary: { type: String, default: '' },
-        skills: {
-            languages: { type: [String], default: [] },
-            core: { type: [String], default: [] },
-            frontend: { type: [String], default: [] },
-            backend: { type: [String], default: [] },
-            databases: { type: [String], default: [] },
-            cloud: { type: [String], default: [] },
-            tools: { type: [String], default: [] },
-        },
-        projects: [{
-            name: { type: String, default: '' },
-            link: { type: String, default: '' },
-            descriptionPoints: { type: [String], default: [] },
-        }],
-        experience: [{
-            role: { type: String, default: '' },
-            organization: { type: String, default: '' },
-            startDate: { type: String, default: '' },
-            endDate: { type: String, default: '' },
-            points: { type: [String], default: [] },
-        }],
-        education: [{
-            degree: { type: String, default: '' },
-            institution: { type: String, default: '' },
-            startYear: { type: String, default: '' },
-            endYear: { type: String, default: '' },
-        }],
+        type: Object,
+        default: null
     }
 
 }, { timestamps: true });

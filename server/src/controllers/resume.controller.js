@@ -4,7 +4,8 @@ import { calculateATSScore as ruleBasedScore } from "../utils/atsEngine.js";
 import { calculateATSScore as hybridScore } from "../services/atsScorer.js";
 import { generateInterviewPrep, callCloudflareAIStreaming, improveResumeStructured, improveResumeRegenerate, improveResumeStructuredV2, improveResumeRegenerateV2 } from "../services/ai.service.js";
 import { extractTextFromFile } from "../services/textExtractor.service.js";
-import { resumeDataToText } from "../utils/structuredResumeParser.js";
+import { resumeDataToText, parseResumeToStructured } from "../utils/structuredResumeParser.js";
+import { extractStructuredResume } from "../services/resumeStructure.service.js";
 import { GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { r2, R2_BUCKET } from "../utils/r2Client.js";
 
@@ -66,10 +67,39 @@ export const analyzeResumeATS = async (req, res) => {
 // --- CRUD Operations ---
 export const saveResume = async (req, res) => {
     try {
-        const resume = new Resume({ ...req.body, user: req.user.id });
+        const reqBody = { ...req.body, user: req.user.id };
+
+        const isEmptyData = (data) => {
+            if (!data) return true;
+            if (Object.keys(data).length === 0) return true;
+            const noExp = !data.experience || data.experience.length === 0;
+            const noEdu = !data.education || data.education.length === 0;
+            const noProj = !data.projects || data.projects.length === 0;
+            const noName = !data.personalInfo || !data.personalInfo.fullName;
+            return noExp && noEdu && noProj && noName;
+        };
+
+        // Auto-convert parsedText -> resumeData on upload side if not provided
+        if ((!reqBody.resumeData || Object.keys(reqBody.resumeData).length === 0) && reqBody.parsedText) {
+            reqBody.resumeData = parseResumeToStructured(reqBody.parsedText);
+            if (!reqBody.versions || reqBody.versions.length === 0) {
+                reqBody.versions = [{
+                    versionId: crypto.randomUUID(),
+                    resumeData: reqBody.resumeData,
+                    atsScore: reqBody.atsScore || 0,
+                    type: "initial",
+                    content: reqBody.parsedText,
+                    createdAt: new Date()
+                }];
+                reqBody.currentVersionIndex = 0;
+            }
+        }
+
+        const resume = new Resume(reqBody);
         await resume.save();
         res.status(201).json({ success: true, data: resume });
     } catch (error) {
+        console.error("Save resume error:", error);
         res.status(500).json({ message: "Error saving resume" });
     }
 };
@@ -87,8 +117,43 @@ export const getUserResumeById = async (req, res) => {
     try {
         const resume = await Resume.findOne({ _id: req.params.id, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
-        res.status(200).json({ success: true, data: resume });
+
+        console.log(`[getUserResumeById] Checking resume ${resume._id}`);
+        // Auto-convert for old legacy resumes (pre-resumeData)
+        if (!resume.resumeData && resume.parsedText) {
+            console.log(`[getUserResumeById] Migrating legacy resume ${resume._id} via AI-powered service`);
+            try {
+                resume.resumeData = await extractStructuredResume(resume.parsedText);
+            } catch (aiError) {
+                console.warn(`[getUserResumeById] AI extraction failed, falling back to rule-based parser:`, aiError.message);
+                resume.resumeData = parseResumeToStructured(resume.parsedText);
+            }
+
+            // Ensure first version exists
+            if (!resume.versions || resume.versions.length === 0) {
+                resume.versions = [{
+                    versionId: crypto.randomUUID(),
+                    resumeData: resume.resumeData,
+                    atsScore: resume.atsScore || 0,
+                    type: "initial",
+                    content: resume.parsedText,
+                    createdAt: new Date()
+                }];
+                resume.currentVersionIndex = 0;
+            }
+
+            resume.markModified('resumeData');
+            resume.markModified('versions');
+            await resume.save();
+
+            // Re-fetch to ensure clean state
+            const updatedResume = await Resume.findById(resume._id);
+            return res.status(200).json({ success: true, data: updatedResume });
+        }
+
+        return res.status(200).json({ success: true, data: resume });
     } catch (error) {
+        console.error("Get resume by ID error:", error);
         res.status(500).json({ message: "Error fetching resume" });
     }
 };
@@ -182,6 +247,42 @@ export const restoreVersion = async (req, res) => {
     } catch (error) {
         console.error("Restore version error:", error);
         res.status(500).json({ message: "Error restoring version" });
+    }
+};
+
+// --- Cloned Resume Entity (Magic Improve V2) ---
+export const cloneResume = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { resumeData, atsScore, title, optimizedResumeText } = req.body;
+
+        const originalResume = await Resume.findOne({ _id: id, user: req.user.id });
+        if (!originalResume) return res.status(404).json({ message: "Original resume not found" });
+
+        const clonedResume = new Resume({
+            user: req.user.id,
+            title: title || `${originalResume.title} (Improved)`,
+            resumeData: resumeData || originalResume.resumeData,
+            atsScore: atsScore || originalResume.atsScore || 0,
+            originalFileKey: originalResume.originalFileKey, // Preserve pointer to S3
+            originalContent: optimizedResumeText || originalResume.originalContent,
+            content: optimizedResumeText || originalResume.content,
+            // Explicitly don't copy versions history to keep new entity clean.
+            // Start a new version array.
+            versions: [{
+                versionId: crypto.randomUUID(),
+                resumeData: resumeData || originalResume.resumeData,
+                atsScore: atsScore || originalResume.atsScore || 0,
+                type: "original", // Treat as the baseline for this new document
+                createdAt: new Date()
+            }]
+        });
+
+        await clonedResume.save();
+        res.status(201).json({ success: true, data: clonedResume });
+    } catch (error) {
+        console.error("Clone creation error:", error);
+        res.status(500).json({ message: "Error cloning resume" });
     }
 };
 
@@ -490,14 +591,20 @@ export const deleteResume = async (req, res) => {
         const resume = await Resume.findOne({ _id: id, user: req.user.id });
         if (!resume) return res.status(404).json({ message: "Resume not found" });
 
-        // Delete original PDF from R2 if stored
+        // Delete original PDF from R2 if stored and ONLY if no other resumes point to it
         if (resume.originalFileKey) {
             try {
-                await r2.send(new DeleteObjectCommand({
-                    Bucket: R2_BUCKET,
-                    Key: resume.originalFileKey,
-                }));
-                console.log(`[R2] Deleted: ${resume.originalFileKey}`);
+                const count = await Resume.countDocuments({ originalFileKey: resume.originalFileKey });
+                // Note: count includes the one we are about to delete, so if it's strictly > 1, don't delete from S3
+                if (count <= 1) {
+                    await r2.send(new DeleteObjectCommand({
+                        Bucket: R2_BUCKET,
+                        Key: resume.originalFileKey,
+                    }));
+                    console.log(`[R2] Deleted: ${resume.originalFileKey}`);
+                } else {
+                    console.log(`[R2] Skipping deletion of ${resume.originalFileKey} because ${count - 1} other resumes reference it.`);
+                }
             } catch (r2Err) {
                 // Log but continue — don't block DB deletion if R2 fails
                 console.error(`[R2] Delete failed for key ${resume.originalFileKey}:`, r2Err.message);
@@ -511,3 +618,50 @@ export const deleteResume = async (req, res) => {
         res.status(500).json({ message: "Error deleting resume" });
     }
 };
+
+/**
+ * Manually trigger AI-powered structure generation from parsedText.
+ */
+export const generateResumeStructure = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const resume = await Resume.findOne({ _id: id, user: req.user.id });
+
+        if (!resume) {
+            return res.status(404).json({ success: false, message: "Resume not found" });
+        }
+
+        const textToParse = resume.parsedText || resume.originalContent || "";
+        if (!textToParse || textToParse.length < 50) {
+            return res.status(400).json({ success: false, message: "Resume has no text content to structure." });
+        }
+
+        console.log(`[generateResumeStructure] Generating structure for resume ${id}`);
+        const structuredData = await extractStructuredResume(textToParse);
+
+        resume.resumeData = structuredData;
+
+        // Update current version if it exists
+        if (resume.versions && resume.versions[resume.currentVersionIndex]) {
+            resume.versions[resume.currentVersionIndex].resumeData = structuredData;
+            resume.markModified('versions');
+        }
+
+        resume.markModified('resumeData');
+        await resume.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Resume structure generated successfully",
+            data: structuredData
+        });
+    } catch (error) {
+        console.error("[generateResumeStructure] Error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to generate resume structure",
+            error: error.message
+        });
+    }
+};
+

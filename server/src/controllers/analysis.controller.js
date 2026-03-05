@@ -1,4 +1,5 @@
 import { calculateATSScore } from "../services/atsScorer.js";
+import crypto from 'crypto';
 import { extractTextFromFile } from "../services/textExtractor.service.js";
 import { generateSuggestions } from "../services/ai.service.js";
 import Resume from "../models/resume.model.js";
@@ -97,11 +98,11 @@ export const analyzeResume = async (req, res) => {
         atsScore: atsResult.atsScore || 0,
         suggestionsCount: aiSuggestions?.length || 0,
         originalFileKey,
-        resumeData: parseResumeToStructured(resumeText), // Populating structured data
+        resumeData: parseResumeToStructured(resumeText) || {}, // Populating structured data
         versions: [{
           versionId: crypto.randomUUID(), // Generate a unique ID for this snapshot
           atsScore: atsResult.atsScore || 0,
-          resumeData: parseResumeToStructured(resumeText),
+          resumeData: parseResumeToStructured(resumeText) || {},
           type: "original",
           createdAt: new Date()
         }]
