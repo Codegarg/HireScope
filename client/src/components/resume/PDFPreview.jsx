@@ -8,6 +8,7 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { AlertCircle } from 'lucide-react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -46,7 +47,20 @@ const PDFPreview = ({ resumeId, fallbackText, templateConfig }) => {
 
     // No resume ID or no file stored
     if (!fileObject || pdfError) {
-        return null; // Let ResumeEditor fallback to ResumeLayout if no PDF
+        return (
+            <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                height: '100%', minHeight: '600px', width: '100%', background: '#fafafa',
+                color: '#64748b', textAlign: 'center', padding: '2rem'
+            }}>
+                <AlertCircle size={48} style={{ opacity: 0.5, marginBottom: '1rem', color: '#94a3b8' }} />
+                <h3 style={{ margin: '0 0 0.5rem 0', color: '#334155', fontSize: '1.2rem' }}>PDF Not Available</h3>
+                <p style={{ margin: 0, fontSize: '0.9rem', maxWidth: '300px' }}>
+                    The original uploaded PDF file could not be found or loaded.
+                    However, your resume features and ATS score are still intact.
+                </p>
+            </div>
+        );
     }
 
     return (

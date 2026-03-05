@@ -1,0 +1,13 @@
+﻿
+C:\Desktop folders\HireScope\client\src\pages\ResumeEditor.jsx
+    3:10  error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                 no-unused-vars
+   37:11  error    'saveTimeoutRef' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                no-unused-vars
+   59:17  error    'lastSavedRef' is not defined                                                                                                                                 no-undef
+   85:21  error    'lastSavedRef' is not defined                                                                                                                                 no-undef
+   90:8   warning  React Hook useEffect has a missing dependency: 'initialContent'. Either include it or remove the dependency array                                             react-hooks/exhaustive-deps
+   98:8   warning  React Hook useEffect has missing dependencies: 'handleMagicImprove', 'id', 'isImproving', and 'navigate'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  125:8   warning  React Hook useEffect has a missing dependency: 'jobDescription'. Either include it or remove the dependency array                                             react-hooks/exhaustive-deps
+  139:13  error    'lastSavedRef' is not defined                                                                                                                                 no-undef
+
+Γ£û 8 problems (5 errors, 3 warnings)
+

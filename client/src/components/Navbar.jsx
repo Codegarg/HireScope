@@ -283,7 +283,7 @@ const Navbar = () => {
                                 </Link>
                             ))}
                             {user ? (
-                                <button onClick={() => { logout(); setMobileOpen(false); }} style={{ marginTop: '0.5rem', padding: '0.875rem', borderRadius: 'var(--radius-sm)', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontWeight: '600', cursor: 'pointer' }}>
+                                <button onClick={() => { logout(); navigate('/login'); setMobileOpen(false); }} style={{ marginTop: '0.5rem', padding: '0.875rem', borderRadius: 'var(--radius-sm)', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontWeight: '600', cursor: 'pointer' }}>
                                     Logout
                                 </button>
                             ) : (
