@@ -1,5 +1,4 @@
-import { useContext, useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, LogIn, AlertCircle, Eye, EyeOff, Github, Chrome, Sparkles } from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
@@ -16,7 +15,8 @@ const Login = () => {
 
   // Handle OAuth Redirect
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const location = useLocation();
+    const params = new URLSearchParams(location.search);
     const token = params.get("token");
     if (token) {
       localStorage.setItem("token", token);

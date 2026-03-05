@@ -63,7 +63,7 @@ const ResumeCard = ({ resume, navigate }) => {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             whileHover={{ y: -5, borderColor: 'var(--primary)' }}
-            onClick={() => navigate(`/wizard/${resume._id}`)}
+            onClick={() => navigate(`/resume/${resume._id}`)}
             style={{
                 background: 'var(--bg-card)',
                 backdropFilter: 'var(--blur)',
@@ -179,7 +179,7 @@ const Dashboard = () => {
                 setResumes(res.data.data);
             } catch (err) {
                 console.error("Failed to fetch resumes", err);
-                if (err.response?.status === 401) logout();
+                if (err.response?.status === 401) { logout(); navigate('/login'); }
             } finally {
                 setIsLoading(false);
             }
@@ -248,7 +248,7 @@ const Dashboard = () => {
                         </p>
                     </div>
 
-                    <Link to="/" style={{ textDecoration: 'none' }}>
+                    <Link to="/wizard/new" style={{ textDecoration: 'none' }}>
                         <motion.button
                             whileHover={{ scale: 1.04, boxShadow: '0 0 30px var(--primary-glow)' }}
                             whileTap={{ scale: 0.96 }}
@@ -334,7 +334,7 @@ const Dashboard = () => {
                             <motion.div
                                 whileHover={{ scale: 1.02, borderColor: 'var(--primary)' }}
                                 whileTap={{ scale: 0.98 }}
-                                onClick={() => navigate('/')}
+                                onClick={() => navigate('/wizard/new')}
                                 style={{ border: '2px dashed var(--border)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', height: '220px', color: 'var(--text-faint)', transition: 'all 0.2s ease', background: 'var(--bg-card)' }}
                             >
                                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', marginBottom: '0.875rem', transition: 'background 0.2s' }}>

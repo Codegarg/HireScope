@@ -11,6 +11,7 @@ import ResumeEditor from "./pages/ResumeEditor"; // Keep for fallback if needed,
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Profile from "./pages/Profile";
+import ResumeDetail from "./pages/ResumeDetail";
 
 const RoutesConfig = () => {
   const { user, loading } = useContext(AuthContext);
@@ -39,6 +40,7 @@ const RoutesConfig = () => {
       <Route path="/wizard/:id" element={user ? <ResumeWizard /> : <Navigate to="/login" />} />
       <Route path="/editor/:id" element={user ? <ResumeEditor /> : <Navigate to="/login" />} />
       <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
+      <Route path="/resume/:id" element={user ? <ResumeDetail /> : <Navigate to="/login" />} />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to={user ? "/" : "/login"} />} />

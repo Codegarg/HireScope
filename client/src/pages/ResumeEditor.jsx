@@ -2,459 +2,17 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { jsPDF } from 'jspdf';
 import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
-import { ArrowLeft, Download, Sparkles, Save, Edit3, Check, X, MessageSquare, BarChart3, Bot, ChevronDown, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Check, X, Bot, ChevronDown, AlertTriangle, Download, Palette, BarChart3 } from 'lucide-react';
 import ATSAnalysis from '../components/ATSAnalysis';
-import ResumeLayout from '../components/resume/ResumeLayout';
 import PDFPreview from '../components/resume/PDFPreview';
-import html2pdf from 'html2pdf.js';
+import ResumeLayout from '../components/resume/ResumeLayout';
 
-// ─── Templates Configuration ──────────────────────────────────────────────────
-const TEMPLATE_CONFIGS = {
-    classic: {
-        id: 'classic',
-        name: 'Classic',
-        fontFamily: "'Times New Roman', Georgia, serif",
-        headingFont: "'Times New Roman', Georgia, serif",
-        headerAlignment: 'center',
-        sectionLine: true,
-        fontSize: '0.82rem',
-        headingSize: '0.92rem',
-        contactSize: '0.78rem',
-        nameSize: '1.4rem',
-        lineSpacing: '1.55',
-        sectionGap: '1.2rem'
-    },
-    modern: {
-        id: 'modern',
-        name: 'Modern',
-        fontFamily: "'Inter', -apple-system, sans-serif",
-        headingFont: "'Inter', -apple-system, sans-serif",
-        headerAlignment: 'left',
-        sectionLine: true,
-        fontSize: '0.8rem',
-        headingSize: '0.95rem',
-        contactSize: '0.75rem',
-        nameSize: '1.6rem',
-        accentColor: '#2563eb', // Clean blue accent
-        lineSpacing: '1.6',
-        sectionGap: '1.4rem'
-    },
-    minimalist: {
-        id: 'minimalist',
-        name: 'Minimalist',
-        fontFamily: "Georgia, serif",
-        headingFont: "-apple-system, sans-serif",
-        headerAlignment: 'center',
-        sectionLine: false,
-        fontSize: '0.82rem',
-        headingSize: '0.9rem',
-        contactSize: '0.75rem',
-        nameSize: '1.25rem',
-        lineSpacing: '1.7',
-        sectionGap: '1.5rem',
-        letterSpacing: '0.02em'
-    }
-};
 
-// ─── Smart heading detector ───────────────────────────────────────────────────
-// Detects if a line is a resume section heading using heuristics:
-//  1. ALL CAPS (e.g. "EDUCATION", "WORK EXPERIENCE")
-//  2. Title Case + short + standalone (surrounded by blank lines OR at start)
-//  3. Matches known heading keywords (case-insensitive)
-const KNOWN_HEADINGS = new Set([
-    'summary', 'professional summary', 'objective', 'career objective', 'profile', 'about', 'about me',
-    'experience', 'work experience', 'employment', 'work history', 'professional experience',
-    'education', 'academic background', 'academic qualifications',
-    'skills', 'technical skills', 'core competencies', 'key skills', 'skill set', 'skill summary',
-    'projects', 'project experience', 'personal projects', 'academic projects', 'key projects',
-    'certifications', 'certificates', 'awards', 'honors', 'achievements', 'accomplishments',
-    'languages', 'interests', 'hobbies', 'volunteer', 'volunteering', 'community service',
-    'publications', 'references', 'declaration',
-    'relevant coursework', 'coursework', 'courses', 'related coursework',
-    'leadership', 'extracurricular', 'leadership / extracurricular',
-    'leadership/extracurricular', 'leadership & extracurricular', 'leadership and extracurricular',
-    'activities', 'co-curricular', 'co curricular', 'extra curricular', 'extracurricular activities',
-    'training', 'internships', 'internship', 'apprenticeship',
-    'research', 'research experience', 'research & publications',
-    'tools', 'technologies', 'tech stack', 'tools & technologies',
-    'open source', 'portfolio', 'github projects',
-    'contact', 'personal information', 'personal details',
-]);
-
-// isHeadingLine: strict-only mode (only KNOWN_HEADINGS) or full heuristics
-function isHeadingLine(line, prevLine, nextLine, strictOnly = false) {
-    // Strip markdown formatting like **EXPERIENCE** or # EXPERIENCE
-    let raw = line.trim().replace(/^#+\s*/, '').replace(/\*\*/g, '').replace(/__/g, '').trim();
-
-    if (!raw || raw.length > 60) return false;
-
-    // Skip obvious non-headings
-    if (raw.startsWith('•') || raw.startsWith('-') || raw.startsWith('*') || raw.startsWith('·')) return false;
-    if (raw.startsWith('http') || raw.includes('@')) return false;
-    // Skip lines that look like phone numbers or addresses
-    if (/^[\d\s()\-+]{7,}$/.test(raw)) return false;
-
-    // Skip conversational fluff (e.g., "Here is a rewritten...", "I hope this...")
-    const fluffKeywords = ['here is', 'it is optimized', 'i have', 'rewrite of', 'rewritten version', 'hope this helps'];
-    if (fluffKeywords.some(k => raw.toLowerCase().includes(k))) return false;
-
-    // 1. Exact match with known headings (case-insensitive) — always active
-    const lower = raw.toLowerCase().replace(/:$/, '').trim();
-    if (KNOWN_HEADINGS.has(lower)) return true;
-
-    // 2 & 3 only active after the header block has been consumed
-    if (strictOnly) return false;
-
-    // 2. ALL CAPS line
-    const upperRaw = raw.replace(/[^A-Za-z\s\/&]/g, '');
-    if (upperRaw.trim().length >= 3 && upperRaw.trim() === upperRaw.trim().toUpperCase()) {
-        return true;
-    }
-    // ── Dynamic Font Scaling Logic ──────────────────────────────────────────
-    useLayoutEffect(() => {
-        if (!resumeContainerRef.current || resume?.originalFileKey) return;
-
-        const container = resumeContainerRef.current;
-        const targetHeight = 1123; // A4 height @ 96 DPI
-        const minFs = 11.5; // Slightly lower min to be safe
-        const maxFs = 16;
-
-        // Use a small delay to ensure DOM is fully painted if needed, but 
-        // usually scrollHeight is ready in useLayoutEffect.
-        const scrollH = container.scrollHeight;
-
-        // If too big, shrink
-        if (scrollH > targetHeight + 2 && fontScale > minFs) {
-            setFontScale(prev => Math.max(minFs, prev - 0.25));
-        }
-        // If too small (less than 94% of page), grow
-        else if (scrollH < targetHeight * 0.94 && fontScale < maxFs) {
-            setFontScale(prev => Math.min(maxFs, prev + 0.25));
-        }
-
-        setIsOverflowing(scrollH > targetHeight + 10 && fontScale <= minFs);
-    }, [currentContent, sections, fontScale, selectedTemplate]);
-    // 3. Title Case + short + surrounded by blank lines
-    const isTitleCase = raw.split(/\s+/).every(w => /^[A-Z\/&(]/.test(w) || w.length <= 2);
-    const prevBlank = !prevLine || prevLine.trim() === '';
-    const nextBlank = !nextLine || nextLine.trim() === '';
-    if (isTitleCase && raw.length <= 45 && (prevBlank || nextBlank) && raw.split(/\s+/).length <= 6) {
-        // Exclude lines with hyphens/dashes (likely project titles e.g. "Project - Tech")
-        // unless it's a known format like "Leadership / Extracurricular"
-        if (!raw.includes(',') && !raw.match(/\b(19|20)\d{2}\b/) && !raw.includes(' - ') && !raw.includes(' – ')) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-function parseResumeIntoSections(text) {
-    if (!text) return [{ title: 'Content', body: '' }];
-
-    const lines = text.split('\n');
-    const sections = [];
-    let currentTitle = null;
-    let currentBody = [];
-    let headerLines = [];
-    let seenFirstSection = false;
-
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i];
-
-        // Strip markdown boldness
-        const strippedLine = line.replace(/\*\*/g, '').replace(/__/g, '');
-
-        const prevLine = lines[i - 1] ?? '';
-        const nextLine = lines[i + 1] ?? '';
-        const strictOnly = !seenFirstSection;
-
-        if (isHeadingLine(line, prevLine, nextLine, strictOnly)) {
-            seenFirstSection = true;
-            // Save previous section or header
-            if (currentTitle !== null) {
-                sections.push({ title: currentTitle, body: currentBody.join('\n').trim() });
-            } else if (currentBody.length > 0 || headerLines.length > 0) {
-                const headText = [...headerLines, ...currentBody].join('\n').trim();
-                // Strip common intro fluff if it's the very first part of the header
-                const cleanHead = headText.replace(/^(here is|it is|i have|professional|this is).*\n/i, '').trim();
-                if (cleanHead) sections.push({ title: '__header__', body: cleanHead });
-            }
-            // Start new section (strip markdown from title too)
-            currentTitle = strippedLine.trim().replace(/:$/, '').trim();
-            currentBody = [];
-        } else {
-            // Check for intro fluff at the very beginning before first section
-            if (!seenFirstSection) {
-                const lower = strippedLine.toLowerCase().trim();
-                const isFluff = lower.includes('here is') || lower.includes('i have') || lower.includes('optimized resume') || lower.includes('rewritten version');
-                if (!isFluff || headerLines.length > 0) {
-                    headerLines.push(strippedLine);
-                }
-            } else {
-                currentBody.push(strippedLine);
-            }
-        }
-    }
-
-    // Push last section
-    if (currentTitle !== null) {
-        sections.push({ title: currentTitle, body: currentBody.join('\n').trim() });
-    } else if (headerLines.length > 0 || currentBody.length > 0) {
-        sections.push({ title: '__header__', body: [...headerLines, ...currentBody].join('\n').trim() });
-    }
-
-    if (sections.length === 0) {
-        sections.push({ title: 'Resume', body: text.trim() });
-    }
-
-    return sections;
-}
-
-function sectionsToText(sections) {
-    return sections.map(s => {
-        if (s.title === '__header__') return s.body;
-        return `${s.title}\n${s.body}`;
-    }).join('\n\n');
-}
-
-// ─── Single editable section card ────────────────────────────────────────────
-const SectionCard = ({ section, onSave, templateConfig, readOnly = false }) => {
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(section.body);
-    const textareaRef = useRef(null);
-
-    useEffect(() => { setDraft(section.body); }, [section.body]);
-    const isHeader = section.title === '__header__';
-
-    const startEdit = () => { setEditing(true); setTimeout(() => textareaRef.current?.focus(), 50); };
-    const cancel = () => { setDraft(section.body); setEditing(false); };
-    const save = () => { onSave(draft); setEditing(false); };
-
-    // Parse header: first non-empty line = name, rest = contact lines
-    const headerLinesArr = isHeader ? section.body.split('\n').filter(l => l.trim()) : [];
-    const candidateName = headerLinesArr[0] || '';
-    const contactLines = headerLinesArr.slice(1);
-
-    return (
-        <div style={{ marginBottom: isHeader ? templateConfig.sectionGap : '0.9rem', position: 'relative', fontFamily: templateConfig.fontFamily }}>
-            {/* Header section — name centered, contacts centered */}
-            {isHeader && !editing && (
-                <div style={{ textAlign: templateConfig.headerAlignment, paddingBottom: '0.1rem', marginBottom: '0.1rem', position: 'relative' }}>
-                    <div style={{
-                        fontSize: templateConfig.nameSize,
-                        fontWeight: '700',
-                        color: templateConfig.accentColor || '#000',
-                        letterSpacing: templateConfig.letterSpacing || '0px',
-                        marginBottom: '0.15rem',
-                        lineHeight: 1.2,
-                        fontFamily: templateConfig.headingFont
-                    }}>
-                        {candidateName}
-                    </div>
-                    {contactLines.length > 0 && (
-                        <div style={{
-                            fontSize: templateConfig.contactSize,
-                            color: '#000',
-                            lineHeight: '1.4',
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            justifyContent: templateConfig.headerAlignment === 'center' ? 'center' : 'flex-start',
-                            gap: '0.2rem 1.1rem',
-                            textDecoration: 'none'
-                        }}>
-                            {contactLines.map((cl, idx) => (
-                                <span key={idx} style={{ whiteSpace: 'nowrap', textDecoration: cl.trim().includes('@') || cl.trim().startsWith('http') || cl.trim().includes('linkedin') || cl.trim().includes('github') ? 'underline' : 'none' }}>{cl.trim()}</span>
-                            ))}
-                        </div>
-                    )}
-                    {!readOnly && (
-                        <button onClick={startEdit} style={{ ...editBtnStyle, position: 'absolute', top: 0, right: 0 }} title="Edit header">
-                            <Edit3 size={13} /> Edit
-                        </button>
-                    )}
-                </div>
-            )}
-
-            {/* Regular section — bold black heading + thin black line */}
-            {!isHeader && !editing && (
-                <div style={{ position: 'relative', marginTop: '0.4rem' }}>
-                    {/* Heading row: bold black title left + tiny edit btn right */}
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.05rem' }}>
-                        <div style={{
-                            fontSize: templateConfig.headingSize,
-                            fontWeight: '700',
-                            color: templateConfig.accentColor || '#000',
-                            letterSpacing: templateConfig.letterSpacing || '0',
-                            fontFamily: templateConfig.headingFont,
-                            textTransform: templateConfig.id === 'modern' ? 'uppercase' : 'none'
-                        }}>
-                            {section.title}
-                        </div>
-                        {!readOnly && (
-                            <button onClick={startEdit} style={editBtnStyle} title="Edit section">
-                                <Edit3 size={12} />
-                            </button>
-                        )}
-                    </div>
-                    {/* Thin black separator line — just like original resume */}
-                    {templateConfig.sectionLine && (
-                        <div style={{ borderTop: `1px solid ${templateConfig.accentColor || '#000'}`, marginBottom: '0.45rem' }} />
-                    )}
-                    <div style={{
-                        fontSize: templateConfig.fontSize,
-                        lineHeight: templateConfig.lineSpacing,
-                        color: '#000',
-                        whiteSpace: 'pre-wrap',
-                        fontFamily: templateConfig.fontFamily
-                    }}>
-                        {section.body ? (
-                            (() => {
-                                const isCoursework = section.title.toLowerCase().includes('coursework');
-                                const allLines = section.body.split('\n');
-
-                                if (isCoursework) {
-                                    // Split by NEWLINE or BULLET character to handle bunched items
-                                    const items = section.body
-                                        .split(/[\n•]/)
-                                        .map(t => t.trim())
-                                        .filter(t => t.length > 0);
-
-                                    return (
-                                        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                                            {items.map((item, idx) => (
-                                                <div key={idx} style={{ flex: '0 0 50%', display: 'flex', gap: '0.4rem', marginBottom: '0.1rem' }}>
-                                                    <span style={{ flexShrink: 0 }}>•</span>
-                                                    <span>{item.replace(/^[•-]\s*/, '')}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    );
-                                }
-
-                                return allLines.map((line, idx, arr) => {
-                                    const trimmed = line.trim();
-                                    if (!trimmed) return <div key={idx} style={{ height: '0.4rem' }} />;
-
-                                    // 1. Bullet points
-                                    if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
-                                        return (
-                                            <div key={idx} style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.1rem', paddingLeft: '0.2rem' }}>
-                                                <span style={{ flexShrink: 0 }}>•</span>
-                                                <span>{trimmed.replace(/^[•-]\s*/, '')}</span>
-                                            </div>
-                                        );
-                                    }
-
-                                    // 2. Sub-headings & Dates (Greedy alignment + Merged string fix)
-                                    const monthNames = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)";
-                                    const datePart = `(?:${monthNames}\\s+)?(?:[0-9]{4}|Present)`;
-
-                                    // Detect merged text like "MemberSep" or "PlatformGitHub"
-                                    const socialLinks = "(?:GitHub|LinkedIn|Portfolio|Website|http|www)";
-                                    const metadataFullRegex = new RegExp(`^(.+?)(?:\\s{2,}|(?=${monthNames}|${socialLinks}))(${datePart}\\s*[-–]\\s*${datePart}|${socialLinks}.*)$`, 'i');
-
-                                    const metaMatch = trimmed.match(metadataFullRegex);
-                                    if (metaMatch) {
-                                        return (
-                                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', marginBottom: '0.05rem', fontSize: '0.86rem', color: '#000' }}>
-                                                <span>{metaMatch[1].trim()}</span>
-                                                <span style={{ textAlign: 'right', marginLeft: '1rem', fontWeight: '500', fontSize: '0.82rem' }}>{metaMatch[2].trim()}</span>
-                                            </div>
-                                        );
-                                    }
-
-                                    // 3. Project Names or Subtitles Highlight (Bold)
-                                    const isProjectLine = (trimmed.includes('—') || trimmed.includes('–') || (trimmed.includes(' - ') && trimmed.length < 100)) && !trimmed.startsWith('•');
-                                    const prevLine = arr[idx - 1] || '';
-                                    const genDateRegex = new RegExp(`\\b${datePart}\\b`, 'i');
-                                    const prevHadDate = prevLine.match(genDateRegex);
-
-                                    if (isProjectLine && (section.title.toLowerCase().includes('project') || trimmed.length < 65) && !metaMatch) {
-                                        return (
-                                            <div key={idx} style={{ fontWeight: '700', marginBottom: '0.15rem', color: '#000', fontSize: '0.86rem' }}>
-                                                {trimmed}
-                                            </div>
-                                        );
-                                    }
-
-                                    // 4. Bold Keys (e.g., "Languages: ...")
-                                    if (trimmed.includes(':') && trimmed.indexOf(':') < 30) {
-                                        const splitIdx = trimmed.indexOf(':');
-                                        const key = trimmed.slice(0, splitIdx);
-                                        const val = trimmed.slice(splitIdx + 1);
-                                        return (
-                                            <div key={idx} style={{ marginBottom: '0.15rem' }}>
-                                                <span style={{ fontWeight: '700' }}>{key}:</span> {val}
-                                            </div>
-                                        );
-                                    }
-
-                                    return <div key={idx} style={{ marginBottom: '0.15rem' }}>{trimmed}</div>;
-                                });
-                            })()
-                        ) : (
-                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Empty section. Click edit to add content.</span>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Edit mode */}
-            {editing && (
-                <div>
-                    {!isHeader && (
-                        <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#1e293b', marginBottom: '0.4rem', borderBottom: '1px solid #cbd5e1', paddingBottom: '0.25rem' }}>
-                            {section.title}
-                        </div>
-                    )}
-                    {isHeader && (
-                        <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', marginBottom: '0.4rem' }}>
-                            Name / Contact Header
-                        </div>
-                    )}
-                    <textarea
-                        ref={textareaRef}
-                        value={draft}
-                        onChange={e => setDraft(e.target.value)}
-                        rows={Math.max(4, draft.split('\n').length + 2)}
-                        style={{
-                            width: '100%', resize: 'vertical', border: '2px solid #7c3aed',
-                            borderRadius: '0.5rem', padding: '0.75rem', fontFamily: "'Times New Roman', Georgia, serif",
-                            fontSize: '0.82rem', lineHeight: '1.65', outline: 'none',
-                            color: '#0f172a', background: '#f8faff',
-                        }}
-                    />
-                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem', justifyContent: 'flex-end' }}>
-                        <button onClick={cancel} style={{ ...smallBtnStyle, background: '#f1f5f9', color: '#475569' }}>
-                            <X size={14} /> Cancel
-                        </button>
-                        <button onClick={save} style={{ ...smallBtnStyle, background: '#7c3aed', color: 'white' }}>
-                            <Check size={14} /> Save
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const editBtnStyle = {
-    position: 'relative', background: 'none', border: '1px solid #e2e8f0', borderRadius: '0.375rem',
-    padding: '3px 8px', cursor: 'pointer', color: '#94a3b8', display: 'inline-flex', alignItems: 'center',
-    gap: '4px', fontSize: '0.7rem', transition: 'all 0.15s',
-};
-
-const smallBtnStyle = {
-    display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '0.35rem 0.85rem',
-    borderRadius: '0.5rem', border: 'none', fontWeight: '600', fontSize: '0.78rem', cursor: 'pointer',
-};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = null, setNextDisabled }) => {
+const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = null }) => {
     const { id: paramId } = useParams();
     const id = passedId || paramId;
     const navigate = useNavigate();
@@ -463,17 +21,14 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
     const queryParams = new URLSearchParams(search);
     const shouldImprove = queryParams.get('improve');
 
+    const [isLoading, setIsLoading] = useState(!location.state?.initialResume && !!id);
+    const [fetchError, setFetchError] = useState(null);
     const [resume, setResume] = useState(location.state?.initialResume || null);
-    const [sections, setSections] = useState([]);
     // Initialize ATS analysis from state if available
     const [atsAnalysis, setAtsAnalysis] = useState(location.state?.analysisResults || null);
     const [jobDescription, setJobDescription] = useState(location.state?.analysisResults?.jdText || '');
 
     const [currentContent, setCurrentContent] = useState('');
-    const [fontScale, setFontScale] = useState(14); // 14px default
-    const [isOverflowing, setIsOverflowing] = useState(false);
-    const resumeContainerRef = useRef(null);
-    const [activeVersion, setActiveVersion] = useState(0);
     const [isImproving, setIsImproving] = useState(false);
     const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'unsaved' | 'saving'
     const [isDownloading, setIsDownloading] = useState(false);
@@ -482,13 +37,28 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
     const [showImproveMenu, setShowImproveMenu] = useState(false);
     const improveMenuRef = useRef(null);
     const [improveMode, setImproveMode] = useState('structured'); // 'structured' | 'regenerate'
-    const saveTimeoutRef = useRef(null);
     const lastSavedRef = useRef('');
+    const [isGeneratingStructure, setIsGeneratingStructure] = useState(false);
+    const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
 
-    const theme = {
-        primary: '#7c3aed', primaryLight: '#a78bfa', secondary: '#4f46e5',
-        glassBg: 'rgba(255, 255, 255, 0.03)', glassBorder: 'rgba(255, 255, 255, 0.08)',
-        textMuted: '#94a3b8', radius: '1.5rem',
+    const handleGenerateStructure = async () => {
+        setIsGeneratingStructure(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`http://localhost:5000/api/resumes/${id}/structure`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.data.success) {
+                // Success: update the local resume state and it should trigger a re-render
+                setResume(prev => ({ ...prev, resumeData: res.data.data }));
+            }
+        } catch (err) {
+            console.error("Failed to generate structure:", err);
+            setFetchError("Failed to generate resume structure automatically. Please try the Wizard.");
+        } finally {
+            setIsGeneratingStructure(false);
+        }
     };
 
     // ── Dropdown Close Handler ───────────────────────────────────────────────
@@ -512,8 +82,6 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 const content = initialContent || initial.content || initial.resumeText || '';
                 setCurrentContent(content);
                 lastSavedRef.current = content;
-                setSections(parseResumeIntoSections(content));
-                setActiveVersion(initial.currentVersionIndex || 0);
 
                 // Handle passed-in analysis results (e.g. from Home page)
                 if (location.state.analysisResults) {
@@ -540,12 +108,31 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                     const content = found.versions?.[found.currentVersionIndex]?.content || found.originalContent || '';
                     setCurrentContent(content);
                     lastSavedRef.current = content;
-                    setSections(parseResumeIntoSections(content));
-                    setActiveVersion(found.currentVersionIndex || 0);
+
+                    // Fetch PDF as Blob to handle Authorization header for iframe
+                    try {
+                        const pdfRes = await axios.get(`http://localhost:5000/api/resumes/${id}/file`, {
+                            headers: { Authorization: `Bearer ${token}` },
+                            responseType: 'blob'
+                        });
+                        const url = URL.createObjectURL(pdfRes.data);
+                        setPdfBlobUrl(url);
+                    } catch (pdfErr) {
+                        console.error('Error fetching PDF blob:', pdfErr);
+                    }
                 }
-            } catch (err) { console.error('Error fetching resume:', err); }
+            } catch (err) {
+                console.error('Error fetching resume:', err);
+                setFetchError(err.response?.data?.message || 'Failed to load resume.');
+            } finally {
+                setIsLoading(false);
+            }
         };
         fetchResume();
+
+        return () => {
+            if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+        };
     }, [id, location.state]);
 
     // ── Auto-trigger magic improve if ?improve=true ──────────────────────────────
@@ -557,16 +144,14 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
     }, [resume, shouldImprove]);
 
     // ── Auto-save ────────────────────────────────────────────────────────────────
-    const [selectedTemplate, setSelectedTemplate] = useState('classic');
-    const templateConfig = TEMPLATE_CONFIGS[selectedTemplate];
-
     // Magic Improve comparison states
     const [improvedContent, setImprovedContent] = useState('');
-    const [improvedResumeData, setImprovedResumeData] = useState(null); // structured JSON from V2 mode
+    const [improvedResumeData, setImprovedResumeData] = useState(null);
     const [improvementsSummary, setImprovementsSummary] = useState([]);
     const [originalSnapshot, setOriginalSnapshot] = useState(null); // pre-improve snapshot for restore
     const [postImproveAts, setPostImproveAts] = useState(null); // ATS_UPDATE from backend after improve
-    const [previewTab, setPreviewTab] = useState('original'); // 'original' | 'improved'
+    const [resumeTheme, setResumeTheme] = useState('classic'); // 'classic', 'modern', 'minimal'
+    const [isDownloadingImproved, setIsDownloadingImproved] = useState(false);
 
     // ATS Integration State
     const [isComparing, setIsComparing] = useState(false);
@@ -608,72 +193,101 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
         }
     }, [id]);
 
-    // ── Sync sections → currentContent ──────────────────────────────────────────
-    const updateContent = useCallback((newSections) => {
-        const newText = sectionsToText(newSections);
-        setCurrentContent(newText);
-        setSections(newSections);
-        // Clear ATS analysis when content changes, so user knows score is stale
-        if (newText !== lastSavedRef.current) {
-            setAtsAnalysis(null);
-            setSaveStatus('unsaved');
-            if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-            saveTimeoutRef.current = setTimeout(() => autoSave(newText), 3000);
+    // ── PDF Download (direct file fetch) ───────────────────────────────────────
+    const handleDownload = async () => {
+        setIsDownloading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`http://localhost:5000/api/resumes/${id}/file`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Download failed');
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${resume?.personalInfo?.fullName || 'Professional'}_Resume.pdf`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Download error:', err);
+            alert('Failed to download PDF.');
+        } finally {
+            setIsDownloading(false);
         }
-    }, [autoSave]);
-
-    const handleSectionSave = (index, newBody) => {
-        const updated = sections.map((s, i) => i === index ? { ...s, body: newBody } : s);
-        updateContent(updated);
     };
 
-    // ── PDF Download (html2pdf.js) ──────────────────────────────────────────────
-    const handleDownload = () => {
-        if (!resumeContainerRef.current) return;
-        const element = resumeContainerRef.current;
+    const handleDownloadImprovedPDF = async () => {
+        const element = document.getElementById('resume-pdf-container');
+        if (!element) return;
 
-        // Temporarily adjust styles for perfect PDF capture
-        const originalBoxShadow = element.style.boxShadow;
-        const originalTransform = element.style.transform;
+        setIsDownloadingImproved(true);
+        try {
+            const html2pdfModule = await import('html2pdf.js');
+            const html2pdf = html2pdfModule.default ? html2pdfModule.default : html2pdfModule;
+            const opt = {
+                margin: 0,
+                filename: `${resume?.personalInfo?.fullName || 'Improved_Resume'}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
 
-        element.style.boxShadow = 'none';
-        element.style.transform = 'none';
-
-        const opt = {
-            margin: 0,
-            filename: `${resume?.personalInfo?.fullName || 'Professional'}_Resume.pdf`,
-            image: { type: 'jpeg', quality: 1 },
-            html2canvas: { scale: 2, useCORS: true, windowWidth: 794 },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        html2pdf().set(opt).from(element).save().then(() => {
-            // Restore styles after generation
-            element.style.boxShadow = originalBoxShadow;
-            element.style.transform = originalTransform;
-        });
+            await html2pdf().set(opt).from(element).save();
+        } catch (err) {
+            console.error("PDF generation failed:", err);
+            alert("Failed to generate PDF. Please try again.");
+        } finally {
+            setIsDownloadingImproved(false);
+        }
     };
 
-    const handleAcceptImprovement = () => {
-        if (!improvedContent) return;
-        setOriginalSnapshot(currentContent);
-        setCurrentContent(improvedContent);
-        setSections(parseResumeIntoSections(improvedContent));
-        setImprovedContent('');
-        setImprovedResumeData(null);
-        setIsComparing(false);
-        // Apply post-improve ATS score if we got one from the backend
-        if (postImproveAts) {
-            setAtsAnalysis(prev => ({ ...prev, ...postImproveAts, score: postImproveAts.atsScore }));
-            if (postImproveAts.atsScore != null) {
-                setResume(prev => ({ ...prev, atsScore: postImproveAts.atsScore }));
+    const handleAcceptImprovement = async () => {
+        if (!improvedContent || !improvedResumeData) return;
+
+        try {
+            setSaveStatus('saving');
+            const token = localStorage.getItem('token');
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+            // Call the clone endpoint to create a separate entity
+            const response = await fetch(`${apiBase}/resumes/${id}/clone`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    resumeData: improvedResumeData,
+                    atsScore: postImproveAts?.atsScore || atsAnalysis?.atsScore || 0,
+                    optimizedResumeText: improvedContent
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.message || 'Failed to clone improved resume');
             }
+
+            const { data: clonedResume } = await response.json();
+
+            // Clean up states
+            setOriginalSnapshot(null);
+            setCurrentContent(improvedContent);
+            setImprovedContent('');
+            setImprovedResumeData(null);
+            setIsComparing(false);
             setPostImproveAts(null);
-        } else {
-            setAtsAnalysis(null); // Clear old analysis so user re-runs
+            setSaveStatus('saved');
+
+            // Navigate to the new cloned entity
+            navigate(`/editor/${clonedResume._id}`, { replace: true });
+
+        } catch (err) {
+            console.error('Accept improvement error:', err);
+            alert(`Failed to save improved resume: ${err.message}`);
+            setSaveStatus('unsaved');
         }
-        setSaveStatus('unsaved');
-        autoSave(improvedContent);
     };
 
     const handleRejectImprovement = () => {
@@ -687,7 +301,6 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
         if (!originalSnapshot) return;
         if (!window.confirm('Restore the version before Magic AI improvement? Your current content will be replaced.')) return;
         setCurrentContent(originalSnapshot);
-        setSections(parseResumeIntoSections(originalSnapshot));
         setOriginalSnapshot(null);
         setAtsAnalysis(null);
         setSaveStatus('unsaved');
@@ -714,8 +327,9 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
         setIsImproving(true);
         setIsComparing(true); // Open overlay immediately to see the stream
         setImprovedContent('');
-        setImprovedResumeData(null);
         setImprovementsSummary([]);
+
+        setImprovedResumeData(null);
 
         try {
             const token = localStorage.getItem('token');
@@ -723,8 +337,8 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
 
             const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-            // Use fetch for streaming (ReadableStream)
-            const response = await fetch(`${apiBase}/resumes/${id}/improve-stream`, {
+            // Call the standard JSON endpoint instead of the stream
+            const response = await fetch(`${apiBase}/resumes/${id}/improve`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -740,58 +354,33 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.message || 'Failed to start improvement stream');
+                throw new Error(errData.message || 'Failed to start improvement');
             }
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let accumulatedText = "";
+            const data = await response.json();
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const dataStr = line.slice(6).trim();
-                        if (!dataStr || dataStr === '[DONE]') continue;
-
-                        try {
-                            const parsed = JSON.parse(dataStr);
-
-                            if (parsed.error) {
-                                throw new Error(parsed.error);
-                            }
-
-                            // Cloudflare AI streams 'response' key, not 'content'
-                            const streamedText = parsed.response || parsed.content;
-                            if (streamedText) {
-                                accumulatedText += streamedText;
-                                setImprovedContent(accumulatedText);
-                            } else if (parsed.type === 'metadata') {
-                                if (parsed.newAnalysis) {
-                                    setAtsAnalysis(parsed.newAnalysis);
-                                    setPostImproveAts({
-                                        atsScore: parsed.newScore,
-                                        scoreDelta: parsed.scoreDelta,
-                                        analysis: parsed.newAnalysis
-                                    });
-                                }
-                                if (parsed.improvementSummary) {
-                                    setImprovementsSummary([parsed.improvementSummary]);
-                                }
-                            }
-                        } catch (e) {
-                            if (e.message && !e.message.includes('JSON')) {
-                                throw e; // rethrow actual errors shipped from backend
-                            }
-                        }
-                    }
-                }
+            if (data.optimizedResume) {
+                setImprovedContent(data.optimizedResume);
             }
+            if (data.optimizedResumeData) {
+                setImprovedResumeData(data.optimizedResumeData);
+            }
+            if (data.newAnalysis) {
+                setAtsAnalysis(data.newAnalysis);
+                setPostImproveAts({
+                    atsScore: data.newScore,
+                    scoreDelta: data.scoreDelta,
+                    analysis: data.newAnalysis
+                });
+            }
+            if (data.improvementSummary) {
+                setImprovementsSummary([data.improvementSummary]);
+            }
+
+            if (data.llmFallback) {
+                alert("AI optimization encountered an issue bridging structures. The original format has been preserved.");
+            }
+
         } catch (err) {
             console.error('Improvement error:', err);
             alert(`Magic Improve Error: ${err.message}`);
@@ -803,7 +392,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
 
 
 
-    if (!resume) return (
+    if (isLoading) return (
         <div className="page-wrapper" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
             <div className="ambient-bg" />
             <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
@@ -813,6 +402,65 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
             </div>
         </div>
     );
+
+    if (fetchError || (!resume && !isLoading)) {
+        return (
+            <div className="page-wrapper" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+                <div className="ambient-bg" />
+                <div style={{ textAlign: 'center', position: 'relative', zIndex: 1, background: 'var(--bg-card)', padding: '3rem', borderRadius: '1rem', border: '1px solid rgba(239,68,68,0.2)', maxWidth: '400px' }}>
+                    <AlertTriangle size={48} style={{ color: '#ef4444', margin: '0 auto 1.5rem' }} />
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.5rem', color: 'var(--text-main)', fontFamily: "'Outfit', sans-serif" }}>Unable to Load Resume</h2>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>{fetchError || "We couldn't find this resume. It may have been deleted or doesn't have structured data."}</p>
+                    <button onClick={() => navigate('/')} className="glow-btn" style={{ padding: '0.8rem 2rem' }}>
+                        Return Home
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!resume.resumeData) {
+        return (
+            <div className="page-wrapper" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+                <div className="ambient-bg" />
+                <div style={{ textAlign: 'center', position: 'relative', zIndex: 1, background: 'var(--bg-card)', padding: '3rem', borderRadius: '1rem', border: '1px solid rgba(239, 68, 68, 0.2)', maxWidth: '400px' }}>
+                    <div style={{ width: '64px', height: '64px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', border: '1px solid rgba(251, 191, 36, 0.2)' }}>
+                        <Sparkles size={32} style={{ color: '#fbbf24' }} />
+                    </div>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.5rem', color: 'var(--text-main)', fontFamily: "'Outfit', sans-serif" }}>Missing Structure</h2>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: '1.6' }}>This resume has text content but needs to be structured for editing. Let AI handle this for you.</p>
+
+                    <button
+                        onClick={handleGenerateStructure}
+                        disabled={isGeneratingStructure}
+                        className="glow-btn"
+                        style={{ width: '100%', padding: '1rem', justifyContent: 'center', gap: '0.75rem' }}
+                    >
+                        {isGeneratingStructure ? (
+                            <>
+                                <div style={{ width: '16px', height: '16px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                                <span>Generating...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles size={18} />
+                                <span>Generate Resume Structure</span>
+                            </>
+                        )}
+                    </button>
+
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1.25rem' }}>
+                        <button onClick={() => navigate(`/wizard/${id}`)} className="ghost-btn" style={{ flex: 1, fontSize: '0.85rem' }}>
+                            Use Wizard
+                        </button>
+                        <button onClick={() => navigate('/')} className="ghost-btn" style={{ flex: 1, fontSize: '0.85rem' }}>
+                            Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const saveStatusColor = saveStatus === 'saved' ? '#4ade80' : saveStatus === 'saving' ? '#fbbf24' : '#f87171';
     const saveStatusLabel = saveStatus === 'saved' ? '✓ Saved' : saveStatus === 'saving' ? '⏳ Saving...' : '● Unsaved';
@@ -849,19 +497,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                     <div style={{ fontSize: '0.72rem', color: saveStatusColor, fontWeight: '600', marginTop: '1px' }}>{saveStatusLabel}</div>
                 </div>
 
-                {/* Template Selector */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 1rem', borderLeft: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template</span>
-                    <select
-                        value={selectedTemplate}
-                        onChange={(e) => setSelectedTemplate(e.target.value)}
-                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '0.4rem 0.75rem', color: 'var(--text-main)', fontSize: '0.8rem', fontWeight: '600', outline: 'none', cursor: 'pointer' }}
-                    >
-                        {Object.values(TEMPLATE_CONFIGS).map(t => (
-                            <option key={t.id} value={t.id} style={{ background: 'var(--bg-surface)' }}>{t.name}</option>
-                        ))}
-                    </select>
-                </div>
+
 
                 {/* ATS Optimizer Button */}
                 <button
@@ -1048,118 +684,53 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 {/* Main layout */}
                 <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '100%' }}>
 
-                    {/* ── Resume Preview (Fixed A4 One-Page WYSIWYG) ───────────────────── */}
+                    {/* ── Resume Preview (Fixed PDF Viewer) ───────────────────── */}
                     <main style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-                        {/* Overflow Warning */}
-                        <AnimatePresence>
-                            {isOverflowing && (
-                                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                                    style={{
-                                        position: 'absolute', top: '2rem', right: '-16rem', width: '14rem',
-                                        background: 'rgba(239, 68, 68, 0.95)', color: 'white', padding: '1rem',
-                                        borderRadius: '0.8rem', fontSize: '0.75rem', fontWeight: '600',
-                                        boxShadow: '0 10px 25px rgba(239, 68, 68, 0.3)', border: '1px solid rgba(255,255,255,0.2)',
-                                        zIndex: 10
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <AlertTriangle size={16} /> Content Overflow!
-                                    </div>
-                                    Resume exceeds one page. Please reduce content or sections to fit the professional limit.
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
                         <motion.div
                             initial={{ opacity: 0, scale: 0.98 }}
                             animate={{ opacity: 1, scale: 1 }}
                             style={{ display: 'flex', justifyContent: 'center' }}
                         >
                             <div
-                                id="resume-container"
-                                ref={resumeContainerRef}
                                 style={{
-                                    width: '794px', // A4 at 96 DPI
-                                    height: '1123px', // A4 at 96 DPI
+                                    width: '100%',
+                                    maxWidth: '850px',
                                     background: '#ffffff',
                                     padding: '0',
                                     boxShadow: '0 25px 60px -12px rgba(0,0,0,0.7)',
+                                    borderRadius: '8px',
                                     overflow: 'hidden',
-                                    fontSize: `${fontScale}px`,
-                                    position: 'relative'
+                                    position: 'relative',
+                                    minHeight: '800px'
                                 }}
                             >
-                                {/* Print CSS */}
-                                <style>{`
-                                    @media print {
-                                        body * { visibility: hidden; }
-                                        #resume-container, #resume-container * { visibility: visible; }
-                                        #resume-container {
-                                            position: fixed;
-                                            left: 0;
-                                            top: 0;
-                                            margin: 0;
-                                            padding: 0;
-                                            box-shadow: none;
-                                            width: 210mm;
-                                            height: 297mm;
-                                            background: white;
-                                            z-index: 9999;
-                                        }
-                                        @page {
-                                            size: A4;
-                                            margin: 0;
-                                        }
-                                    }
-                                `}</style>
-
-                                {resume?.originalFileKey && (!currentContent || currentContent === resume?.content || currentContent === resume?.resumeText)
-                                    ? <PDFPreview
+                                {pdfBlobUrl ? (
+                                    <iframe
+                                        src={pdfBlobUrl}
+                                        width="100%"
+                                        height="100%"
+                                        style={{ border: 'none', minHeight: '800px' }}
+                                        title="Resume PDF"
+                                    />
+                                ) : resume.originalFileKey ? (
+                                    <PDFPreview
                                         key={`pdf-${resume._id}`}
                                         resumeId={resume._id}
                                         fallbackText={currentContent}
-                                        templateConfig={templateConfig}
                                     />
-                                    : <ResumeLayout
-                                        text={currentContent}
-                                        theme={selectedTemplate}
-                                    />
-                                }
+                                ) : resume.resumeData ? (
+                                    <div style={{ padding: '2rem' }}>
+                                        <ResumeLayout resumeData={resume.resumeData} theme={resumeTheme || 'classic'} />
+                                    </div>
+                                ) : (
+                                    <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                        <AlertTriangle size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+                                        <p>No visual resume available. Use <b>Optimize Content</b> to generate an editable version.</p>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     </main>
-
-                    {/* ── Edit Sections Panel ─────────────────────────────────────────── */}
-                    <details
-                        style={{
-                            marginTop: '1.5rem', maxWidth: '760px', margin: '1.5rem auto 0',
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: '1rem', overflow: 'hidden',
-                            background: 'rgba(255,255,255,0.02)',
-                        }}
-                    >
-                        <summary style={{
-                            padding: '0.85rem 1.5rem', cursor: 'pointer', listStyle: 'none',
-                            fontWeight: '700', fontSize: '0.82rem', color: '#94a3b8',
-                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                            userSelect: 'none',
-                        }}>
-                            <Edit3 size={14} /> Edit Individual Sections
-                        </summary>
-                        <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                            {sections.map((section, i) => (
-                                <SectionCard
-                                    key={i}
-                                    section={section}
-                                    templateConfig={templateConfig}
-                                    onSave={(newBody) => handleSectionSave(i, newBody)}
-                                />
-                            ))}
-                            {sections.length === 0 && (
-                                <p style={{ color: '#64748b', fontSize: '0.85rem' }}>No sections found. Upload a resume first.</p>
-                            )}
-                        </div>
-                    </details>
                 </div>
             </div>
 
@@ -1202,19 +773,33 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                         )}
                                     </div>
                                 )}
+
+                                {improvedResumeData && (
+                                    <button
+                                        onClick={handleDownloadImprovedPDF}
+                                        disabled={isDownloadingImproved}
+                                        className="ghost-btn"
+                                        style={{ padding: '0.7rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                    >
+                                        <Download size={16} />
+                                        {isDownloadingImproved ? 'Exporting...' : 'Download PDF'}
+                                    </button>
+                                )}
+
                                 <button
                                     onClick={handleRejectImprovement}
                                     className="ghost-btn"
                                     style={{ padding: '0.7rem 1.5rem' }}
                                 >
-                                    Reject All
+                                    Keep Original
                                 </button>
                                 <button
                                     onClick={handleAcceptImprovement}
                                     className="glow-btn"
                                     style={{ padding: '0.7rem 1.5rem' }}
+                                    disabled={!improvedContent}
                                 >
-                                    Accept Changes
+                                    Use Improved
                                 </button>
                             </div>
                         </div>
@@ -1229,16 +814,56 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                     background: '#ffffff', color: '#000', borderRadius: '0.5rem', padding: '0',
                                     maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
                                     display: 'flex', flexDirection: 'column',
-                                    alignItems: 'center', overflow: 'hidden'
+                                    alignItems: 'center', overflow: 'hidden', minHeight: '800px'
                                 }}>
-                                    <ResumeLayout text={currentContent} theme={selectedTemplate} />
+                                    {resume.originalFileKey ? (
+                                        <PDFPreview
+                                            key={`pdf-compare-${resume._id}`}
+                                            resumeId={resume._id}
+                                            fallbackText={originalSnapshot || currentContent}
+                                        />
+                                    ) : (
+                                        <div style={{ padding: '2rem', width: '100%' }}>
+                                            <ResumeLayout resumeData={resume.resumeData} theme={resumeTheme || 'classic'} />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
                             {/* Right: Improved */}
                             <div style={{ flex: 1, overflowY: 'auto', padding: '3rem', background: 'rgba(124,58,237,0.04)' }}>
-                                <div style={{ position: 'sticky', top: 0, marginBottom: '1.5rem', textAlign: 'center', zIndex: 10 }}>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--primary-light)', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'rgba(124,58,237,0.15)', padding: '0.3rem 0.8rem', borderRadius: '9999px', backdropFilter: 'var(--blur)', border: '1px solid var(--primary-glow)' }}>✨ Improved Version</span>
+                                <div style={{ position: 'sticky', top: 0, marginBottom: '1.5rem', display: 'flex', justifyContent: 'center', gap: '1rem', zIndex: 10 }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--primary-light)', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'rgba(124,58,237,0.15)', padding: '0.3rem 0.8rem', borderRadius: '9999px', backdropFilter: 'var(--blur)', border: '1px solid var(--primary-glow)', display: 'flex', alignItems: 'center' }}>
+                                        ✨ Improved Version
+                                    </span>
+
+                                    {/* Theme Switcher */}
+                                    {improvedResumeData && (
+                                        <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-card)', padding: '0.2rem', borderRadius: '8px', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+                                            {['classic', 'modern', 'minimal'].map(t => (
+                                                <button
+                                                    key={t}
+                                                    onClick={() => setResumeTheme(t)}
+                                                    style={{
+                                                        background: resumeTheme === t ? 'var(--primary-light)' : 'transparent',
+                                                        color: resumeTheme === t ? '#fff' : 'var(--text-muted)',
+                                                        border: 'none',
+                                                        padding: '0.2rem 0.8rem',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: resumeTheme === t ? '600' : '500',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.2s',
+                                                        textTransform: 'capitalize',
+                                                        display: 'flex', alignItems: 'center', gap: '0.3rem'
+                                                    }}
+                                                >
+                                                    {resumeTheme === t && <Palette size={12} />}
+                                                    {t}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {improvementsSummary.length > 0 && (
@@ -1267,26 +892,17 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                 )}
 
                                 <div style={{
-                                    background: '#ffffff', color: '#000', borderRadius: '0.5rem', padding: '3rem',
-                                    maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(124,58,237,0.1)',
-                                    fontFamily: templateConfig.fontFamily,
-                                    minHeight: '600px',
+                                    margin: '0 auto',
                                     display: 'flex', flexDirection: 'column',
                                     justifyContent: (isImproving && !improvedContent) ? 'center' : 'flex-start'
                                 }}>
-                                    {isImproving ? (
-                                        improvedContent ? (
-                                            // Real-time typewriter streaming view
-                                            <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.6', color: '#1e293b', width: '100%' }}>
-                                                {improvedContent}
-                                                <motion.span
-                                                    animate={{ opacity: [1, 0] }}
-                                                    transition={{ repeat: Infinity, duration: 0.8 }}
-                                                    style={{ display: 'inline-block', width: '8px', height: '1.2em', background: '#7c3aed', marginLeft: '4px', verticalAlign: 'middle' }}
-                                                />
-                                            </div>
-                                        ) : (
-                                            // Loading spinner before stream starts
+                                    {isImproving && !improvedContent && (
+                                        <div style={{
+                                            background: '#ffffff', color: '#1e293b', borderRadius: '0.5rem', padding: '3rem',
+                                            maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(124,58,237,0.1)',
+                                            minHeight: '800px', width: '100%',
+                                            display: 'flex', flexDirection: 'column', justifyContent: 'center'
+                                        }}>
                                             <div style={{ textAlign: 'center' }}>
                                                 <div style={{
                                                     display: 'inline-block',
@@ -1301,9 +917,25 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                                 </p>
                                                 <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.4rem' }}>Wait for the magic to appear...</p>
                                             </div>
-                                        )
-                                    ) : (
-                                        <ResumeLayout text={improvedContent} theme={selectedTemplate} />
+                                        </div>
+                                    )}
+
+                                    {!isImproving && improvedResumeData && (
+                                        <div style={{ boxShadow: '0 20px 40px rgba(124,58,237,0.15)', borderRadius: '8px', overflow: 'hidden', margin: '0 auto', background: '#fff' }}>
+                                            <ResumeLayout resumeData={improvedResumeData} theme={resumeTheme} />
+                                        </div>
+                                    )}
+
+                                    {!isImproving && !improvedResumeData && improvedContent && (
+                                        <div style={{
+                                            background: '#ffffff', color: '#1e293b', borderRadius: '0.5rem', padding: '3rem',
+                                            maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(124,58,237,0.1)',
+                                            minHeight: '800px', width: '100%'
+                                        }}>
+                                            <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', fontSize: '0.85rem' }}>
+                                                {improvedContent}
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
 

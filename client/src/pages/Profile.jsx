@@ -103,7 +103,8 @@ const Profile = () => {
         setIsDeleting(true);
         try {
             await API.delete("/auth/delete-account");
-            logout(); // Log the user out after successful deletion
+            logout();
+            navigate('/login'); // Log the user out after successful deletion
         } catch (error) {
             setStatus({
                 type: "error",
