@@ -4,10 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
-import { ArrowLeft, Sparkles, Save, Check, X, Bot, ChevronDown, AlertTriangle, Download, Palette, BarChart3 } from 'lucide-react';
-import ATSAnalysis from '../components/ATSAnalysis';
+import {
+    Download, Sparkles, Zap, History, RotateCcw, FileText, Check, X,
+    ChevronDown, AlertCircle, ArrowLeft, BarChart3, AlertTriangle, Save, Bot,
+    Edit3, Layout, Wand2
+} from 'lucide-react';
 import PDFPreview from '../components/resume/PDFPreview';
-import ResumeLayout from '../components/resume/ResumeLayout';
+import StructuredManualEditor from '../components/resume/StructuredManualEditor';
+import ATSAnalysis from '../components/ATSAnalysis';
 
 
 
@@ -38,28 +42,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
     const improveMenuRef = useRef(null);
     const [improveMode, setImproveMode] = useState('structured'); // 'structured' | 'regenerate'
     const lastSavedRef = useRef('');
-    const [isGeneratingStructure, setIsGeneratingStructure] = useState(false);
-    const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
-
-    const handleGenerateStructure = async () => {
-        setIsGeneratingStructure(true);
-        try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post(`http://localhost:5000/api/resumes/${id}/structure`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (res.data.success) {
-                // Success: update the local resume state and it should trigger a re-render
-                setResume(prev => ({ ...prev, resumeData: res.data.data }));
-            }
-        } catch (err) {
-            console.error("Failed to generate structure:", err);
-            setFetchError("Failed to generate resume structure automatically. Please try the Wizard.");
-        } finally {
-            setIsGeneratingStructure(false);
-        }
-    };
+    const [baselineVersionNumber, setBaselineVersionNumber] = useState(null);
 
     // ── Dropdown Close Handler ───────────────────────────────────────────────
     useEffect(() => {
@@ -79,7 +62,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 const initial = location.state.initialResume;
                 setResume(initial);
                 // If initialContent is passed from Wizard, use it, otherwise fallback
-                const content = initialContent || initial.content || initial.resumeText || '';
+                const content = initialContent || initial.parsedText || initial.originalContent || '';
                 setCurrentContent(content);
                 lastSavedRef.current = content;
 
@@ -105,21 +88,10 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 const found = res.data.data;
                 if (found) {
                     setResume(found);
-                    const content = found.versions?.[found.currentVersionIndex]?.content || found.parsedText || found.originalContent || '';
+                    // Use parsedText as the editable content — no longer reading from version.content
+                    const content = found.parsedText || found.originalContent || '';
                     setCurrentContent(content);
                     lastSavedRef.current = content;
-
-                    // Fetch PDF as Blob to handle Authorization header for iframe
-                    try {
-                        const pdfRes = await axios.get(`http://localhost:5000/api/resumes/${id}/file`, {
-                            headers: { Authorization: `Bearer ${token}` },
-                            responseType: 'blob'
-                        });
-                        const url = URL.createObjectURL(pdfRes.data);
-                        setPdfBlobUrl(url);
-                    } catch (pdfErr) {
-                        console.error('Error fetching PDF blob:', pdfErr);
-                    }
                 }
             } catch (err) {
                 console.error('Error fetching resume:', err);
@@ -130,9 +102,6 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
         };
         fetchResume();
 
-        return () => {
-            if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-        };
     }, [id, location.state]);
 
     // ── Auto-trigger magic improve if ?improve=true ──────────────────────────────
@@ -146,16 +115,64 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
     // ── Auto-save ────────────────────────────────────────────────────────────────
     // Magic Improve comparison states
     const [improvedContent, setImprovedContent] = useState('');
-    const [improvedResumeData, setImprovedResumeData] = useState(null);
     const [improvementsSummary, setImprovementsSummary] = useState([]);
     const [originalSnapshot, setOriginalSnapshot] = useState(null); // pre-improve snapshot for restore
     const [postImproveAts, setPostImproveAts] = useState(null); // ATS_UPDATE from backend after improve
-    const [resumeTheme, setResumeTheme] = useState('classic'); // 'classic', 'modern', 'minimal'
     const [isDownloadingImproved, setIsDownloadingImproved] = useState(false);
     const [improvedVersionNumber, setImprovedVersionNumber] = useState(null); // The generated candidate version
 
     // ATS Integration State
     const [isComparing, setIsComparing] = useState(false);
+
+    // Manual Editing State
+    const [isManualEditing, setIsManualEditing] = useState(false);
+    const [isSavingManual, setIsSavingManual] = useState(false);
+    const [isExtractingStructure, setIsExtractingStructure] = useState(false);
+
+    const handleStartManualEdit = async () => {
+        if (!resume.content) {
+            // Need to extract structure first for old resumes
+            setIsExtractingStructure(true);
+            try {
+                const token = localStorage.getItem('token');
+                const res = await axios.post(`http://localhost:5000/api/resumes/${id}/extract-structure`, {}, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (res.data.success) {
+                    setResume(prev => ({ ...prev, content: res.data.data }));
+                }
+            } catch (err) {
+                console.error("Structure extraction failed", err);
+                // Fallback: we could show a raw text editor, but let's try to notify
+            } finally {
+                setIsExtractingStructure(false);
+            }
+        }
+        setIsManualEditing(true);
+    };
+
+    const handleSaveManualEdit = async (newContent, newTitle) => {
+        setIsSavingManual(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.put(`http://localhost:5000/api/resumes/${id}`, {
+                content: newContent,
+                title: newTitle
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.data.success) {
+                setResume(res.data.data); // Updates versions, content, and title
+                setIsManualEditing(false);
+                // Refresh preview is automatic because versionNumber in PDFPreview prop will change
+            }
+        } catch (err) {
+            console.error("Manual save failed", err);
+        } finally {
+            setIsSavingManual(false);
+        }
+    };
 
     // Persist JD when it changes
     useEffect(() => {
@@ -199,44 +216,16 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
 
     // ── PDF Download (direct file fetch) ───────────────────────────────────────
     const handleDownload = async () => {
-        const element = document.getElementById('resume-pdf-container');
-        if (!element) return;
-
-        setIsDownloading(true);
         try {
-            const html2pdfModule = await import('html2pdf.js');
-            const html2pdf = html2pdfModule.default ? html2pdfModule.default : html2pdfModule;
-            const opt = {
-                margin: 0,
-                filename: `Resume_${resumeData.versionCounter || 1}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, logging: false },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-
-            // Generate blob instead of saving directly to browser
-            const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
-
-            const sortedVersions = [...(resumeData.versions || [])].sort((a, b) => b.versionNumber - a.versionNumber);
-            const latestVersionNumber = sortedVersions.length > 0 ? sortedVersions[0].versionNumber : 1;
+            setIsDownloading(true);
             const token = localStorage.getItem('token');
-
-            // Upload the perfectly rendered PDF back to the server to securely store it in latestVersion.fileKey
-            const formData = new FormData();
-            formData.append('pdf', pdfBlob, opt.filename);
-
-            await axios.put(`http://localhost:5000/api/resumes/${id}/version/${latestVersionNumber}/pdf`, formData, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
-
-            // Now that the backend contains the identical PDF, invoke the backend download system
+            const sortedVersions = [...(resume?.versions || [])].sort((a, b) => b.versionNumber - a.versionNumber);
+            const latestVersionNumber = sortedVersions.length > 0 ? sortedVersions[0].versionNumber : 1;
+            // Stream the stored PDF directly from R2 via the version download endpoint
             window.location.href = `http://localhost:5000/api/resumes/${id}/version/${latestVersionNumber}/download?token=${token}`;
         } catch (err) {
-            console.error("PDF generation/upload failed:", err);
-            alert("Failed to generate PDF. Please try again.");
+            console.error('Download failed:', err);
+            alert('Failed to download PDF. Please try again.');
         } finally {
             setIsDownloading(false);
         }
@@ -252,7 +241,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
             const html2pdf = html2pdfModule.default ? html2pdfModule.default : html2pdfModule;
             const opt = {
                 margin: 0,
-                filename: `${resume?.personalInfo?.fullName || 'Improved_Resume'}.pdf`,
+                filename: `${resume?.title || 'Improved_Resume'}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2, useCORS: true, logging: false },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -284,7 +273,11 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
-                }
+                },
+                body: JSON.stringify({
+                    improvedText: improvedContent,
+                    analysis: atsAnalysis
+                })
             });
 
             if (!response.ok) {
@@ -298,7 +291,6 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
             setOriginalSnapshot(null);
             setCurrentContent(improvedContent);
             setImprovedContent('');
-            setImprovedResumeData(null);
             setImprovedVersionNumber(null);
             setIsComparing(false);
             setPostImproveAts(null);
@@ -315,7 +307,6 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
 
     const handleRejectImprovement = () => {
         setImprovedContent('');
-        setImprovedResumeData(null);
         setImprovedVersionNumber(null);
         setIsComparing(false);
         setPostImproveAts(null);
@@ -347,13 +338,16 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
 
         // ── Snapshot the current content before we overwrite it ──────────────────
         setOriginalSnapshot(contentToUse);
+
+        // Capture the baseline version number for comparison overlay
+        const sorted = (resume?.versions || []).sort((a, b) => b.versionNumber - a.versionNumber);
+        setBaselineVersionNumber(sorted[0]?.versionNumber || null);
+
         setPostImproveAts(null);
         setIsImproving(true);
         setIsComparing(true); // Open overlay immediately to see the stream
         setImprovedContent('');
         setImprovementsSummary([]);
-
-        setImprovedResumeData(null);
         setImprovedVersionNumber(null);
 
         try {
@@ -373,7 +367,15 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                     content: contentToUse,
                     jobDescription,
                     mode: improveMode,
-                    previousScore: atsAnalysis?.atsScore || null
+                    previousScore: atsAnalysis?.atsScore || null,
+                    // Pass full ATS analysis so AI can use exact missing skills/weak sections
+                    atsContext: atsAnalysis ? {
+                        atsScore: atsAnalysis.atsScore,
+                        matchedSkills: atsAnalysis.matchedSkills || [],
+                        missingCriticalSkills: atsAnalysis.missingCriticalSkills || [],
+                        weakSections: atsAnalysis.weakSections || [],
+                        breakdown: atsAnalysis.breakdown || {}
+                    } : null
                 })
             });
 
@@ -386,9 +388,6 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
 
             if (data.optimizedResume) {
                 setImprovedContent(data.optimizedResume);
-            }
-            if (data.optimizedResumeData) {
-                setImprovedResumeData(data.optimizedResumeData);
             }
             if (data.newAnalysis) {
                 setAtsAnalysis(data.newAnalysis);
@@ -438,7 +437,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 <div style={{ textAlign: 'center', position: 'relative', zIndex: 1, background: 'var(--bg-card)', padding: '3rem', borderRadius: '1rem', border: '1px solid rgba(239,68,68,0.2)', maxWidth: '400px' }}>
                     <AlertTriangle size={48} style={{ color: '#ef4444', margin: '0 auto 1.5rem' }} />
                     <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.5rem', color: 'var(--text-main)', fontFamily: "'Outfit', sans-serif" }}>Unable to Load Resume</h2>
-                    <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>{fetchError || "We couldn't find this resume. It may have been deleted or doesn't have structured data."}</p>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>{fetchError || "We couldn't find this resume. It may have been deleted or the file is temporarily unavailable."}</p>
                     <button onClick={() => navigate('/')} className="glow-btn" style={{ padding: '0.8rem 2rem' }}>
                         Return Home
                     </button>
@@ -634,6 +633,19 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                     {isDownloading ? 'Generating...' : 'Download PDF'}
                 </button>
 
+                <div
+                    onClick={handleStartManualEdit}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                        padding: '0.55rem 1rem', background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.8rem',
+                        color: 'white', cursor: 'pointer', fontSize: '0.85rem'
+                    }}
+                >
+                    <Edit3 size={15} />
+                    {isExtractingStructure ? 'Preparing...' : 'Edit Manually'}
+                </div>
+
                 {/* Restore Earlier Version — only visible after accepting Magic Improve */}
                 {originalSnapshot && (
                     <motion.button
@@ -670,31 +682,46 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 </AnimatePresence>
 
                 {/* Main layout */}
-                <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '100%' }}>
+                <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '100%', width: '100%' }}>
 
-                    {/* ── Resume Preview (Fixed PDF Viewer) ───────────────────── */}
-                    <main style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            style={{ display: 'flex', justifyContent: 'center' }}
-                        >
-                            <div
-                                style={{
-                                    width: '100%',
-                                    maxWidth: '850px',
-                                    padding: '0',
-                                    display: 'flex',
-                                    justifyContent: 'center',
-                                    borderRadius: '8px',
-                                    position: 'relative',
-                                    minHeight: '800px'
-                                }}
+                    <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
+                        {/* ── Resume Preview (Unified HTML Rendering) ───────────────────── */}
+                        <main style={{ flex: isManualEditing ? '0 0 600px' : '1', minWidth: 0, position: 'relative' }}>
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                style={{ display: 'flex', justifyContent: 'center' }}
                             >
-                                <ResumeLayout resumeData={resume?.resumeData || resume} theme={resumeTheme || 'classic'} />
-                            </div>
-                        </motion.div>
-                    </main>
+                                <PDFPreview
+                                    resumeId={id}
+                                    versionNumber={resume?.versions?.length > 0
+                                        ? [...resume.versions].sort((a, b) => b.versionNumber - a.versionNumber)[0].versionNumber
+                                        : null
+                                    }
+                                />
+                            </motion.div>
+                        </main>
+
+                        {/* ── Manual Editor Side Panel ────────────────────────────────── */}
+                        <AnimatePresence>
+                            {isManualEditing && (
+                                <motion.aside
+                                    initial={{ x: 300, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    exit={{ x: 300, opacity: 0 }}
+                                    style={{ flex: 1, height: 'calc(100vh - 160px)', position: 'sticky', top: '100px' }}
+                                >
+                                    <StructuredManualEditor
+                                        initialContent={resume.content}
+                                        initialTitle={resume?.title}
+                                        onSave={handleSaveManualEdit}
+                                        onCancel={() => setIsManualEditing(false)}
+                                        isSaving={isSavingManual}
+                                    />
+                                </motion.aside>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
             </div>
 
@@ -722,31 +749,17 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                 <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Review the proposed changes before applying them to your resume.</p>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                {/* Live ATS score badge — shown if backend sent ATS_UPDATE */}
-                                {postImproveAts && (
-                                    <div style={{
-                                        display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                        background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)',
-                                        borderRadius: '0.6rem', padding: '0.4rem 0.85rem',
-                                        fontSize: '0.78rem', fontWeight: '700', color: '#a78bfa'
-                                    }}>
-                                        <Sparkles size={13} />
-                                        ATS {postImproveAts.atsScore}%
-                                        {postImproveAts.scoreDelta != null && postImproveAts.scoreDelta > 0 && (
-                                            <span style={{ color: '#4ade80', marginLeft: '0.3rem' }}>+{postImproveAts.scoreDelta} pts</span>
-                                        )}
-                                    </div>
-                                )}
-
-                                {improvedResumeData && (
+                                {improvedVersionNumber && (
                                     <button
-                                        onClick={handleDownloadImprovedPDF}
-                                        disabled={isDownloadingImproved}
+                                        onClick={async () => {
+                                            const token = localStorage.getItem('token');
+                                            window.location.href = `http://localhost:5000/api/resumes/${id}/version/${improvedVersionNumber}/download?token=${token}`;
+                                        }}
                                         className="ghost-btn"
                                         style={{ padding: '0.7rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                     >
                                         <Download size={16} />
-                                        {isDownloadingImproved ? 'Exporting...' : 'Download PDF'}
+                                        Download Improved PDF
                                     </button>
                                 )}
 
@@ -774,13 +787,8 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                 <div style={{ position: 'sticky', top: 0, marginBottom: '1.5rem', textAlign: 'center', zIndex: 10 }}>
                                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'var(--bg-elevated)', padding: '0.3rem 0.8rem', borderRadius: '9999px', backdropFilter: 'var(--blur)' }}>Original Version</span>
                                 </div>
-                                <div style={{
-                                    background: '#f1f5f9', borderRadius: '0.5rem', padding: '0',
-                                    maxWidth: '800px', margin: '0 auto',
-                                    display: 'flex', flexDirection: 'column',
-                                    alignItems: 'center', overflow: 'hidden', minHeight: '800px'
-                                }}>
-                                    <ResumeLayout resumeData={resume?.resumeData || resume} theme={resumeTheme || 'classic'} />
+                                <div style={{ display: 'flex', justifyContent: 'center', transform: 'scale(0.85)', transformOrigin: 'top center' }}>
+                                    <PDFPreview resumeId={id} versionNumber={baselineVersionNumber} />
                                 </div>
                             </div>
 
@@ -790,34 +798,6 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--primary-light)', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'rgba(124,58,237,0.15)', padding: '0.3rem 0.8rem', borderRadius: '9999px', backdropFilter: 'var(--blur)', border: '1px solid var(--primary-glow)', display: 'flex', alignItems: 'center' }}>
                                         ✨ Improved Version
                                     </span>
-
-                                    {/* Theme Switcher */}
-                                    {improvedResumeData && (
-                                        <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-card)', padding: '0.2rem', borderRadius: '8px', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
-                                            {['classic', 'modern', 'minimal'].map(t => (
-                                                <button
-                                                    key={t}
-                                                    onClick={() => setResumeTheme(t)}
-                                                    style={{
-                                                        background: resumeTheme === t ? 'var(--primary-light)' : 'transparent',
-                                                        color: resumeTheme === t ? '#fff' : 'var(--text-muted)',
-                                                        border: 'none',
-                                                        padding: '0.2rem 0.8rem',
-                                                        borderRadius: '6px',
-                                                        fontSize: '0.75rem',
-                                                        fontWeight: resumeTheme === t ? '600' : '500',
-                                                        cursor: 'pointer',
-                                                        transition: 'all 0.2s',
-                                                        textTransform: 'capitalize',
-                                                        display: 'flex', alignItems: 'center', gap: '0.3rem'
-                                                    }}
-                                                >
-                                                    {resumeTheme === t && <Palette size={12} />}
-                                                    {t}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
 
                                 {improvementsSummary.length > 0 && (
@@ -827,7 +807,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                         background: 'rgba(124, 58, 237, 0.05)',
                                         border: '1px solid rgba(124, 58, 237, 0.15)',
                                         borderRadius: '0.75rem',
-                                        maxWidth: '800px',
+                                        maxWidth: '850px',
                                         margin: '0 auto 1.5rem'
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.8rem', color: '#a78bfa', fontWeight: '800', fontSize: '0.8rem' }}>
@@ -845,64 +825,18 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                     </div>
                                 )}
 
-                                <div style={{
-                                    margin: '0 auto',
-                                    display: 'flex', flexDirection: 'column',
-                                    justifyContent: (isImproving && !improvedContent) ? 'center' : 'flex-start'
-                                }}>
-                                    {isImproving && !improvedContent && (
-                                        <div style={{
-                                            background: '#ffffff', color: '#1e293b', borderRadius: '0.5rem', padding: '3rem',
-                                            maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(124,58,237,0.1)',
-                                            minHeight: '800px', width: '100%',
-                                            display: 'flex', flexDirection: 'column', justifyContent: 'center'
-                                        }}>
+                                <div style={{ display: 'flex', justifyContent: 'center', transform: 'scale(0.85)', transformOrigin: 'top center' }}>
+                                    {isImproving && !improvedContent ? (
+                                        <div style={{ height: '1123px', width: '794px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
                                             <div style={{ textAlign: 'center' }}>
-                                                <div style={{
-                                                    display: 'inline-block',
-                                                    width: '40px', height: '40px',
-                                                    border: '3px solid rgba(124,58,237,0.2)', borderTopColor: '#7c3aed',
-                                                    borderRadius: '50%',
-                                                    animation: 'spin 1s linear infinite',
-                                                    marginBottom: '1rem'
-                                                }} />
-                                                <p style={{ fontSize: '0.9rem', color: '#7c3aed', fontWeight: '700', margin: 0 }}>
-                                                    {improvementsSummary.length > 0 ? 'Polishing the highlights...' : 'AI is weaving magic...'}
-                                                </p>
-                                                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.4rem' }}>Wait for the magic to appear...</p>
+                                                <div className="loading-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(124,58,237,0.2)', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 1rem' }} />
+                                                <p style={{ color: '#7c3aed', fontWeight: '700' }}>AI is weaving magic...</p>
                                             </div>
                                         </div>
-                                    )}
-
-                                    {!isImproving && improvedVersionNumber && (
-                                        <div style={{ boxShadow: '0 20px 40px rgba(124,58,237,0.15)', borderRadius: '8px', overflow: 'hidden', margin: '0 auto', background: '#fff' }}>
-                                            <PDFPreview
-                                                key={`pdf-improved-${improvedVersionNumber}`}
-                                                resumeId={id}
-                                                versionNumber={improvedVersionNumber}
-                                            />
-                                        </div>
-                                    )}
-
-                                    {!isImproving && !improvedVersionNumber && improvedResumeData && (
-                                        <div style={{ boxShadow: '0 20px 40px rgba(124,58,237,0.15)', borderRadius: '8px', overflow: 'hidden', margin: '0 auto', background: '#fff' }}>
-                                            <ResumeLayout resumeData={improvedResumeData} theme={resumeTheme} />
-                                        </div>
-                                    )}
-
-                                    {!isImproving && !improvedResumeData && !improvedVersionNumber && improvedContent && (
-                                        <div style={{
-                                            background: '#ffffff', color: '#1e293b', borderRadius: '0.5rem', padding: '3rem',
-                                            maxWidth: '800px', margin: '0 auto', boxShadow: '0 20px 40px rgba(124,58,237,0.1)',
-                                            minHeight: '800px', width: '100%'
-                                        }}>
-                                            <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', fontSize: '0.85rem' }}>
-                                                {improvedContent}
-                                            </div>
-                                        </div>
+                                    ) : (
+                                        <PDFPreview resumeId={id} versionNumber={improvedVersionNumber} />
                                     )}
                                 </div>
-
                             </div>
                         </div>
                     </motion.div>

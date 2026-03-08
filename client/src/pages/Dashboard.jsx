@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
     FileText, Sparkles, ArrowRight, TrendingUp,
     Plus, Target, Bot, X, Loader2, ArrowLeft,
-    Clock, RotateCcw, Eye, Download, ChevronDown, ChevronUp, AlertTriangle
+    Clock, RotateCcw, Eye, Download, ChevronDown, ChevronUp, AlertTriangle, History
 } from 'lucide-react';
 import AIAssistant from '../components/AIAssistant';
 import Navbar from '../components/Navbar';
@@ -52,7 +52,7 @@ const StatCard = ({ title, value, icon: Icon, accent, delay }) => (
 /* ─────────────────────────────────────────────
    Resume Card
    ───────────────────────────────────────────── */
-const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview }) => {
+const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRestoring }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     const scoreColor = resume.atsScore >= 70 ? 'var(--success-light)'
@@ -60,7 +60,8 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview }) => {
             : resume.atsScore > 0 ? 'var(--error-light)'
                 : 'var(--text-faint)';
 
-    const sortedVersions = [...(resume.versions || [])].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const sortedVersions = [...(resume.versions || [])].sort((a, b) => b.versionNumber - a.versionNumber);
+    const latestVersion = sortedVersions[0] || { versionNumber: 1, createdAt: resume.createdAt };
 
     return (
         <motion.div
@@ -73,60 +74,72 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview }) => {
                 backdropFilter: 'var(--blur)',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-lg)',
-                padding: '1.5rem',
+                padding: '1.25rem',
                 display: 'flex', flexDirection: 'column',
-                minHeight: '220px',
+                gap: '1rem',
                 transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
                 position: 'relative'
             }}
-            whileHover={{ y: -5, borderColor: 'var(--primary)' }}
+            whileHover={{ y: -5, borderColor: 'var(--primary)', boxShadow: 'var(--shadow-lg)' }}
         >
-            {/* Header */}
-            <div
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', cursor: 'pointer' }}
-                onClick={() => navigate(`/editor/${resume._id}`)}
-                title="Open inside Editor"
-            >
-                <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.15)', display: 'grid', placeItems: 'center', color: 'var(--primary-light)' }}>
-                    <FileText size={20} />
+            {/* Top Row: Icon & Score */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.15)', display: 'grid', placeItems: 'center', color: 'var(--primary-light)' }}>
+                    <FileText size={18} />
                 </div>
                 {resume.atsScore > 0 && (
-                    <span style={{ padding: '0.25rem 0.7rem', borderRadius: '9999px', background: `${scoreColor}18`, border: `1px solid ${scoreColor}44`, color: scoreColor, fontSize: '0.75rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Target size={12} /> {resume.atsScore}%
+                    <span style={{ padding: '0.2rem 0.6rem', borderRadius: '9999px', background: `${scoreColor}12`, border: `1px solid ${scoreColor}33`, color: scoreColor, fontSize: '0.72rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Target size={11} /> {resume.atsScore}% Match
                     </span>
                 )}
             </div>
 
-            {/* Content */}
-            <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => navigate(`/editor/${resume._id}`)} title="Open inside Editor">
-                <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.3rem', lineHeight: 1.3 }}>
+            {/* Content: Title & Meta */}
+            <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.25rem', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                     {resume.title || 'Untitled Resume'}
                 </h3>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-faint)', marginBottom: '0.3rem' }}>
-                    Edited {new Date(resume.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-faint)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Clock size={12} /> Edited {new Date(resume.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-faint)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '4px' }}>A4 PDF</span>
-                    <ArrowRight size={14} color="var(--primary-light)" />
-                </div>
+            </div>
+
+            {/* Action Buttons: Direct access */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <button
+                    onClick={() => navigate(`/editor/${resume._id}`)}
+                    className="glow-btn"
+                    style={{ padding: '0.55rem', fontSize: '0.8rem', width: '100%', justifyContent: 'center', gap: '0.4rem' }}
+                >
+                    <FileText size={14} /> Edit
+                </button>
+                <button
+                    onClick={() => onDownload(resume._id, latestVersion.versionNumber)}
+                    className="ghost-btn"
+                    style={{ padding: '0.55rem', fontSize: '0.8rem', width: '100%', justifyContent: 'center', border: '1px solid var(--border)', gap: '0.4rem' }}
+                >
+                    <Download size={14} /> Export
+                </button>
             </div>
 
             {/* Versions Toggler */}
-            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                <button
-                    onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
-                    style={{
-                        background: 'none', border: 'none', width: '100%', display: 'flex', justifyContent: 'space-between',
-                        alignItems: 'center', color: 'var(--text-sub)', fontSize: '0.85rem', cursor: 'pointer', padding: '0'
-                    }}
-                >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
-                        <Clock size={14} />
-                        {resume.versions?.length || 1} Version{(resume.versions?.length || 1) !== 1 ? 's' : ''} saved
-                    </span>
-                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </button>
-            </div>
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                style={{
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    width: '100%', display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'center', color: 'var(--text-sub)', fontSize: '0.78rem', cursor: 'pointer', padding: '0.5rem 0.75rem',
+                    transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary-glow)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+            >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '700' }}>
+                    <History size={13} />
+                    {resume.versions?.length || 1} Version{(resume.versions?.length || 1) !== 1 ? 's' : ''}
+                </span>
+                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
 
             {/* Expanded Version History */}
             <AnimatePresence>
@@ -135,22 +148,29 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview }) => {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        style={{ overflow: 'hidden', marginTop: '1rem' }}
+                        style={{ overflow: 'hidden' }}
                     >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingTop: '0.4rem' }}>
                             {sortedVersions.map((v, idx) => (
-                                <div key={v.versionNumber} style={{ padding: '0.75rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: '700', color: idx === 0 ? 'var(--primary-light)' : 'var(--text-main)' }}>
-                                            Version {v.versionNumber} {idx === 0 && '(Current)'}
+                                <div key={`${v.versionNumber}-${idx}`} style={{ padding: '0.5rem 0.65rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: idx === 0 ? 'var(--primary-light)' : 'var(--text-main)' }}>
+                                            v{v.versionNumber} {idx === 0 && '• Active'}
                                         </span>
-                                        <span style={{ fontSize: '0.7rem', color: 'var(--text-faint)' }}>{new Date(v.createdAt).toLocaleDateString()}</span>
+                                        <span style={{ fontSize: '0.62rem', color: 'var(--text-faint)' }}>{new Date(v.createdAt).toLocaleDateString()}</span>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <button onClick={(e) => { e.stopPropagation(); onPreview(resume._id, v.versionNumber); }} title="Preview" style={{ flex: 1, padding: '0.4rem', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-sub)', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Eye size={14} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); onDownload(resume._id, v.versionNumber); }} title="Download PDF" style={{ flex: 1, padding: '0.4rem', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-sub)', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Download size={14} /></button>
+                                    <div style={{ display: 'flex', gap: '0.15rem' }}>
+                                        <button onClick={() => onPreview(resume._id, v.versionNumber)} title="Quick Preview" style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><Eye size={12} /></button>
+                                        <button onClick={() => onDownload(resume._id, v.versionNumber)} title="Download PDF" style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><Download size={12} /></button>
                                         {idx !== 0 && (
-                                            <button onClick={(e) => { e.stopPropagation(); onRestore(resume._id, v.versionNumber); }} disabled={isRestoring} title="Restore Version" style={{ flex: 1, padding: '0.4rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--error-light)', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center', opacity: isRestoring ? 0.5 : 1 }}><RotateCcw size={14} /></button>
+                                            <button
+                                                onClick={() => onRestore(resume._id, v.versionNumber)}
+                                                disabled={isRestoring}
+                                                title="Make this current active version"
+                                                style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--error-light)', cursor: 'pointer', opacity: isRestoring ? 0.3 : 1 }}
+                                            >
+                                                <RotateCcw size={12} />
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -444,15 +464,27 @@ const Dashboard = () => {
 
                             {/* New resume card */}
                             <motion.div
-                                whileHover={{ scale: 1.02, borderColor: 'var(--primary)' }}
+                                whileHover={{ scale: 1.02, borderColor: 'var(--primary)', boxShadow: 'var(--shadow-lg)' }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => navigate('/wizard/new')}
-                                style={{ border: '2px dashed var(--border)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', height: '220px', color: 'var(--text-faint)', transition: 'all 0.2s ease', background: 'var(--bg-card)' }}
+                                style={{
+                                    border: '2px dashed var(--border)',
+                                    borderRadius: 'var(--radius-lg)',
+                                    display: 'flex', flexDirection: 'column',
+                                    alignItems: 'center', justifyContent: 'center',
+                                    cursor: 'pointer', height: '100%', minHeight: '260px',
+                                    color: 'var(--text-faint)', transition: 'all 0.2s ease',
+                                    background: 'var(--bg-card)',
+                                    gap: '1rem'
+                                }}
                             >
-                                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', marginBottom: '0.875rem', transition: 'background 0.2s' }}>
+                                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', transition: 'background 0.2s' }}>
                                     <Plus size={22} />
                                 </div>
-                                <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>Create New Resume</span>
+                                <div style={{ textAlign: 'center' }}>
+                                    <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)', display: 'block' }}>Create New</span>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>Start a new ATS optimize flow</span>
+                                </div>
                             </motion.div>
                         </div>
                     )}

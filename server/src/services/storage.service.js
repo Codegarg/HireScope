@@ -2,22 +2,62 @@ import fs from 'fs';
 import path from 'path';
 import { r2, R2_BUCKET } from '../utils/r2Client.js';
 import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { logger } from '../utils/logger.js';
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 
-// Ensure the local fallback directory exists statically
-if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+/**
+ * Ensures the local fallback directory exists ONLY when needed.
+ */
+const ensureLocalDir = () => {
+    if (!fs.existsSync(UPLOADS_DIR)) {
+        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    }
+};
 
 /**
- * Robustly uploads a file. Tries Cloudflare R2 first; falls back to local disk if R2 fails.
- * @param {string} fileKey - Universal unique identifier for the file (e.g. resumes/xyz/123.pdf)
+ * Validates that a fileKey follows the expected HireScope format.
+ * Prevents saving corrupted or malformed keys to the database.
+ * @param {string} fileKey 
+ * @returns {boolean}
+ */
+export const validateFileKey = (fileKey) => {
+    if (!fileKey || typeof fileKey !== 'string') return false;
+    // Expected formats: 
+    // resumes/{userId}/{timestamp}.{ext}
+    // resumes/{userId}/v{version}-{timestamp}-{suffix}.pdf
+    return fileKey.startsWith('resumes/') && fileKey.split('/').length >= 3;
+};
+
+/**
+ * Standardized key generator for resumes and versions.
+ * @param {string} userId 
+ * @param {'original' | 'version'} type 
+ * @param {object} metadata - { versionNumber, extension, suffix }
+ * @returns {string}
+ */
+export const generateFileKey = (userId, type, { versionNumber, extension = 'pdf', suffix = '' } = {}) => {
+    const timestamp = Date.now();
+    if (type === 'original') {
+        return `resumes/${userId}/${timestamp}.${extension}`;
+    }
+    const versionPart = versionNumber ? `v${versionNumber}-` : '';
+    const suffixPart = suffix ? `-${suffix}` : '';
+    return `resumes/${userId}/${versionPart}${timestamp}${suffixPart}.pdf`;
+};
+
+/**
+ * Robustly uploads a file. Tries Cloudflare R2 first; falls back to local disk ONLY if R2 fails.
+ * @param {string} fileKey - Universal unique identifier for the file
  * @param {Buffer} buffer - File data
  * @param {string} mimetype - Content type of the file
  * @returns {Promise<void>}
  */
 export const uploadFile = async (fileKey, buffer, mimetype) => {
+    if (!validateFileKey(fileKey)) {
+        throw new Error(`Invalid fileKey format: ${fileKey}`);
+    }
+
     try {
         await r2.send(new PutObjectCommand({
             Bucket: R2_BUCKET,
@@ -25,25 +65,26 @@ export const uploadFile = async (fileKey, buffer, mimetype) => {
             Body: buffer,
             ContentType: mimetype,
         }));
-        console.log(`[StorageService] Successfully uploaded to R2: ${fileKey}`);
+        logger.upload('File uploaded successfully to R2', { fileKey });
     } catch (r2Error) {
-        console.error(`[StorageService] R2 Upload failed for ${fileKey}: ${r2Error.message}. Falling back to local storage.`);
+        logger.warn('STORAGE', `R2 Upload failed for ${fileKey}`, { error: r2Error.message });
 
         try {
+            ensureLocalDir();
             // Flatten the key path for local storage to avoid nested directory creation issues
             const safeLocalName = fileKey.replace(/\//g, '_');
             const localPath = path.join(UPLOADS_DIR, safeLocalName);
             await fs.promises.writeFile(localPath, buffer);
-            console.log(`[StorageService] Fallback Local Upload Success: ${localPath}`);
+            logger.upload('File uploaded to local fallback storage', { localPath });
         } catch (localErr) {
-            console.error(`[StorageService] CRITICAL FAULT: Local upload also failed for ${fileKey}:`, localErr);
+            logger.error('STORAGE', 'CRITICAL: Both R2 and Local Fallback Failed', { fileKey, error: localErr.message });
             throw new Error('Both Cloud Storage and Local Fallback Failed');
         }
     }
 };
 
 /**
- * Robustly retrieves a file stream. Checks R2 first; checks local fallback if R2 fails or throws NoSuchKey.
+ * Retrieves a file stream. Checks R2 first.
  * @param {string} fileKey - Universal unique identifier for the file
  * @returns {Promise<{ stream: import('stream').Readable, contentLength?: number }>}
  */
@@ -54,13 +95,12 @@ export const getFileStream = async (fileKey) => {
             Key: fileKey,
         });
         const r2Response = await r2.send(command);
-        console.log(`[StorageService] R2 Fetch Success: ${fileKey}`);
         return {
             stream: r2Response.Body,
             contentLength: r2Response.ContentLength
         };
     } catch (r2Error) {
-        console.warn(`[StorageService] R2 Fetch Failed for ${fileKey}: ${r2Error.message}. Searching local fallback.`);
+        logger.warn('STORAGE', `R2 Fetch Failed for ${fileKey}`, { error: r2Error.message });
 
         const safeLocalName = fileKey.replace(/\//g, '_');
         const localPath = path.join(UPLOADS_DIR, safeLocalName);
@@ -69,20 +109,16 @@ export const getFileStream = async (fileKey) => {
             await fs.promises.access(localPath, fs.constants.F_OK);
             const stat = await fs.promises.stat(localPath);
             const stream = fs.createReadStream(localPath);
-            console.log(`[StorageService] Local Fetch Success: ${localPath}`);
-            return {
-                stream,
-                contentLength: stat.size
-            };
+            return { stream, contentLength: stat.size };
         } catch (localErr) {
-            console.error(`[StorageService] CRITICAL FAULT: File not found in R2 or Local Storage for ${fileKey}`);
+            logger.error('STORAGE', 'File not found in any storage', { fileKey });
             throw new Error(`File not found: ${fileKey}`);
         }
     }
 };
 
 /**
- * Robustly deletes a file from both R2 and local fallback concurrently.
+ * Deletes a file from both R2 and local fallback.
  * @param {string} fileKey - Universal unique identifier for the file
  * @returns {Promise<void>}
  */
@@ -94,10 +130,8 @@ export const deleteFile = async (fileKey) => {
         r2.send(new DeleteObjectCommand({
             Bucket: R2_BUCKET,
             Key: fileKey,
-        })).then(() => {
-            console.log(`[StorageService] Deleted from R2: ${fileKey}`);
-        }).catch(err => {
-            console.warn(`[StorageService] R2 Deletion Soft-Fail for ${fileKey}: ${err.message}`);
+        })).catch(err => {
+            console.warn(`[StorageService] R2 Deletion Soft-Fail: ${err.message}`);
         })
     );
 
@@ -106,14 +140,29 @@ export const deleteFile = async (fileKey) => {
     const localPath = path.join(UPLOADS_DIR, safeLocalName);
 
     promises.push(
-        fs.promises.unlink(localPath).then(() => {
-            console.log(`[StorageService] Deleted from Local: ${localPath}`);
-        }).catch(err => {
-            if (err.code !== 'ENOENT') {
-                console.warn(`[StorageService] Local Deletion Soft-Fail for ${localPath}: ${err.message}`);
-            }
-        })
+        fs.promises.unlink(localPath).catch(() => { }) // Ignore if file doesn't exist locally
     );
 
     await Promise.allSettled(promises);
+};
+
+/**
+ * Canonical entry-point for original resume uploads.
+ */
+export const uploadResume = async (userId, fileBuffer, mimetype, originalName) => {
+    const extension = originalName?.includes('.') ? originalName.split('.').pop().toLowerCase() : 'pdf';
+    const fileKey = generateFileKey(userId, 'original', { extension });
+
+    await uploadFile(fileKey, fileBuffer, mimetype);
+    return fileKey;
+};
+
+/**
+ * Canonical entry-point for resume versions.
+ */
+export const uploadResumeVersion = async (userId, versionNumber, fileBuffer, suffix = 'rendered') => {
+    const fileKey = generateFileKey(userId, 'version', { versionNumber, suffix });
+
+    await uploadFile(fileKey, fileBuffer, 'application/pdf');
+    return fileKey;
 };

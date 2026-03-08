@@ -1,13 +1,14 @@
 import { calculateATSScore } from "../services/atsScorer.js";
-import crypto from 'crypto';
 import { extractTextFromFile } from "../services/textExtractor.service.js";
 import { generateSuggestions } from "../services/ai.service.js";
 import Resume from "../models/resume.model.js";
-import { uploadFile } from "../services/storage.service.js";
-import { parseResumeToStructured } from "../utils/structuredResumeParser.js";
+import { uploadResume as uploadResumeToStorage, validateFileKey } from "../services/storage.service.js";
+import { logger } from "../utils/logger.js";
+import { ApiError } from "../middlewares/error.middleware.js";
 
-export const analyzeResume = async (req, res) => {
+export const analyzeResume = async (req, res, next) => {
   try {
+    logger.analysis('New analysis request received', { userId: req.user?.id });
     const resumeFile = req.files?.resume?.[0];
     const jdFile = req.files?.jd?.[0];
     const jdTextInput = req.body.jdText;
@@ -19,7 +20,7 @@ export const analyzeResume = async (req, res) => {
 
     // Resume file or Resume ID is mandatory
     if (!resumeFile && !req.body.resumeId) {
-      return res.status(400).json({ message: "Resume file or resumeId is required" });
+      throw new ApiError(400, "Resume file or resumeId is required");
     }
 
     // Extract resume text
@@ -28,7 +29,7 @@ export const analyzeResume = async (req, res) => {
     } else if (req.body.resumeId) {
       // Fetch existing resume content
       const existing = await Resume.findById(req.body.resumeId);
-      if (!existing) return res.status(404).json({ message: "Resume not found" });
+      if (!existing) throw new ApiError(404, "Resume not found");
       resumeText = existing.parsedText || existing.originalContent || "";
     }
 
@@ -38,7 +39,7 @@ export const analyzeResume = async (req, res) => {
     } else if (jdFile) {
       jdText = await extractTextFromFile(jdFile);
     } else {
-      return res.status(400).json({ message: "Job Description text or file is required" });
+      throw new ApiError(400, "Job Description text or file is required");
     }
 
     // ── Hybrid ATS scoring (rule-based + Llama 3) ──────────────────────────
@@ -54,25 +55,30 @@ export const analyzeResume = async (req, res) => {
 
     // ── Auto-save resume if user is logged in ─────────────────────────────
     let savedResumeId = null;
-    let finalResumeData = null;
-    let finalOriginalFileKey = null;
 
     if (req.user) {
       const userId = req.user.id;
-      const timestamp = Date.now();
 
-      // ── Upload original PDF to Storage (non-fatal) ─────────────────
+      // Upload original file to storage if provided (non-fatal)
       let originalFileKey = "";
       if (resumeFile) {
         try {
-          originalFileKey = `resumes/${userId}-${timestamp}.pdf`;
-          await uploadFile(originalFileKey, resumeFile.buffer, "application/pdf");
+          originalFileKey = await uploadResumeToStorage(
+            userId,
+            resumeFile.buffer,
+            resumeFile.mimetype,
+            resumeFile.originalname
+          );
+          // Validate the returned key before proceeding
+          if (!validateFileKey(originalFileKey)) {
+            console.error("[Storage] Storage service returned unexpected key format:", originalFileKey);
+            originalFileKey = "";
+          }
         } catch (uploadErr) {
           console.error("[Storage] Upload failed (non-fatal):", uploadErr.message);
           originalFileKey = "";
         }
       } else if (req.body.resumeId) {
-        // Carry over the existing PDF key so we don't lose the frontend PDF view
         const existing = await Resume.findById(req.body.resumeId);
         if (existing) {
           originalFileKey = existing.originalFileKey || "";
@@ -90,7 +96,7 @@ export const analyzeResume = async (req, res) => {
           })} - ${jdText.substring(0, 15)}...`;
         })(),
         originalContent: resumeText,
-        parsedText: resumeText, // Raw extracted text
+        parsedText: resumeText,
         atsScore: atsResult.atsScore || 0,
         suggestionsCount: aiSuggestions?.length || 0,
         analysis: {
@@ -100,12 +106,9 @@ export const analyzeResume = async (req, res) => {
           suggestions: atsResult.improvementSuggestions || []
         },
         originalFileKey,
-        resumeData: parseResumeToStructured(resumeText) || {}, // Populating structured data
         versions: [{
           versionNumber: 1,
           atsScore: atsResult.atsScore || 0,
-          resumeData: parseResumeToStructured(resumeText) || {},
-          content: resumeText,
           fileKey: originalFileKey,
           type: "original",
           createdAt: new Date()
@@ -114,8 +117,7 @@ export const analyzeResume = async (req, res) => {
       });
       const saved = await newResume.save();
       savedResumeId = saved._id;
-      finalResumeData = saved.resumeData;
-      finalOriginalFileKey = saved.originalFileKey;
+      logger.analysis('Analysis saved successfully', { resumeId: savedResumeId, userId });
     }
 
     return res.status(200).json({
@@ -126,12 +128,10 @@ export const analyzeResume = async (req, res) => {
         resumeId: savedResumeId,
         resumeText,
         jdText,
-        resumeData: finalResumeData,
-        originalFileKey: finalOriginalFileKey,
       },
     });
   } catch (error) {
-    console.error("ATS Analysis Error:", error);
-    return res.status(500).json({ message: "Error analyzing resume" });
+    logger.error('ANALYSIS', "Analysis Error", { error: error.message, userId: req.user?.id });
+    next(error);
   }
 };

@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { AuthContext } from '../context/AuthContext';
-import ResumeLayout from '../components/resume/ResumeLayout';
 
 const ResumeDetail = () => {
     const { id } = useParams();
@@ -121,7 +120,7 @@ const ResumeDetail = () => {
                                     <Clock size={16} /> Last updated {new Date(resume.updatedAt).toLocaleDateString()}
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                                    <User size={16} /> {resume.personalInfo?.fullName || 'No Name'}
+                                    <User size={16} /> {resume.title || 'Untitled'}
                                 </div>
                                 {resume.atsScore > 0 && (
                                     <div className="badge badge-success">

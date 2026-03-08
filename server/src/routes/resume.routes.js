@@ -13,14 +13,14 @@ import {
     streamResumeFile,
     deleteResume,
     cloneResume,
-    generateResumeStructure,
     uploadResume,
     getResumeVersions,
     restoreResumeVersion,
     downloadVersionPDF,
     viewVersionPDF,
     commitVersion,
-    uploadVersionPDF
+    uploadVersionPDF,
+    extractResumeStructure
 } from "../controllers/resume.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
@@ -56,7 +56,7 @@ router.post("/rewrite", rewriteSection);
 router.post("/interview-prep", getInterviewPrep);
 router.post("/:id/improve", improveResume);
 router.post("/:id/improve-stream", improveResumeStreaming);
-router.post("/:id/structure", generateResumeStructure);
+router.post("/:id/extract-structure", extractResumeStructure);
 
 // PDF Download (generated from DB data)
 router.get("/:id/download", downloadResumePDF);

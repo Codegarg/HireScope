@@ -12,7 +12,29 @@ const resumeSchema = new mongoose.Schema({
         default: 'My Resume'
     },
 
-    // ATS Score Tracking
+    // ── R2 Storage — key of the original uploaded file in Cloudflare R2 ──────
+    // This is the single source of truth for resume content.
+    originalFileKey: {
+        type: String,
+        default: ''
+    },
+
+    // ── Extracted plain text (for ATS scoring and AI improve) ────────────────
+    parsedText: {
+        type: String,
+        default: ''
+    },
+    // Structured JSON data (sections, items etc.)
+    content: {
+        type: Object,
+        default: null
+    },
+    originalContent: {
+        type: String,
+        default: ''
+    },
+
+    // ── ATS Score Tracking ────────────────────────────────────────────────────
     atsScore: {
         type: Number,
         default: 0
@@ -28,92 +50,15 @@ const resumeSchema = new mongoose.Schema({
         suggestions: { type: [String], default: [] }
     },
 
-    // Core Sections
-    personalInfo: {
-        fullName: { type: String, default: "" },
-        email: { type: String, default: "" },
-        phone: { type: String, default: "" },
-        address: { type: String, default: "" },
-        linkedin: { type: String, default: "" },
-        github: { type: String, default: "" },
-        website: { type: String, default: "" },
-        summary: { type: String, default: "" }
-    },
-
-    // Professional Experience
-    experience: [{
-        company: String,
-        position: String,
-        location: String,
-        startDate: String,
-        endDate: String,
-        current: { type: Boolean, default: false },
-        description: String // This will be the target for AI Optimization
-    }],
-
-    // Education
-    education: [{
-        school: String,
-        degree: String,
-        fieldOfStudy: String,
-        startDate: String,
-        endDate: String,
-        gpa: String
-    }],
-
-    // Industry-Critical Sections
-    skills: {
-        technical: [String], // e.g., Java, React, Docker
-        soft: [String],      // e.g., Leadership, Communication
-        tools: [String]      // e.g., Figma, Git
-    },
-
-    certifications: [{
-        name: String,
-        issuer: String,
-        date: String,
-        url: String
-    }],
-
-    projects: [{
-        name: String,
-        description: String,
-        technologies: [String],
-        link: String
-    }],
-
-    languages: [{
-        language: String,
-        proficiency: String // e.g., Native, Professional
-    }],
-
-    // Versioning Support
-    originalContent: {
-        type: String,
-        default: ""
-    },
-
-    parsedText: {
-        type: String,
-        default: ""
-    },
-
+    // ── Versioning ────────────────────────────────────────────────────────────
     versions: [{
         versionNumber: {
             type: Number,
             required: true
         },
-        resumeData: {
-            type: Object, // Structured snapshot
-            default: null
-        },
-        content: {
-            type: String, // Text snapshot
-            default: ""
-        },
         fileKey: {
-            type: String, // R2 PDF key
-            default: ""
+            type: String,  // R2 key for the PDF of this version
+            default: ''
         },
         atsScore: {
             type: Number,
@@ -133,20 +78,6 @@ const resumeSchema = new mongoose.Schema({
     versionCounter: {
         type: Number,
         default: 0
-    },
-
-    // R2 Storage — key of the original uploaded PDF in Cloudflare R2
-    originalFileKey: {
-        type: String,
-        default: ''
-    },
-
-    // ── Structured Resume Data (populated by structuredResumeParser) ───────────
-    // Used for: professional rendering, AI optimization, structured editing
-    // parsedText / versions / originalContent continue to drive ATS scoring
-    resumeData: {
-        type: Object,
-        default: null
     }
 
 }, { timestamps: true });

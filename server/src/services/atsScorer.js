@@ -7,7 +7,7 @@
  * Falls back gracefully if Llama 3 / Cloudflare is unavailable.
  */
 
-import { calculateATSScore as ruleBasedScore, extractExperienceYears } from "../utils/atsEngine.js";
+import { ruleBasedATSScore, extractExperienceYears } from "../utils/atsEngine.js";
 import { callLlamaEvaluator } from "./ai.service.js";
 import { cleanText } from "../utils/textCleaner.util.js";
 
@@ -97,7 +97,7 @@ export const calculateATSScore = async (resumeText, jdText, options = {}) => {
   const cleanJD = cleanText(jdText);
 
   // ── Step 1: Rule-based scoring (sync, always runs) ────────────────────────
-  const ruleResult = ruleBasedScore(cleanResume, cleanJD);
+  const ruleResult = ruleBasedATSScore(cleanResume, cleanJD);
   const ruleScore = ruleResult.ruleScore;
 
   // ── Step 2: Llama 3 evaluation (async, fault-tolerant) ────────────────────

@@ -362,46 +362,16 @@ const scoreSemanticSimilarity = (resumeText, jdText) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  MAIN EXPORT — calculateATSScore
+//  MAIN EXPORT — ruleBasedATSScore
 // ─────────────────────────────────────────────────────────────────────────────
 /**
- * Rule-based 8-component ATS scorer.
- * Accepts either:
- *   - (resumeText: string, jobDescription: string)  — raw text mode
- *   - (resumeDoc: Object, jobDescription: string)   — structured doc mode
+ * Synchronous rule-based 8-component ATS scorer.
+ * Accepts plain text strings for both resume and job description.
  *
  * Returns the standard result shape plus `ruleScore`.
  */
-export const calculateATSScore = (resume, jobDescription) => {
-    // ── 0. Normalize input ─────────────────────────────────────────────────────
-    let resumeText = "";
-
-    if (typeof resume === "string") {
-        resumeText = resume;
-    } else if (resume && typeof resume === "object") {
-        // Structured resume document (from mongoose / frontend editor)
-        const doc = resume.toObject ? resume.toObject() : resume;
-        resumeText = [
-            doc.personalInfo?.name || "",
-            doc.personalInfo?.email || "",
-            doc.personalInfo?.phone || "",
-            doc.personalInfo?.summary || "",
-            ...(doc.experience || []).map(
-                (e) => `${e.position || ""} ${e.company || ""} ${e.startDate || ""} ${e.endDate || ""} ${e.description || ""}`
-            ),
-            ...(doc.projects || []).map(
-                (p) => `${p.title || ""} ${(p.technologies || []).join(" ")} ${p.description || ""}`
-            ),
-            ...(doc.education || []).map(
-                (e) => `${e.degree || ""} ${e.school || ""} ${e.startDate || ""} ${e.endDate || ""}`
-            ),
-            ...(doc.skills?.technical || []),
-            ...(doc.skills?.soft || []),
-            doc.versions?.[doc.currentVersionIndex]?.content || doc.originalContent || "",
-        ].join(" ");
-    }
-
-    if (!jobDescription || !resumeText.trim()) {
+export const ruleBasedATSScore = (resumeText, jobDescription) => {
+    if (!jobDescription || !resumeText?.trim()) {
         return {
             score: 0,
             ruleScore: 0,

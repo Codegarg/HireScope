@@ -2,18 +2,19 @@ import User from '../models/user.model.js';
 import { generateToken } from '../utils/jwt.js';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { logger } from '../utils/logger.js';
+import { ApiError } from '../middlewares/error.middleware.js';
 
-export const signup = async (req, res) => {
+export const signup = async (req, res, next) => {
     try {
-        // Use 'username' to match the database schema while providing 'name' in response for the frontend
         const { username, email, password } = req.body;
 
         if (!username || !email || !password) {
-            return res.status(400).json({ message: "All fields are required" });
+            throw new ApiError(400, "All fields are required");
         }
 
         const existingUser = await User.findOne({ email });
-        if (existingUser) return res.status(400).json({ message: "User already exists" });
+        if (existingUser) throw new ApiError(400, "User already exists");
 
         const user = new User({ username, email, password });
         await user.save();
@@ -30,18 +31,17 @@ export const signup = async (req, res) => {
             token
         });
     } catch (error) {
-        console.error("Signup Error:", error);
-        res.status(500).json({ message: "Server error during signup" });
+        next(error);
     }
 };
 
-export const login = async (req, res) => {
+export const login = async (req, res, next) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
 
         if (!user || !(await user.comparePassword(password))) {
-            return res.status(401).json({ message: "Invalid credentials" });
+            throw new ApiError(401, "Invalid credentials");
         }
 
         const token = generateToken(user._id);
@@ -56,12 +56,11 @@ export const login = async (req, res) => {
             token
         });
     } catch (error) {
-        console.error("Login Error:", error);
-        res.status(500).json({ message: "Server error during login" });
+        next(error);
     }
 };
 
-export const forgotPassword = async (req, res) => {
+export const forgotPassword = async (req, res, next) => {
     try {
         const { email } = req.body;
         const user = await User.findOne({ email });
@@ -107,12 +106,12 @@ export const forgotPassword = async (req, res) => {
         await transporter.sendMail(mailOptions);
         res.status(200).json({ message: "Reset link sent to your email." });
     } catch (error) {
-        console.error("Mail Error Details:", error);
-        res.status(500).json({ message: "Error sending reset email." });
+        logger.error('AUTH', "Mail Error Details", { error: error.message });
+        next(error);
     }
 };
 
-export const resetPassword = async (req, res) => {
+export const resetPassword = async (req, res, next) => {
     try {
         const { token } = req.params;
         const { password } = req.body;
@@ -132,30 +131,29 @@ export const resetPassword = async (req, res) => {
 
         res.status(200).json({ message: "Password updated successfully." });
     } catch (error) {
-        console.error("Reset Password Error:", error);
-        res.status(500).json({ message: "Error resetting password." });
+        next(error);
     }
 };
 
-export const changePassword = async (req, res) => {
+export const changePassword = async (req, res, next) => {
     try {
         const { currentPassword, newPassword } = req.body;
 
         // Find user by ID, selecting password
         const user = await User.findById(req.user.id);
         if (!user) {
-            return res.status(404).json({ message: "User not found" });
+            throw new ApiError(404, "User not found");
         }
 
         // Check if user has a password set (e.g. might be Google Auth only)
         if (!user.password) {
-            return res.status(400).json({ message: "Password cannot be changed for this account type." });
+            throw new ApiError(400, "Password cannot be changed for this account type.");
         }
 
         // Verify current password
         const isMatch = await user.comparePassword(currentPassword);
         if (!isMatch) {
-            return res.status(400).json({ message: "Incorrect current password" });
+            throw new ApiError(400, "Incorrect current password");
         }
 
         // Update with new password
@@ -164,23 +162,22 @@ export const changePassword = async (req, res) => {
 
         res.status(200).json({ message: "Password updated successfully" });
     } catch (error) {
-        console.error("Change Password Error:", error);
-        res.status(500).json({ message: "Server error changing password" });
+        next(error);
     }
 };
 
-export const updateProfile = async (req, res) => {
+export const updateProfile = async (req, res, next) => {
     try {
         const { username } = req.body;
         const userId = req.user.id;
 
         if (!username || username.trim() === '') {
-            return res.status(400).json({ message: "Username cannot be empty" });
+            throw new ApiError(400, "Username cannot be empty");
         }
 
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({ message: "User not found" });
+            throw new ApiError(404, "User not found");
         }
 
         user.username = username.trim();
@@ -195,12 +192,11 @@ export const updateProfile = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("Update Profile Error:", error);
-        res.status(500).json({ message: "Server error updating profile" });
+        next(error);
     }
 };
 
-export const deleteAccount = async (req, res) => {
+export const deleteAccount = async (req, res, next) => {
     try {
         const userId = req.user.id;
 
@@ -208,12 +204,11 @@ export const deleteAccount = async (req, res) => {
         const deletedUser = await User.findByIdAndDelete(userId);
 
         if (!deletedUser) {
-            return res.status(404).json({ message: "User not found" });
+            throw new ApiError(404, "User not found");
         }
 
         res.status(200).json({ message: "Account deleted successfully" });
     } catch (error) {
-        console.error("Delete Account Error:", error);
-        res.status(500).json({ message: "Server error deleting account" });
+        next(error);
     }
 };

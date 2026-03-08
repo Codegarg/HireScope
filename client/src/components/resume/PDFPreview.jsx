@@ -70,7 +70,13 @@ const PDFPreview = ({ resumeId, fallbackText, templateConfig, versionNumber }) =
     }
 
     return (
-        <div style={{ width: '100%' }}>
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2rem',
+            padding: '2rem 0'
+        }}>
             <Document
                 file={fileObject}
                 onLoadSuccess={onDocumentLoadSuccess}
@@ -78,16 +84,33 @@ const PDFPreview = ({ resumeId, fallbackText, templateConfig, versionNumber }) =
                 loading=""
             >
                 {Array.from({ length: numPages || 0 }, (_, i) => (
-                    <Page
-                        key={`page_${i + 1}`}
-                        pageNumber={i + 1}
-                        width={680}
-                        renderAnnotationLayer
-                        renderTextLayer
-                        style={{ marginBottom: i < numPages - 1 ? '1rem' : 0 }}
-                    />
+                    <div
+                        key={`page_container_${i + 1}`}
+                        style={{
+                            boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+                            borderRadius: '4px',
+                            background: '#fff',
+                            marginBottom: i < numPages - 1 ? '2rem' : 0,
+                            overflow: 'hidden',
+                            border: '1px solid var(--border)'
+                        }}
+                    >
+                        <Page
+                            pageNumber={i + 1}
+                            scale={1.5}
+                            devicePixelRatio={window.devicePixelRatio}
+                            renderAnnotationLayer
+                            renderTextLayer
+                        />
+                    </div>
                 ))}
             </Document>
+            <style>{`
+                .react-pdf__Page__canvas {
+                    max-width: 100% !important;
+                    height: auto !important;
+                }
+            `}</style>
         </div>
     );
 };

@@ -5,15 +5,15 @@ import { callCloudflareAINonStreaming } from "./ai.service.js";
  * Returns an object matching the resumeData schema.
  */
 export const extractStructuredResume = async (parsedText) => {
-    if (!parsedText || parsedText.trim().length < 50) {
-        throw new Error("Parsed text too short for structure extraction");
-    }
+  if (!parsedText || parsedText.trim().length < 50) {
+    throw new Error("Parsed text too short for structure extraction");
+  }
 
-    const systemPrompt = `You are a high-fidelity resume parsing engine. 
+  const systemPrompt = `You are a high-fidelity resume parsing engine. 
 Your goal is to extract structured information from a resume's text and return ONLY valid JSON.
 DO NOT fabricate details. If a field is missing, use empty strings or empty arrays.`;
 
-    const userPrompt = `Convert the following resume text into a structured JSON object.
+  const userPrompt = `Convert the following resume text into a structured JSON object.
 
 REQUIRED SCHEMA:
 {
@@ -58,38 +58,41 @@ REQUIRED SCHEMA:
       "startYear": "Start Year",
       "endYear": "End Year"
     }
-  ]
+  ],
+  "certifications": ["e.g., AWS Certified Developer", "PMP"],
+  "awards": ["e.g., Employee of the Year 2023"],
+  "spokenLanguages": ["e.g., English (Native)", "Spanish (Professional)"]
 }
 
 RESUME TEXT:
 ${parsedText.substring(0, 4000)}`;
 
-    try {
-        const aiResponse = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
+  try {
+    const aiResponse = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
 
-        // Strip markdown fences
-        const cleanJson = aiResponse
-            .replace(/```json/gi, '')
-            .replace(/```/g, '')
-            .trim();
+    // Strip markdown fences
+    const cleanJson = aiResponse
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
 
-        const start = cleanJson.indexOf('{');
-        const end = cleanJson.lastIndexOf('}');
+    const start = cleanJson.indexOf('{');
+    const end = cleanJson.lastIndexOf('}');
 
-        if (start === -1 || end === -1) throw new Error("No JSON object found in AI response");
+    if (start === -1 || end === -1) throw new Error("No JSON object found in AI response");
 
-        const structuredData = JSON.parse(cleanJson.slice(start, end + 1));
+    const structuredData = JSON.parse(cleanJson.slice(start, end + 1));
 
-        // Basic normalization
-        if (!structuredData.personalInfo) structuredData.personalInfo = {};
-        if (!structuredData.skills) structuredData.skills = { languages: [], core: [], frontend: [], backend: [], databases: [], cloud: [], tools: [] };
-        if (!Array.isArray(structuredData.experience)) structuredData.experience = [];
-        if (!Array.isArray(structuredData.projects)) structuredData.projects = [];
-        if (!Array.isArray(structuredData.education)) structuredData.education = [];
+    // Basic normalization
+    if (!structuredData.personalInfo) structuredData.personalInfo = {};
+    if (!structuredData.skills) structuredData.skills = { languages: [], core: [], frontend: [], backend: [], databases: [], cloud: [], tools: [] };
+    if (!Array.isArray(structuredData.experience)) structuredData.experience = [];
+    if (!Array.isArray(structuredData.projects)) structuredData.projects = [];
+    if (!Array.isArray(structuredData.education)) structuredData.education = [];
 
-        return structuredData;
-    } catch (error) {
-        console.error("[resumeStructure.service] Error extracting structure:", error);
-        throw error;
-    }
+    return structuredData;
+  } catch (error) {
+    console.error("[resumeStructure.service] Error extracting structure:", error);
+    throw error;
+  }
 };

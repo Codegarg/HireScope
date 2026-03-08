@@ -29,4 +29,8 @@ app.get("/", (req, res) => {
   res.json({ message: "HireScope backend running 🚀" });
 });
 
+// Global Error Handler — must be last
+import { errorHandler } from "./middlewares/error.middleware.js";
+app.use(errorHandler);
+
 export default app;

@@ -1,38 +1,40 @@
 import Chat from "../models/Chat.js";
 import { generateChatResponse } from "../services/ai.service.js";
+import { logger } from "../utils/logger.js";
+import { ApiError } from "../middlewares/error.middleware.js";
 
 // List all chats for the user
-export const getUserChats = async (req, res) => {
+export const getUserChats = async (req, res, next) => {
     try {
         const chats = await Chat.find({ user: req.user.id })
             .sort({ updatedAt: -1 })
-            .select("title updatedAt context.resumeId"); // Lightweight list
+            .select("title updatedAt context.resumeId");
         res.status(200).json({ success: true, data: chats });
     } catch (error) {
-        res.status(500).json({ message: "Error fetching chats" });
+        next(error);
     }
 };
 
 // Get single chat details
-export const getChatById = async (req, res) => {
+export const getChatById = async (req, res, next) => {
     try {
         const chat = await Chat.findOne({ _id: req.params.id, user: req.user.id });
-        if (!chat) return res.status(404).json({ message: "Chat not found" });
+        if (!chat) throw new ApiError(404, "Chat not found");
         res.status(200).json({ success: true, data: chat });
     } catch (error) {
-        res.status(500).json({ message: "Error fetching chat" });
+        next(error);
     }
 };
 
 // Create new chat or append message to existing
-export const sendMessage = async (req, res) => {
+export const sendMessage = async (req, res, next) => {
     try {
         const { message, chatId, context } = req.body;
         let chat;
 
         if (chatId) {
             chat = await Chat.findOne({ _id: chatId, user: req.user.id });
-            if (!chat) return res.status(404).json({ message: "Chat not found" });
+            if (!chat) throw new ApiError(404, "Chat not found");
         } else {
             chat = new Chat({
                 user: req.user.id,
@@ -86,10 +88,9 @@ export const sendMessage = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Chat Error:", error);
-        // If headers haven't been sent, send JSON error. Otherwise, stream error.
+        logger.error('AI', "Chat Error", { error: error.message, chatId: req.body.chatId });
         if (!res.headersSent) {
-            res.status(500).json({ message: "Error processing message" });
+            next(error);
         } else {
             res.write(`data: ${JSON.stringify({ error: "Server error during stream" })}\n\n`);
             res.end();
@@ -97,11 +98,12 @@ export const sendMessage = async (req, res) => {
     }
 };
 
-export const deleteChat = async (req, res) => {
+export const deleteChat = async (req, res, next) => {
     try {
-        await Chat.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+        const deleted = await Chat.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+        if (!deleted) throw new ApiError(404, "Chat not found");
         res.status(200).json({ success: true, message: "Chat deleted" });
     } catch (error) {
-        res.status(500).json({ message: "Error deleting chat" });
+        next(error);
     }
 };

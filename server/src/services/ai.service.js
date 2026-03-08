@@ -1,6 +1,6 @@
-import dotenv from "dotenv";
-dotenv.config();
 import { SECTION_HEADERS } from "../utils/skillDictionary.util.js";
+import { logger } from "../utils/logger.js";
+import { ApiError } from "../middlewares/error.middleware.js";
 
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
@@ -8,8 +8,8 @@ const MODEL = "@cf/meta/llama-3-8b-instruct";
 
 const callCloudflareAI = async (prompt, systemPrompt = "You are an expert career assistant and ATS specialist. Provide concise, professional, and actionable advice.") => {
     if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_API_TOKEN) {
-        console.warn("Cloudflare credentials missing.");
-        return "AI service is currently unavailable. Please configure Cloudflare credentials.";
+        logger.error('AI', "Cloudflare credentials missing.");
+        throw new ApiError(503, "AI service configuration missing");
     }
 
     try {
@@ -32,10 +32,13 @@ const callCloudflareAI = async (prompt, systemPrompt = "You are an expert career
         );
 
         const data = await response.json();
-        return data.result?.response || "Failed to generate AI response.";
+        if (!data.result?.response) {
+            throw new Error(data.errors?.[0]?.message || "Failed to generate AI response");
+        }
+        return data.result.response;
     } catch (error) {
-        console.error("Cloudflare AI Error:", error);
-        return "Error communicating with AI service.";
+        logger.error('AI', "Cloudflare AI Error", { error: error.message });
+        throw error;
     }
 };
 
@@ -172,7 +175,8 @@ export const generateInterviewPrep = async (resumeText, companyName) => {
  */
 export const callCloudflareAINonStreaming = async (systemPrompt, userPrompt) => {
     if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_API_TOKEN) {
-        throw new Error('Cloudflare credentials missing for non-streaming call');
+        logger.error('AI', 'Cloudflare credentials missing for non-streaming call');
+        throw new ApiError(503, 'AI service configuration missing');
     }
     try {
         const response = await fetch(
@@ -193,10 +197,12 @@ export const callCloudflareAINonStreaming = async (systemPrompt, userPrompt) => 
             }
         );
         const data = await response.json();
-        if (!data.result?.response) throw new Error('Empty AI response');
+        if (!data.result?.response) {
+            throw new Error(data.errors?.[0]?.message || 'Empty AI response');
+        }
         return data.result.response;
     } catch (error) {
-        console.error('Cloudflare Non-Streaming Error:', error.message);
+        logger.error('AI', 'Cloudflare Non-Streaming Error', { error: error.message });
         throw error;
     }
 };
@@ -232,111 +238,218 @@ export const extractSectionHeaders = (text) => {
 };
 
 /**
- * STRUCTURED MODE: Surgical improvements — returns improved plain text directly.
- * JSON was unreliable: bullet text has quotes/newlines Llama 3 never escapes correctly.
+ * Extract section headings and their order from a plain-text resume.
+ * Returns an ordered list of section header lines found.
  */
-export const improveResumeStructured = async (resumeText, jobDescription, missingKeywords = []) => {
-    const systemPrompt = `You are a precise resume optimization engine.
-Output ONLY the improved resume as plain text. No JSON. No markdown fences. No explanations. No preamble.`;
+const extractSectionOrder = (resumeText) => {
+    const knownHeaders = [
+        'summary', 'objective', 'profile', 'about',
+        'skills', 'technical skills', 'core competencies',
+        'experience', 'work experience', 'employment', 'work history',
+        'projects', 'project experience',
+        'education', 'academic background',
+        'certifications', 'certificates', 'awards', 'achievements',
+        'languages', 'interests', 'publications', 'volunteering'
+    ];
+    const lines = resumeText.split('\n');
+    const sections = [];
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.length > 60) continue;
+        const lower = trimmed.toLowerCase().replace(/[^a-z ]/g, '');
+        if (knownHeaders.some(h => lower === h || lower.startsWith(h))) {
+            sections.push(trimmed);
+        }
+    }
+    return sections;
+};
 
-    const keywordHint = missingKeywords.length > 0
-        ? `\nCRITICAL — These keywords are MISSING from the resume but required by the JD. You MUST naturally incorporate them into relevant existing sections:\n${missingKeywords.map(k => `  • ${k}`).join('\n')}\n`
+/**
+ * Strip any preamble before the resume's actual start.
+ * The resume starts at the candidate's name — we find the first line of the
+ * original resume in the AI output and discard everything before it.
+ */
+const stripPreamble = (aiOutput, originalFirstLine) => {
+    if (!originalFirstLine) return aiOutput.trim();
+    const needle = originalFirstLine.trim().toLowerCase();
+    const lines = aiOutput.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim().toLowerCase().includes(needle.substring(0, Math.min(needle.length, 20)))) {
+            return lines.slice(i).join('\n').trim();
+        }
+    }
+    // If we can't find the original first line, return as-is
+    return aiOutput.trim();
+};
+
+/**
+ * STRUCTURED MODE (OPTIMIZE): Surgical improvements — injects missing ATS keywords
+ * into existing bullets only. Structure, headings, and order are NEVER touched.
+ *
+ * @param {string} resumeText
+ * @param {string} jobDescription
+ * @param {string[]} missingKeywords  — top missing critical skills from rule engine
+ * @param {Object}  atsContext        — full ATS analysis: { matchedSkills, weakSections, breakdown, atsScore, missingCriticalSkills }
+ */
+export const improveResumeStructured = async (resumeText, jobDescription, missingKeywords = [], atsContext = {}) => {
+    const { matchedSkills = [], weakSections = [], breakdown = {}, atsScore = null, missingCriticalSkills = [] } = atsContext;
+
+    // Merge deduped missing keywords (rule engine + full ATS list)
+    const allMissing = [...new Set([...missingCriticalSkills, ...missingKeywords])].slice(0, 15);
+    const weakList = weakSections.length > 0 ? weakSections.join(', ') : 'none identified';
+
+    // Extract the EXACT section order from the original resume to enforce it
+    const sectionOrder = extractSectionOrder(resumeText);
+    const originalFirstLine = resumeText.split('\n').find(l => l.trim().length > 0) || '';
+    const sectionOrderBlock = sectionOrder.length > 0
+        ? `MANDATORY SECTION ORDER — output sections in EXACTLY this order, with these EXACT headings:\n${sectionOrder.map((s, i) => `  ${i + 1}. ${s}`).join('\n')}\n`
         : '';
 
-    const userPrompt = `Improve this resume surgically for the job description below.
+    const systemPrompt = `You are a resume keyword injection engine. Your only task is to rewrite bullet points to add missing keywords.
 
-STRICT RULES:
-- DO NOT change, add, remove, or reorder section headings.
-- DO NOT fabricate skills, companies, years, or experience.
-- Only improve wording: stronger action verbs, better quantification, tighter phrasing.
-- Naturally insert relevant keywords from the JD into existing sections only.
-- Improve the summary/objective paragraph for JD alignment.
-- Preserve ALL dates exactly as written.
-- Return ONLY the improved resume text — nothing else.
-${keywordHint}
-RESUME:
+CRITICAL OUTPUT FORMAT RULES — any violation is a complete failure:
+1. Your output MUST start with the candidate's name on the first line — NO text before it.
+2. Section headings MUST appear in the EXACT same order and with the EXACT same text as the original.
+3. DO NOT add, remove, rename, or reorder any section.
+4. DO NOT add new bullet points — rewrite existing ones only.
+5. DO NOT copy or include ANY text from the job description (no JD titles, headings, or preamble).
+6. DO NOT add preamble, notes, introductions, watermarks, or any non-resume text.
+7. Preserve ALL dates, company names, school names, and job titles exactly as written.
+8. Output ONLY the improved resume — nothing else before or after it.`;
+
+    const keywordBlock = allMissing.length > 0
+        ? `MISSING KEYWORDS TO INJECT (weave these naturally into existing bullets — skip if no fit):\n${allMissing.map(k => `  • ${k}`).join('\n')}\n`
+        : 'No missing keywords — improve wording and action verbs only.\n';
+
+    const userPrompt = `${sectionOrderBlock}\n${keywordBlock}
+ATS CONTEXT:
+- Current score: ${atsScore !== null ? atsScore : 'unknown'}/100
+- Matched skills (already present — do not remove): ${matchedSkills.slice(0, 10).join(', ') || 'none'}
+- Weak sections to focus on: ${weakList}
+
+RULES:
+- Only rewrite bullet point content — make them stronger with better action verbs and add the missing keywords naturally.
+- Improve the summary paragraph if present — keep it the same paragraph, just better wording.
+- Keep all original section headings in the SAME ORDER listed above.
+- First line of output = candidate name. Nothing before it.
+
+ORIGINAL RESUME (copy this structure exactly, only improve bullet wording):
 ${resumeText}
 
-JOB DESCRIPTION:
-${jobDescription || 'Not provided — optimize for general professional impact.'}`;
-
-
+JOB DESCRIPTION (context only — do NOT reproduce any text from this in the output):
+${jobDescription || 'Not provided.'}`;
 
     const aiResponse = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
 
-    // Strip any accidental markdown fences
-    const optimizedResume = aiResponse
+    // Strip markdown fences
+    let optimizedResume = aiResponse
         .replace(/```[\w]*\n?/gi, '')
         .replace(/```/g, '')
         .trim();
+
+    // Strip any preamble — ensure output starts at the candidate name
+    optimizedResume = stripPreamble(optimizedResume, originalFirstLine);
 
     if (!optimizedResume || optimizedResume.length < 100) {
         console.error('[Structured Mode] Response too short or empty');
         return { optimizedResume: resumeText, improvementSummary: 'AI output was empty. Your original resume has been preserved.', llmFallback: true };
     }
 
-    // ── Sanity check: only reject if response is drastically too short ──────
-    // Section-count checks were causing false fallbacks when the AI reformatted
-    // a heading slightly. In plain-text mode the model isn't inventing sections;
-    // just ensure the output is a substantial resume, not a truncated stub.
     const minAcceptableLength = Math.max(100, resumeText.length * 0.4);
     if (optimizedResume.length < minAcceptableLength) {
         console.warn(`[Structured Mode] Output too short (${optimizedResume.length} vs ${resumeText.length}). Falling back.`);
         return { optimizedResume: resumeText, improvementSummary: 'AI output was too short. Your original resume has been preserved.', llmFallback: true };
     }
 
+    const injectedCount = allMissing.filter(kw => optimizedResume.toLowerCase().includes(kw.toLowerCase())).length;
     return {
         optimizedResume,
-        improvementSummary: 'Surgical improvements applied: stronger verbs, better keyword alignment, and quantified achievements.',
+        improvementSummary: `Optimization applied: ${injectedCount} missing keyword(s) injected, bullet points strengthened. Structure and section order preserved exactly.`,
         llmFallback: false
     };
 };
 
 /**
- * REGENERATE MODE: Full rewrite — returns plain text (no JSON wrapper)
- * Asking the LLM to embed a full resume inside a JSON string value is unreliable
- * because every newline/quote must be perfectly escaped. Plain text is far safer.
+ * REGENERATE MODE: ATS-driven rewrite — restructures ONLY if it will increase ATS score.
+ * Uses full ATS context to target weak sections and inject missing skills intelligently.
+ *
+ * @param {string} resumeText
+ * @param {string} jobDescription
+ * @param {string[]} missingKeywords  — top missing critical skills from rule engine
+ * @param {Object}  atsContext        — full ATS analysis: { matchedSkills, weakSections, breakdown, atsScore, missingCriticalSkills }
  */
-export const improveResumeRegenerate = async (resumeText, jobDescription, missingKeywords = []) => {
-    const systemPrompt = `You are an expert technical resume writer and ATS specialist.
-Output ONLY the rewritten resume as plain text. No JSON. No markdown fences. No explanations. No preamble.`;
+export const improveResumeRegenerate = async (resumeText, jobDescription, missingKeywords = [], atsContext = {}) => {
+    const { matchedSkills = [], weakSections = [], breakdown = {}, atsScore = null, missingCriticalSkills = [] } = atsContext;
 
-    const keywordHint = missingKeywords.length > 0
-        ? `\nCRITICAL — These keywords are MISSING from the resume but required by the JD. You MUST naturally incorporate them:\n${missingKeywords.map(k => `  • ${k}`).join('\n')}\n`
+    const allMissing = [...new Set([...missingCriticalSkills, ...missingKeywords])].slice(0, 20);
+    const weakList = weakSections.length > 0 ? weakSections.join(', ') : 'none';
+
+    // Build a breakdown hint so the AI knows where the score is bleeding
+    const breakdownHint = Object.keys(breakdown).length > 0
+        ? `Score breakdown — ${Object.entries(breakdown).map(([k, v]) => `${k}: ${v}`).join(', ')}`
         : '';
 
-    const userPrompt = `Rewrite the resume below fully optimized for the job description.
+    const systemPrompt = `You are a senior ATS resume strategist and rewriter.
+Mode: REGENERATE — you may rewrite bullet points, reorganize bullets within a section, and rename section headings ONLY if the rename will increase ATS keyword matching.
 
-RULES:
-- Use strong action verbs and quantifiable achievements.
-- Naturally integrate relevant keywords from the job description.
-- Do NOT fabricate skills, companies, years, or experience.
-- Maintain all original section headings.
-- Return ONLY the rewritten resume text — nothing else.
-${keywordHint}
-RESUME:
+ABSOLUTE RULES — violating any of these is a failure:
+1. DO NOT add new sections unless the resume is completely missing a clearly expected section type (e.g., has experience but no Skills section at all).
+2. DO NOT add preamble, closing text, "Created by", watermarks, or the JD title.
+3. DO NOT fabricate companies, roles, degrees, dates, or certifications not in the original.
+4. DO NOT change date values — preserve all dates exactly.
+5. Only rename a section heading if the new name is a standard resume heading AND increases ATS match.
+6. Output ONLY the resume text — start immediately from the first line of the resume.`;
+
+    const keywordBlock = allMissing.length > 0
+        ? `MISSING KEYWORDS (integrate ALL of these that are relevant — this is your top priority):
+${allMissing.map(k => `  • ${k}`).join('\n')}\n`
+        : 'No specific missing keywords provided — focus on stronger verbs and impact.\n';
+
+    const contextBlock = `ATS CONTEXT:
+- Current ATS score: ${atsScore !== null ? atsScore : 'unknown'} / 100
+- Already matched skills (keep these): ${matchedSkills.slice(0, 12).join(', ') || 'none'}
+- Weakest sections (prioritize improving these the most): ${weakList}
+${breakdownHint ? `- ${breakdownHint}` : ''}
+`;
+
+    const userPrompt = `${contextBlock}
+${keywordBlock}
+IMPROVEMENT RULES:
+- Rewrite existing bullet points with stronger action verbs and quantifiable outcomes.
+- Weave in ALL missing keywords naturally across the most relevant sections.
+- Focus the heaviest rewriting on the WEAK SECTIONS listed above.
+- You MAY merge or reorder bullets within a section if it improves flow and keyword density.
+- You MAY rename section headings ONLY if the new name better matches standard ATS headings (e.g., "Work History" → "Work Experience"). Do not rename if already standard.
+- Keep ALL existing sections — only add a new section if a critical one is entirely absent.
+- Keep the professional summary tight and JD-aligned.
+
+RESUME (rewrite and return this only):
 ${resumeText}
 
-JOB DESCRIPTION:
+JOB DESCRIPTION (context only — do NOT copy its title or headings into the resume):
 ${jobDescription || 'Not provided — optimize for general professional impact.'}`;
-
 
     const aiResponse = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
 
-    // Strip any accidental markdown fences the model might add
-    const cleaned = aiResponse
+    // Strip markdown fences the model might add
+    let cleaned = aiResponse
         .replace(/```[\w]*\n?/gi, '')
         .replace(/```/g, '')
         .trim();
+
+    // Strip preamble — ensure output starts at the candidate name
+    const originalFirstLine = resumeText.split('\n').find(l => l.trim().length > 0) || '';
+    cleaned = stripPreamble(cleaned, originalFirstLine);
 
     if (!cleaned || cleaned.length < 200) {
         console.error('[Regenerate Mode] Response too short or empty:', cleaned?.substring(0, 100));
         throw new Error('AI failed to regenerate the resume properly.');
     }
 
+    const injectedCount = allMissing.filter(kw => cleaned.toLowerCase().includes(kw.toLowerCase())).length;
     return {
         optimizedResume: cleaned,
-        improvementSummary: 'Full resume regeneration for enhanced JD alignment and technical impact.'
+        improvementSummary: `Full ATS-targeted rewrite: ${injectedCount}/${allMissing.length} missing keyword(s) integrated, weak sections (${weakList}) strengthened.`
     };
 };
 
