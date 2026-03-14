@@ -2,15 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import AIAssistant from '../components/AIAssistant';
+
 import Navbar from '../components/Navbar';
 import {
     Download, Sparkles, Zap, History, RotateCcw, FileText, Check, X,
-    ChevronDown, AlertCircle, ArrowLeft, BarChart3, AlertTriangle, Save, Bot,
+    ChevronDown, AlertCircle, ArrowLeft, BarChart3, AlertTriangle, Save,
     Edit3, Layout, Wand2
 } from 'lucide-react';
 import PDFPreview from '../components/resume/PDFPreview';
 import StructuredManualEditor from '../components/resume/StructuredManualEditor';
+import StreamingResumeView from '../components/resume/StreamingResumeView';
 import ATSAnalysis from '../components/ATSAnalysis';
 
 
@@ -36,11 +37,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
     const [isImproving, setIsImproving] = useState(false);
     const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'unsaved' | 'saving'
     const [isDownloading, setIsDownloading] = useState(false);
-    const [showChat, setShowChat] = useState(false);
     const [showATS, setShowATS] = useState(false);
-    const [showImproveMenu, setShowImproveMenu] = useState(false);
-    const improveMenuRef = useRef(null);
-    const [improveMode, setImproveMode] = useState('structured'); // 'structured' | 'regenerate'
     const lastSavedRef = useRef('');
     const [baselineVersionNumber, setBaselineVersionNumber] = useState(null);
 
@@ -62,7 +59,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 const initial = location.state.initialResume;
                 setResume(initial);
                 // If initialContent is passed from Wizard, use it, otherwise fallback
-                const content = initialContent || initial.parsedText || initial.originalContent || '';
+                const content = initialContent || initial.content || initial.parsedText || initial.originalContent || '';
                 setCurrentContent(content);
                 lastSavedRef.current = content;
 
@@ -82,7 +79,8 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
             if (!id || id === 'null' || id === 'undefined') return;
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.get(`http://localhost:5000/api/resumes/${id}`, {
+                const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                const res = await axios.get(`${apiBase}/resumes/${id}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const found = res.data.data;
@@ -129,13 +127,53 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
     const [isSavingManual, setIsSavingManual] = useState(false);
     const [isExtractingStructure, setIsExtractingStructure] = useState(false);
 
+    // ── Persistence / Restoration ──────────────────────────────────────────────
+    useEffect(() => {
+        if (!id) return;
+        const savedState = localStorage.getItem(`magic_improve_${id}`);
+        if (savedState) {
+            try {
+                const parsed = JSON.parse(savedState);
+                if (parsed.improvedContent) {
+                    setImprovedContent(parsed.improvedContent);
+                    setIsComparing(true);
+                    if (parsed.improvedVersionNumber) setImprovedVersionNumber(parsed.improvedVersionNumber);
+                    if (parsed.improvementsSummary) setImprovementsSummary(parsed.improvementsSummary);
+                    if (parsed.originalSnapshot) setOriginalSnapshot(parsed.originalSnapshot);
+                    if (parsed.baselineVersionNumber) setBaselineVersionNumber(parsed.baselineVersionNumber);
+                }
+            } catch (e) {
+                console.error("Failed to restore magic improve state", e);
+            }
+        }
+    }, [id]);
+
+    useEffect(() => {
+        if (!id) return;
+        if (isComparing && (improvedContent || improvedVersionNumber)) {
+            const stateToSave = {
+                improvedContent,
+                improvedVersionNumber,
+                improvementsSummary,
+                originalSnapshot,
+                baselineVersionNumber
+            };
+            localStorage.setItem(`magic_improve_${id}`, JSON.stringify(stateToSave));
+        } else if (!isComparing && !isImproving) {
+            localStorage.removeItem(`magic_improve_${id}`);
+        }
+    }, [id, isComparing, isImproving, improvedContent, improvedVersionNumber, improvementsSummary]);
+
     const handleStartManualEdit = async () => {
-        if (!resume.content) {
-            // Need to extract structure first for old resumes
+        // Ensure we have a structured object, not a string or null
+        const needsExtraction = !resume.content || typeof resume.content === 'string';
+        
+        if (needsExtraction) {
             setIsExtractingStructure(true);
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.post(`http://localhost:5000/api/resumes/${id}/extract-structure`, {}, {
+                const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                const res = await axios.post(`${apiBase}/resumes/${id}/extract-structure`, {}, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 if (res.data.success) {
@@ -143,7 +181,6 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 }
             } catch (err) {
                 console.error("Structure extraction failed", err);
-                // Fallback: we could show a raw text editor, but let's try to notify
             } finally {
                 setIsExtractingStructure(false);
             }
@@ -155,7 +192,8 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
         setIsSavingManual(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.put(`http://localhost:5000/api/resumes/${id}`, {
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            const res = await axios.put(`${apiBase}/resumes/${id}`, {
                 content: newContent,
                 title: newTitle
             }, {
@@ -200,8 +238,9 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
         try {
             setSaveStatus('saving');
             const token = localStorage.getItem('token');
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
             // Update to use the correct PUT endpoint and parsedText field
-            await axios.put(`http://localhost:5000/api/resumes/${id}`, {
+            await axios.put(`${apiBase}/resumes/${id}`, {
                 parsedText: content
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -218,11 +257,11 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
     const handleDownload = async () => {
         try {
             setIsDownloading(true);
-            const token = localStorage.getItem('token');
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
             const sortedVersions = [...(resume?.versions || [])].sort((a, b) => b.versionNumber - a.versionNumber);
             const latestVersionNumber = sortedVersions.length > 0 ? sortedVersions[0].versionNumber : 1;
             // Stream the stored PDF directly from R2 via the version download endpoint
-            window.location.href = `http://localhost:5000/api/resumes/${id}/version/${latestVersionNumber}/download?token=${token}`;
+            window.location.href = `${apiBase}/resumes/${id}/version/${latestVersionNumber}/download?token=${token}`;
         } catch (err) {
             console.error('Download failed:', err);
             alert('Failed to download PDF. Please try again.');
@@ -310,6 +349,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
         setImprovedVersionNumber(null);
         setIsComparing(false);
         setPostImproveAts(null);
+        if (id) localStorage.removeItem(`magic_improve_${id}`);
     };
 
     const handleRestoreVersion = () => {
@@ -324,40 +364,43 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
 
     // ── Magic Improve ────────────────────────────────────────────────────────────
     const handleMagicImprove = async () => {
-        // Fallback: use resume.content or resume.resumeText if currentContent is empty
-        const contentToUse = currentContent && currentContent.trim().length >= 50
-            ? currentContent
-            : (resume?.parsedText || resume?.content || resume?.resumeText || '');
-
-        if (!contentToUse || contentToUse.trim().length < 50) {
-            alert("We couldn't extract enough text from your resume to improve it. Please paste your resume content manually first.");
+        if (isImproving) return;
+        if (!id) {
+            alert("No resume ID found. Please refresh and try again.");
             return;
         }
 
-        if (isImproving) return;
+        // Safely determine which content to use, ensuring it's a string
+        let contentToUse = typeof currentContent === 'string' && currentContent.trim().length >= 50
+            ? currentContent
+            : (resume?.parsedText || resume?.resumeText || '');
 
-        // ── Snapshot the current content before we overwrite it ──────────────────
+        // If we only have structured content (object), stringify it for the AI
+        if ((!contentToUse || contentToUse.length < 50) && resume?.content && typeof resume.content === 'object') {
+            contentToUse = JSON.stringify(resume.content, null, 2);
+        }
+
+        if (!contentToUse || typeof contentToUse !== 'string' || contentToUse.trim().length < 50) {
+            alert("We couldn't extract enough text from your resume to improve it.");
+            return;
+        }
+
         setOriginalSnapshot(contentToUse);
-
-        // Capture the baseline version number for comparison overlay
         const sorted = (resume?.versions || []).sort((a, b) => b.versionNumber - a.versionNumber);
         setBaselineVersionNumber(sorted[0]?.versionNumber || null);
 
         setPostImproveAts(null);
         setIsImproving(true);
-        setIsComparing(true); // Open overlay immediately to see the stream
+        setIsComparing(true);
         setImprovedContent('');
         setImprovementsSummary([]);
         setImprovedVersionNumber(null);
 
         try {
             const token = localStorage.getItem('token');
-            if (!token) throw new Error('Authentication token missing. Please log in again.');
-
             const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-            // Call the standard JSON endpoint instead of the stream
-            const response = await fetch(`${apiBase}/resumes/${id}/improve`, {
+            const response = await fetch(`${apiBase}/resumes/${id}/improve-stream`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -366,46 +409,101 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 body: JSON.stringify({
                     content: contentToUse,
                     jobDescription,
-                    mode: improveMode,
-                    previousScore: atsAnalysis?.atsScore || null,
-                    // Pass full ATS analysis so AI can use exact missing skills/weak sections
-                    atsContext: atsAnalysis ? {
-                        atsScore: atsAnalysis.atsScore,
-                        matchedSkills: atsAnalysis.matchedSkills || [],
-                        missingCriticalSkills: atsAnalysis.missingCriticalSkills || [],
-                        weakSections: atsAnalysis.weakSections || [],
-                        breakdown: atsAnalysis.breakdown || {}
-                    } : null
+                    mode: 'structured',
+                    previousScore: atsAnalysis?.atsScore || null
                 })
             });
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.message || 'Failed to start improvement');
+                throw new Error(errData.message || 'Failed to start improvement stream');
             }
 
-            const data = await response.json();
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedText = "";
+            let lineBuffer = "";
 
-            if (data.optimizedResume) {
-                setImprovedContent(data.optimizedResume);
-            }
-            if (data.newAnalysis) {
-                setAtsAnalysis(data.newAnalysis);
-                setPostImproveAts({
-                    atsScore: data.newScore,
-                    scoreDelta: data.scoreDelta,
-                    analysis: data.newAnalysis
-                });
-            }
-            if (data.improvementSummary) {
-                setImprovementsSummary([data.improvementSummary]);
-            }
-            if (data.newVersionNumber) {
-                setImprovedVersionNumber(data.newVersionNumber);
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    if (lineBuffer.trim().startsWith('data: ')) {
+                        processLine(lineBuffer.trim());
+                    }
+                    break;
+                }
+
+                const chunk = decoder.decode(value, { stream: true });
+                lineBuffer += chunk;
+                
+                const lines = lineBuffer.split('\n');
+                lineBuffer = lines.pop();
+
+                for (const line of lines) {
+                    processLine(line.trim());
+                }
             }
 
-            if (data.llmFallback) {
-                alert("AI optimization encountered an issue bridging structures. The original format has been preserved.");
+            function processLine(line) {
+                if (line.startsWith('data: ')) {
+                    const dataStr = line.slice(6).trim();
+                    if (!dataStr || dataStr === '[DONE]') return;
+
+                    try {
+                        const parsed = JSON.parse(dataStr);
+                        if (parsed.error) {
+                            throw new Error(parsed.error);
+                        }
+                        if (parsed.response) {
+                            accumulatedText += parsed.response;
+                            
+                            // SURGICAL FILTER: Remove preambles/markdown during live stream
+                            let displayableText = accumulatedText;
+                            
+                            // 1. Strip markdown fences and basic formatting
+                            displayableText = displayableText
+                                .replace(/```[\w]*\n?/gi, '')
+                                .replace(/```/g, '')
+                                .replace(/[#*_~`]/g, ''); // Strip all markdown symbols
+
+                            // 2. Find start of resume (candidate's name)
+                            const firstLineOriginal = contentToUse.split('\n').find(l => l.trim().length > 0) || '';
+                            const needle = firstLineOriginal.trim().toLowerCase().substring(0, 15);
+                            
+                            if (needle) {
+                                const lowerText = displayableText.toLowerCase();
+                                const startIndex = lowerText.indexOf(needle);
+                                if (startIndex !== -1) {
+                                    displayableText = displayableText.substring(startIndex);
+                                } else if (displayableText.length > 500) {
+                                    // Safety fallback: if we've accumulated a lot and can't find name,
+                                    // the AI might have started with a different name or format.
+                                    // Just show it to avoid a blank screen, but usually startIndex works.
+                                } else {
+                                    // Haven't reached the name yet, keep it hidden
+                                    displayableText = '';
+                                }
+                            }
+                            
+                            if (displayableText) {
+                                setImprovedContent(displayableText);
+                            }
+                        } else if (parsed.type === 'metadata') {
+                            if (parsed.newAnalysis) setAtsAnalysis(parsed.newAnalysis);
+                            if (parsed.newVersionNumber) setImprovedVersionNumber(parsed.newVersionNumber);
+                            if (parsed.improvementSummary) setImprovementsSummary([parsed.improvementSummary]);
+                            if (parsed.newScore) {
+                                setPostImproveAts({
+                                    atsScore: parsed.newScore,
+                                    scoreDelta: parsed.scoreDelta,
+                                    analysis: parsed.newAnalysis
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Error parsing SSE line:", line, e);
+                    }
+                }
             }
 
         } catch (err) {
@@ -530,96 +628,26 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                     <Save size={14} /> {saveStatus === 'saved' ? 'Saved' : 'Save'}
                 </button>
 
-                {/* Magic Improve Dropdown Button */}
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }} ref={improveMenuRef}>
-                    <motion.button
-                        whileHover={{ scale: 1.02, boxShadow: '0 0 20px rgba(245,158,11,0.3)' }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={handleMagicImprove}
-                        disabled={isImproving}
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
-                            padding: '0.65rem 1.2rem',
-                            background: isImproving ? 'rgba(245,158,11,0.1)' : 'linear-gradient(135deg, #f59e0b, #ea580c)',
-                            color: isImproving ? '#fbbf24' : 'white',
-                            borderRadius: '0.8rem 0 0 0.8rem',
-                            border: 'none', fontWeight: '800', cursor: isImproving ? 'not-allowed' : 'pointer',
-                            fontSize: '0.85rem', minWidth: '160px', justifyContent: 'center',
-                            boxShadow: '0 4px 15px rgba(0,0,0,0.3)', transition: 'all 0.3s ease',
-                            borderRight: '1px solid rgba(255,255,255,0.1)'
-                        }}
-                    >
-                        <Sparkles size={16} fill={isImproving ? "none" : "white"} />
-                        <span>{isImproving ? 'Weaving Magic...' : (improveMode === 'structured' ? 'Optimize Content' : 'Regenerate Resume')}</span>
-                    </motion.button>
-
-                    <button
-                        onClick={() => setShowImproveMenu(!showImproveMenu)}
-                        style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '0.65rem 0.5rem',
-                            background: isImproving ? 'rgba(245,158,11,0.1)' : 'linear-gradient(135deg, #f59e0b, #ea580c)',
-                            color: 'white', borderRadius: '0 0.8rem 0.8rem 0',
-                            border: 'none', cursor: 'pointer', height: '100%',
-                            boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-                        }}
-                    >
-                        <ChevronDown size={14} style={{ transform: showImproveMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                    </button>
-
-                    <AnimatePresence>
-                        {showImproveMenu && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                style={{
-                                    position: 'absolute', top: '110%', right: 0, zIndex: 100,
-                                    background: 'rgba(30,30,45,0.98)', backdropFilter: 'blur(12px)',
-                                    borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)',
-                                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)', overflow: 'hidden', minWidth: '240px'
-                                }}
-                            >
-                                <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                    <button
-                                        onClick={() => { setImproveMode('structured'); setShowImproveMenu(false); }}
-                                        style={{
-                                            display: 'flex', flexDirection: 'column', width: '100%', padding: '0.8rem 1rem', textAlign: 'left',
-                                            background: improveMode === 'structured' ? 'rgba(245,158,11,0.1)' : 'transparent',
-                                            border: 'none', cursor: 'pointer', borderRadius: '0.6rem',
-                                            color: improveMode === 'structured' ? '#f59e0b' : '#94a3b8',
-                                            fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = improveMode === 'structured' ? 'rgba(245,158,11,0.1)' : 'transparent'}
-                                    >
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <Sparkles size={14} /> Optimize Content
-                                        </span>
-                                        <span style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.2rem' }}>Surgical wording & keyword updates (Recommended)</span>
-                                    </button>
-                                    <button
-                                        onClick={() => { setImproveMode('regenerate'); setShowImproveMenu(false); }}
-                                        style={{
-                                            display: 'flex', flexDirection: 'column', width: '100%', padding: '0.8rem 1rem', textAlign: 'left',
-                                            background: improveMode === 'regenerate' ? 'rgba(245,158,11,0.1)' : 'transparent',
-                                            border: 'none', cursor: 'pointer', borderRadius: '0.6rem',
-                                            color: improveMode === 'regenerate' ? '#f59e0b' : '#94a3b8',
-                                            fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = improveMode === 'regenerate' ? 'rgba(245,158,11,0.1)' : 'transparent'}
-                                    >
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <AlertTriangle size={14} /> Regenerate Resume
-                                        </span>
-                                        <span style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.2rem' }}>Full AI-powered rewrite for major changes (Experimental)</span>
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
+                {/* Magic Improve Button */}
+                <motion.button
+                    whileHover={{ scale: 1.02, boxShadow: '0 0 20px rgba(245,158,11,0.3)' }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleMagicImprove}
+                    disabled={isImproving}
+                    style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
+                        padding: '0.65rem 1.2rem',
+                        background: isImproving ? 'rgba(245,158,11,0.1)' : 'linear-gradient(135deg, #f59e0b, #ea580c)',
+                        color: isImproving ? '#fbbf24' : 'white',
+                        borderRadius: '0.8rem',
+                        border: 'none', fontWeight: '800', cursor: isImproving ? 'not-allowed' : 'pointer',
+                        fontSize: '0.85rem', minWidth: '160px', justifyContent: 'center',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.3)', transition: 'all 0.3s ease'
+                    }}
+                >
+                    <Sparkles size={16} fill={isImproving ? "none" : "white"} />
+                    <span>{isImproving ? 'Weaving Magic...' : 'Magic Improve'}</span>
+                </motion.button>
 
 
 
@@ -753,7 +781,8 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                     <button
                                         onClick={async () => {
                                             const token = localStorage.getItem('token');
-                                            window.location.href = `http://localhost:5000/api/resumes/${id}/version/${improvedVersionNumber}/download?token=${token}`;
+                                            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                                            window.location.href = `${apiBase}/resumes/${id}/version/${improvedVersionNumber}/download?token=${token}`;
                                         }}
                                         className="ghost-btn"
                                         style={{ padding: '0.7rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
@@ -826,13 +855,8 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                                 )}
 
                                 <div style={{ display: 'flex', justifyContent: 'center', transform: 'scale(0.85)', transformOrigin: 'top center' }}>
-                                    {isImproving && !improvedContent ? (
-                                        <div style={{ height: '1123px', width: '794px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div className="loading-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(124,58,237,0.2)', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 1rem' }} />
-                                                <p style={{ color: '#7c3aed', fontWeight: '700' }}>AI is weaving magic...</p>
-                                            </div>
-                                        </div>
+                                    {isImproving || (improvedContent && !improvedVersionNumber) ? (
+                                        <StreamingResumeView content={improvedContent} />
                                     ) : (
                                         <PDFPreview resumeId={id} versionNumber={improvedVersionNumber} />
                                     )}
@@ -843,67 +867,6 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 )}
             </AnimatePresence>
 
-            {/* ── Floating AI Chat Bubble ──────────────────────────────────────── */}
-            <AnimatePresence mode="wait">
-                {!showChat ? (
-                    <motion.button
-                        key="chat-trigger"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                        onClick={() => setShowChat(true)}
-                        style={{
-                            position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 5000,
-                            width: '62px', height: '62px', borderRadius: '50%',
-                            background: 'var(--gradient-primary)',
-                            border: 'none', color: 'white',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', boxShadow: '0 8px 32px var(--primary-glow)',
-                        }}
-                    >
-                        <Bot size={26} />
-                    </motion.button>
-                ) : (
-                    <motion.div
-                        key="chat-window"
-                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        style={{
-                            position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 5000,
-                            width: '420px', height: '580px',
-                            background: 'var(--nav-bg)',
-                            backdropFilter: 'var(--blur)', WebkitBackdropFilter: 'var(--blur)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border)',
-                            display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                            boxShadow: 'var(--shadow-lg)',
-                        }}
-                    >
-                        <div style={{
-                            padding: '1rem 1.5rem',
-                            background: 'var(--bg-card)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            borderBottom: '1px solid var(--border)',
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success-light)' }} />
-                                <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--primary-light)', letterSpacing: '0.05em' }}>AI ASSISTANT</span>
-                            </div>
-                            <button
-                                onClick={() => setShowChat(false)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex' }}
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-                        <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <AIAssistant context={{ resumeText: currentContent, jobDescription }} hideHeader={true} />
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
             {/* ATS Analysis Modal */}
             <AnimatePresence>
                 {showATS && (

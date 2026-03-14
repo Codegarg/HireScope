@@ -15,6 +15,14 @@
     padding: 0;
 }
 
+:root {
+    --glass-bg: rgba(10, 10, 15, 0.75);
+    --accent-glow: linear-gradient(45deg, #7c3aed, #ec4899);
+    --mesh-color-1: rgba(124, 58, 237, 0.15);
+    --mesh-color-2: rgba(236, 72, 153, 0.15);
+    --mesh-color-3: rgba(79, 70, 229, 0.1);
+}
+
 html {
     scroll-behavior: smooth;
     /* Theme transition — applied on root so all vars animate */
@@ -85,18 +93,19 @@ input:-webkit-autofill:active {
 
 /* Glass Card */
 .glass-card {
-    background: var(--bg-card);
-    backdrop-filter: var(--blur);
-    -webkit-backdrop-filter: var(--blur);
-    border: 1px solid var(--border);
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
-    transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass-card:hover {
-    border-color: var(--border-strong);
-    box-shadow: var(--shadow-lg);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 40px rgba(124, 58, 237, 0.15);
+    transform: translateY(-4px);
 }
 
 /* Gradient Text */
@@ -387,6 +396,20 @@ input:-webkit-autofill:active {
     }
 }
 
+@keyframes meshGradient {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
 @keyframes float {
 
     0%,
@@ -500,6 +523,13 @@ input:-webkit-autofill:active {
 .page-wrapper {
     min-height: 100vh;
     background: var(--bg-deep);
+    background-image:
+        radial-gradient(at 0% 0%, var(--mesh-color-1) 0px, transparent 50%),
+        radial-gradient(at 50% 0%, var(--mesh-color-2) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, var(--mesh-color-3) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, var(--mesh-color-1) 0px, transparent 50%);
+    background-size: 200% 200%;
+    animation: meshGradient 15s ease infinite;
     color: var(--text-main);
     overflow-x: hidden;
 }

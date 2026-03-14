@@ -1,10 +1,102 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ChevronRight, ArrowLeft, ArrowRight, Save, Download } from 'lucide-react';
+import { ChevronRight, ArrowLeft, ArrowRight, Save, Download } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import axios from 'axios';
+
+// ── Shared Wizard Components (Formerly in GlobalNav) ─────────────────────────
+const NavigationDock = ({
+    onBack,
+    onPrimary,
+    primaryLabel = "Next",
+    primaryIcon: PrimaryIcon = ArrowRight,
+    isPrimaryDisabled = false,
+    showBack = true
+}) => {
+    return (
+        <motion.div
+            initial={{ y: 100, x: '-50%', opacity: 0 }}
+            animate={{ y: 0, x: '-50%', opacity: 1 }}
+            style={{
+                position: 'fixed',
+                bottom: '2rem',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000,
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(20px)',
+                padding: '0.75rem 1rem',
+                borderRadius: '2rem',
+                border: '1px solid rgba(255,255,255,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                minWidth: '300px',
+                justifyContent: 'space-between'
+            }}
+        >
+            {showBack ? (
+                <motion.button
+                    whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.05)' }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={onBack}
+                    className="ghost-btn"
+                    style={{
+                        borderRadius: '1.5rem',
+                        padding: '0.6rem 1.25rem',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        fontSize: '0.85rem'
+                    }}
+                >
+                    <ArrowLeft size={16} /> Back
+                </motion.button>
+            ) : <div />}
+
+            <motion.button
+                whileHover={isPrimaryDisabled ? {} : { scale: 1.02, boxShadow: '0 0 20px var(--primary-glow)' }}
+                whileTap={isPrimaryDisabled ? {} : { scale: 0.98 }}
+                onClick={onPrimary}
+                disabled={isPrimaryDisabled}
+                className="glow-btn"
+                style={{
+                    borderRadius: '1.5rem',
+                    padding: '0.6rem 1.5rem',
+                    fontSize: '0.85rem',
+                    opacity: isPrimaryDisabled ? 0.5 : 1
+                }}
+            >
+                {primaryLabel} <PrimaryIcon size={16} />
+            </motion.button>
+        </motion.div>
+    );
+};
+
+const GlowingProgressBar = ({ progress }) => {
+    return (
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '2px',
+            background: 'rgba(255,255,255,0.05)',
+            zIndex: 9999
+        }}>
+            <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                style={{
+                    height: '100%',
+                    background: 'var(--accent-glow)',
+                    boxShadow: '0 0 10px #7c3aed, 0 0 20px #ec4899'
+                }}
+            />
+        </div>
+    );
+};
 
 // Placeholder imports for step components that we will extract/adapt
 import Step1Upload from './wizard/Step1Upload';
@@ -62,7 +154,21 @@ const ResumeWizard = () => {
         setResumeData(prev => ({ ...prev, ...updates }));
     };
 
+    const [triggerAction, setTriggerAction] = useState(0);
+
     const handleNext = () => {
+        // Step-specific primary actions
+        if (currentStep === 2) {
+            // Trigger analysis in Step 2
+            setTriggerAction(prev => prev + 1);
+            return;
+        }
+        if (currentStep === 4 && !resumeData.optimizedContent) {
+            // Trigger magic writing in Step 4 if not done
+            setTriggerAction(prev => prev + 1);
+            return;
+        }
+
         if (currentStep < STEPS.length) setCurrentStep(c => c + 1);
     };
 
@@ -74,14 +180,13 @@ const ResumeWizard = () => {
     const renderStep = () => {
         switch (currentStep) {
             case 1:
-                return <Step1Upload data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onNext={handleNext} onBack={handleBack} />;
+                return <Step1Upload data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onNext={handleNext} />;
             case 2:
-                // Pass a special flag to Step 2 so we know when to auto-advance
-                return <Step2JD data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onAnalyze={handleNext} onNext={handleNext} onBack={handleBack} />;
+                return <Step2JD data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onAnalyze={() => setCurrentStep(3)} triggerAction={triggerAction} />;
             case 3:
-                return <Step3Analysis data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onNext={handleNext} onBack={handleBack} />;
+                return <Step3Analysis data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onNext={handleNext} />;
             case 4:
-                return <Step4Optimize data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onNext={handleNext} onBack={handleBack} />;
+                return <Step4Optimize data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onNext={handleNext} triggerAction={triggerAction} />;
             case 5:
                 return <div style={{ height: '80vh', overflow: 'hidden' }}>
                     <ResumeEditor wizardMode={true} passedId={resumeData?._id || id} initialContent={resumeData?.optimizedContent || resumeData?.content} setNextDisabled={setIsNextDisabled} />
@@ -91,43 +196,30 @@ const ResumeWizard = () => {
         }
     };
 
+    const getStepLabels = () => {
+        switch (currentStep) {
+            case 1: return { primary: "Next Step", showBack: false };
+            case 2: return { primary: resumeData.atsResult ? "Next Step" : "Analyze Match", showBack: true };
+            case 3: return { primary: "Weave Magic", showBack: true };
+            case 4: return { primary: resumeData.optimizedContent ? "Finish Optimization" : "Start Magic Writing", showBack: true };
+            case 5: return { primary: "Finish & Save", showBack: true };
+            default: return { primary: "Next", showBack: true };
+        }
+    };
+
+    const labels = getStepLabels();
+
     return (
         <div className="page-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
             <div className="ambient-bg" />
             <Navbar />
 
             <main style={{ flex: 1, display: 'flex', flexDirection: 'column', marginTop: '5rem' }}>
-                {/* Top Progress Bar */}
-                <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '1rem 0' }}>
-                    <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.5rem' }}>
-
-                        {STEPS.map((step, idx) => (
-                            <React.Fragment key={step.id}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: currentStep >= step.id ? 1 : 0.4 }}>
-                                    <div style={{
-                                        width: '32px', height: '32px', borderRadius: '50%',
-                                        background: currentStep > step.id ? 'var(--success)' : currentStep === step.id ? 'var(--primary)' : 'var(--bg-elevated)',
-                                        color: currentStep >= step.id ? '#fff' : 'var(--text-muted)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '0.9rem', fontWeight: 'bold'
-                                    }}>
-                                        {currentStep > step.id ? <Check size={16} /> : step.id}
-                                    </div>
-                                    <span style={{ fontWeight: currentStep === step.id ? '700' : '500', color: currentStep >= step.id ? 'var(--text-main)' : 'var(--text-muted)', fontSize: '0.9rem' }}>
-                                        {step.title}
-                                    </span>
-                                </div>
-                                {idx < STEPS.length - 1 && (
-                                    <div style={{ flex: 1, height: '2px', background: currentStep > step.id ? 'var(--success)' : 'var(--border)', margin: '0 1rem' }} />
-                                )}
-                            </React.Fragment>
-                        ))}
-
-                    </div>
-                </div>
+                {/* Glowing Top Progress Bar */}
+                <GlowingProgressBar progress={(currentStep / STEPS.length) * 100} />
 
                 {/* Step Content Area */}
-                <div style={{ flex: 1, padding: '2rem 1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+                <div style={{ flex: 1, padding: '2rem 1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', maxWidth: '1200px', margin: '0 auto', width: '100%', paddingBottom: '8rem' }}>
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={currentStep}
@@ -141,6 +233,15 @@ const ResumeWizard = () => {
                         </motion.div>
                     </AnimatePresence>
                 </div>
+
+                {/* Navigation Dock */}
+                <NavigationDock
+                    onBack={handleBack}
+                    onPrimary={handleNext}
+                    isPrimaryDisabled={isNextDisabled}
+                    primaryLabel={labels.primary}
+                    showBack={labels.showBack}
+                />
 
             </main>
         </div>

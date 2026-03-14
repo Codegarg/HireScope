@@ -72,25 +72,26 @@ const GlobalAIPanel = () => {
                     />
                 )}
             </AnimatePresence>
-
-            {/* Slide-in AI Panel */}
+            {/* Compact Floating AI Panel */}
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
                         key="ai-panel"
-                        initial={{ x: '100%', opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: '100%', opacity: 0 }}
-                        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
                         style={{
                             position: 'fixed',
-                            top: 0,
-                            right: 0,
-                            bottom: 0,
-                            width: 'min(420px, 100vw)',
-                            background: 'var(--bg-surface)',
-                            borderLeft: '1px solid var(--border)',
-                            boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
+                            bottom: '5.5rem',
+                            right: '2rem',
+                            width: '420px',
+                            height: 'min(640px, 80vh)',
+                            background: 'var(--nav-bg)',
+                            backdropFilter: 'var(--blur)',
+                            WebkitBackdropFilter: 'var(--blur)',
+                            borderRadius: 'var(--radius-lg)',
+                            border: '1px solid var(--border)',
+                            boxShadow: 'var(--shadow-lg)',
                             zIndex: 9997,
                             display: 'flex',
                             flexDirection: 'column',
@@ -101,83 +102,38 @@ const GlobalAIPanel = () => {
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.75rem',
-                            padding: '1rem 1.25rem',
-                            background: 'var(--bg-elevated)',
+                            justifyContent: 'space-between',
+                            padding: '1rem 1.5rem',
+                            background: 'var(--bg-card)',
                             borderBottom: '1px solid var(--border)',
                             flexShrink: 0,
                         }}>
-                            {/* Bot icon with glow */}
-                            <div style={{
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '50%',
-                                background: 'var(--gradient-primary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: '0 0 12px var(--primary-glow)',
-                                flexShrink: 0,
-                            }}>
-                                <Bot size={18} color="white" />
-                            </div>
-
-                            <div style={{ flex: 1, overflow: 'hidden' }}>
-                                <div style={{
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success-light)' }} />
+                                <span style={{
                                     fontWeight: '800',
-                                    fontSize: '0.95rem',
-                                    color: 'var(--text-main)',
-                                    fontFamily: "'Outfit', sans-serif",
-                                }}>
-                                    AI Career Assistant
-                                </div>
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                    Resume · ATS · Job Advice
-                                </div>
+                                    fontSize: '0.85rem',
+                                    color: 'var(--primary-light)',
+                                    letterSpacing: '0.05em',
+                                    fontFamily: "'Outfit', sans-serif"
+                                }}>AI ASSISTANT</span>
                             </div>
 
-                            {/* Suggested prompts dropdown hint */}
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
+                            <button
                                 onClick={() => setIsOpen(false)}
                                 style={{
-                                    background: 'var(--bg-card)',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: '50%',
-                                    width: '32px',
-                                    height: '32px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
+                                    background: 'none',
+                                    border: 'none',
                                     color: 'var(--text-muted)',
-                                    transition: 'all 0.2s',
-                                    flexShrink: 0,
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    display: 'flex',
+                                    transition: 'color 0.2s'
                                 }}
                                 aria-label="Close AI panel"
                             >
-                                <ChevronRight size={16} />
-                            </motion.button>
-                        </div>
-
-                        {/* Suggested prompts quick-start */}
-                        <div style={{
-                            padding: '0.75rem 1rem',
-                            borderBottom: '1px solid var(--border)',
-                            background: 'var(--bg-card)',
-                            display: 'flex',
-                            gap: '0.5rem',
-                            flexWrap: 'wrap',
-                            flexShrink: 0,
-                        }}>
-                            {[
-                                '💼 Improve my resume',
-                                '📊 Explain my ATS score',
-                                '🎯 Job search tips',
-                            ].map((prompt) => (
-                                <SuggestedPrompt key={prompt} label={prompt} />
-                            ))}
+                                <X size={20} />
+                            </button>
                         </div>
 
                         {/* AIAssistant content — fills remaining space */}
@@ -190,30 +146,5 @@ const GlobalAIPanel = () => {
         </>
     );
 };
-
-/**
- * SuggestedPrompt chip — clicking dispatches a custom event that AIAssistant
- * can optionally listen to. For now it's purely visual; the user copies the idea.
- */
-const SuggestedPrompt = ({ label }) => (
-    <motion.button
-        whileHover={{ scale: 1.03, borderColor: 'var(--primary)' }}
-        whileTap={{ scale: 0.97 }}
-        style={{
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border)',
-            borderRadius: '9999px',
-            padding: '0.3rem 0.8rem',
-            fontSize: '0.75rem',
-            color: 'var(--text-sub)',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.2s ease',
-            whiteSpace: 'nowrap',
-        }}
-    >
-        {label}
-    </motion.button>
-);
 
 export default GlobalAIPanel;

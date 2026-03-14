@@ -23,7 +23,6 @@ const Navbar = () => {
     const navLinks = [
         { name: 'Home', path: '/', icon: <Home size={16} /> },
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={16} /> },
-        { name: 'Profile', path: '/profile', icon: <User size={16} /> },
     ];
 
     const isAuth = ['/login', '/signup', '/forgot-password'].some(p => location.pathname.startsWith(p));

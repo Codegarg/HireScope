@@ -136,20 +136,6 @@ const Step1Upload = ({ data, updateData, setNextDisabled, onNext, onBack }) => {
                 )}
             </div>
 
-            {/* Inline Navigation */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2rem', maxWidth: '500px', margin: '2rem auto 0' }}>
-                <button onClick={onBack} disabled={uploading} className="ghost-btn" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: uploading ? 0.5 : 1 }}>
-                    <ArrowLeft size={18} /> Cancel
-                </button>
-                <button
-                    onClick={onNext}
-                    disabled={!data._id || uploading}
-                    className="glow-btn"
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 2rem', opacity: (!data._id || uploading) ? 0.5 : 1 }}
-                >
-                    {uploading ? 'Processing...' : <>Next Step <ArrowRight size={18} /></>}
-                </button>
-            </div>
         </div>
     );
 };

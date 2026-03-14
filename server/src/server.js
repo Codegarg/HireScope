@@ -9,8 +9,6 @@ import chatRoutes from "./routes/chat.routes.js";
 import resumeRoutes from "./routes/resume.routes.js";
 import passport from "./config/passport.js";
 
-connectDB();
-
 const app = express();
 
 app.use(cors({
@@ -28,6 +26,20 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/resumes", resumeRoutes);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+}).catch(err => {
+  console.error("Failed to start server due to DB connection issue");
+  process.exit(1);
+});
+
+// Handle graceful shutdown for Nodemon restarts
+process.on('SIGUSR2', async () => {
+  const { default: mongoose } = await import('mongoose');
+  await mongoose.connection.close();
+  console.log('MongoDB connection closed due to app restart');
+  process.kill(process.pid, 'SIGUSR2');
 });

@@ -7,31 +7,26 @@ import {
     Plus, Target, Bot, X, Loader2, ArrowLeft,
     Clock, RotateCcw, Eye, Download, ChevronDown, ChevronUp, AlertTriangle, History
 } from 'lucide-react';
-import AIAssistant from '../components/AIAssistant';
+
 import Navbar from '../components/Navbar';
 import { AuthContext } from '../context/AuthContext';
-import { SkeletonGrid } from '../components/SkeletonCard';
 
 /* ─────────────────────────────────────────────
    Stat Card
    ───────────────────────────────────────────── */
-const StatCard = ({ title, value, icon: Icon, accent, delay }) => (
+const StatCard = ({ title, value, icon: Icon, accent, delay, style = {} }) => (
     <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay }}
+        className="glass-card"
         style={{
-            background: 'var(--bg-card)',
-            backdropFilter: 'var(--blur)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
             padding: '1.5rem',
             overflow: 'hidden',
             position: 'relative',
             display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-            transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
+            ...style
         }}
-        whileHover={{ y: -4, boxShadow: 'var(--shadow-lg)' }}
     >
         {/* glow orb */}
         <div style={{ position: 'absolute', top: -20, right: -20, width: '100px', height: '100px', background: accent, filter: 'blur(40px)', opacity: 0.25, borderRadius: '50%', pointerEvents: 'none' }} />
@@ -52,7 +47,7 @@ const StatCard = ({ title, value, icon: Icon, accent, delay }) => (
 /* ─────────────────────────────────────────────
    Resume Card
    ───────────────────────────────────────────── */
-const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRestoring }) => {
+const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRestoring, isSelected }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     const scoreColor = resume.atsScore >= 70 ? 'var(--success-light)'
@@ -67,20 +62,20 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRest
         <motion.div
             layout
             initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
+            animate={{
+                opacity: 1,
+                scale: 1,
+                borderColor: isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                boxShadow: isSelected ? '0 0 30px rgba(124, 58, 237, 0.2)' : 'var(--shadow-md)'
+            }}
             exit={{ opacity: 0, scale: 0.95 }}
+            className="glass-card"
             style={{
-                background: 'var(--bg-card)',
-                backdropFilter: 'var(--blur)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-lg)',
                 padding: '1.25rem',
                 display: 'flex', flexDirection: 'column',
                 gap: '1rem',
-                transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
                 position: 'relative'
             }}
-            whileHover={{ y: -5, borderColor: 'var(--primary)', boxShadow: 'var(--shadow-lg)' }}
         >
             {/* Top Row: Icon & Score */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -106,33 +101,35 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRest
 
             {/* Action Buttons: Direct access */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                <button
-                    onClick={() => navigate(`/editor/${resume._id}`)}
+                <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/editor/${resume._id}`); }}
                     className="glow-btn"
                     style={{ padding: '0.55rem', fontSize: '0.8rem', width: '100%', justifyContent: 'center', gap: '0.4rem' }}
                 >
                     <FileText size={14} /> Edit
-                </button>
-                <button
-                    onClick={() => onDownload(resume._id, latestVersion.versionNumber)}
+                </motion.button>
+                <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={(e) => { e.stopPropagation(); onDownload(resume._id, latestVersion.versionNumber); }}
                     className="ghost-btn"
-                    style={{ padding: '0.55rem', fontSize: '0.8rem', width: '100%', justifyContent: 'center', border: '1px solid var(--border)', gap: '0.4rem' }}
+                    style={{ padding: '0.55rem', fontSize: '0.8rem', width: '100%', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.1)', gap: '0.4rem' }}
                 >
                     <Download size={14} /> Export
-                </button>
+                </motion.button>
             </div>
 
             {/* Versions Toggler */}
             <button
-                onClick={() => setIsExpanded(!isExpanded)}
+                onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
                 style={{
-                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 'var(--radius-sm)',
                     width: '100%', display: 'flex', justifyContent: 'space-between',
                     alignItems: 'center', color: 'var(--text-sub)', fontSize: '0.78rem', cursor: 'pointer', padding: '0.5rem 0.75rem',
                     transition: 'all 0.2s'
                 }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary-glow)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '700' }}>
                     <History size={13} />
@@ -152,7 +149,7 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRest
                     >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingTop: '0.4rem' }}>
                             {sortedVersions.map((v, idx) => (
-                                <div key={`${v.versionNumber}-${idx}`} style={{ padding: '0.5rem 0.65rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div key={`${v.versionNumber}-${idx}`} style={{ padding: '0.5rem 0.65rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <span style={{ fontSize: '0.72rem', fontWeight: '800', color: idx === 0 ? 'var(--primary-light)' : 'var(--text-main)' }}>
                                             v{v.versionNumber} {idx === 0 && '• Active'}
@@ -160,11 +157,11 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRest
                                         <span style={{ fontSize: '0.62rem', color: 'var(--text-faint)' }}>{new Date(v.createdAt).toLocaleDateString()}</span>
                                     </div>
                                     <div style={{ display: 'flex', gap: '0.15rem' }}>
-                                        <button onClick={() => onPreview(resume._id, v.versionNumber)} title="Quick Preview" style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><Eye size={12} /></button>
-                                        <button onClick={() => onDownload(resume._id, v.versionNumber)} title="Download PDF" style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><Download size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); onPreview(resume._id, v.versionNumber); }} title="Quick Preview" style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><Eye size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); onDownload(resume._id, v.versionNumber); }} title="Download PDF" style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><Download size={12} /></button>
                                         {idx !== 0 && (
                                             <button
-                                                onClick={() => onRestore(resume._id, v.versionNumber)}
+                                                onClick={(e) => { e.stopPropagation(); onRestore(resume._id, v.versionNumber); }}
                                                 disabled={isRestoring}
                                                 title="Make this current active version"
                                                 style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--error-light)', cursor: 'pointer', opacity: isRestoring ? 0.3 : 1 }}
@@ -229,6 +226,42 @@ const TrendChart = ({ data }) => {
 };
 
 /* ─────────────────────────────────────────────
+   Skeleton Loaders
+   ───────────────────────────────────────────── */
+const SkeletonCard = () => (
+    <div className="skeleton-card">
+        {/* Icon + Badge row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div className="skeleton-base skeleton-avatar" />
+            <div className="skeleton-base skeleton-badge" />
+        </div>
+
+        {/* Title lines */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', flex: 1 }}>
+            <div className="skeleton-base skeleton-line skeleton-line-medium" />
+            <div className="skeleton-base skeleton-line skeleton-line-short" />
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: '1px', background: 'var(--border)' }} />
+
+        {/* Action button row */}
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div className="skeleton-base skeleton-line" style={{ flex: 1, height: '32px', borderRadius: '0.5rem' }} />
+            <div className="skeleton-base skeleton-line" style={{ flex: 1, height: '32px', borderRadius: '0.5rem' }} />
+        </div>
+    </div>
+);
+
+const SkeletonGrid = ({ count = 6 }) => (
+    <div className="dashboard-grid">
+        {Array.from({ length: count }).map((_, i) => (
+            <SkeletonCard key={i} />
+        ))}
+    </div>
+);
+
+/* ─────────────────────────────────────────────
    Dashboard Page
    ───────────────────────────────────────────── */
 const Dashboard = () => {
@@ -237,7 +270,7 @@ const Dashboard = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [fetchError, setFetchError] = useState(null);
     const [sortOrder, setSortOrder] = useState('desc');
-    const [showChat, setShowChat] = useState(false);
+    const [selectedResume, setSelectedResume] = useState(null);
 
     // Version specific state
     const [isRestoring, setIsRestoring] = useState(false);
@@ -366,8 +399,8 @@ const Dashboard = () => {
 
                     <Link to="/wizard/new" style={{ textDecoration: 'none' }}>
                         <motion.button
-                            whileHover={{ scale: 1.04, boxShadow: '0 0 30px var(--primary-glow)' }}
-                            whileTap={{ scale: 0.96 }}
+                            whileHover={{ scale: 1.02, boxShadow: '0 0 30px var(--primary-glow)' }}
+                            whileTap={{ scale: 0.98 }}
                             className="glow-btn"
                             style={{ fontSize: '1rem', padding: '0.9rem 1.75rem' }}
                         >
@@ -376,157 +409,146 @@ const Dashboard = () => {
                     </Link>
                 </motion.div>
 
-                {/* Stats Row */}
-                <div className="stats-grid">
-                    {/* Smal stat cards */}
-                    <StatCard title="Total Resumes" value={stats.total} icon={FileText} accent="var(--primary)" delay={0.1} />
-                    <StatCard title="Avg. ATS Score" value={stats.avgScore} icon={Target} accent="var(--secondary)" delay={0.2} />
-                    <StatCard title="Top ATS Score" value={stats.topScore} icon={TrendingUp} accent="var(--success)" delay={0.3} />
+                <div className="bento-grid">
+                    {/* Score Trend - Hero Tile */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.35 }}
+                        className="glass-card"
+                        style={{
+                            padding: '1.5rem',
+                            gridColumn: 'span 2',
+                            gridRow: 'span 2',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ padding: '0.4rem', borderRadius: '0.6rem', background: 'rgba(236,72,153,0.1)', color: '#ec4899' }}>
+                                    <TrendingUp size={18} />
+                                </div>
+                                <span style={{ fontWeight: '700', color: 'var(--text-sub)', fontSize: '0.9rem' }}>Score Trend</span>
+                            </div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)', background: 'var(--bg-elevated)', padding: '0.2rem 0.7rem', borderRadius: '9999px' }}>Last 10 updates</span>
+                        </div>
+                        <div style={{ flex: 1, minHeight: '140px' }}>
+                            <TrendChart data={trendData} />
+                        </div>
+                    </motion.div>
+
+                    {/* Total Resumes - Vertical Slim Tile */}
+                    <StatCard
+                        title="Total Resumes"
+                        value={stats.total}
+                        icon={FileText}
+                        accent="var(--primary)"
+                        delay={0.1}
+                        style={{ gridRow: 'span 2' }}
+                    />
+
+                    {/* Other Stats */}
+                    <StatCard title="Avg. Score" value={stats.avgScore} icon={Target} accent="var(--secondary)" delay={0.2} />
+                    <StatCard title="Top Score" value={stats.topScore} icon={TrendingUp} accent="var(--success)" delay={0.3} />
+
+                    {/* Resume Cards */}
+                    {resumes
+                        .sort((a, b) => {
+                            const dateA = new Date(a.updatedAt);
+                            const dateB = new Date(b.updatedAt);
+                            return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+                        })
+                        .map(resume => (
+                            <div
+                                key={resume._id}
+                                onClick={() => setSelectedResume(resume._id === selectedResume?._id ? null : resume)}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <ResumeCard
+                                    resume={resume}
+                                    navigate={navigate}
+                                    onRestore={handleRestore}
+                                    onDownload={handleDownload}
+                                    onPreview={openPreview}
+                                    isRestoring={isRestoring}
+                                    isSelected={selectedResume?._id === resume._id}
+                                />
+                            </div>
+                        ))}
+
+                    {/* New resume card */}
+                    <motion.div
+                        whileHover={{ scale: 1.02, borderColor: 'var(--primary)', boxShadow: 'var(--shadow-lg)' }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => navigate('/wizard/new')}
+                        className="glass-card"
+                        style={{
+                            border: '2px dashed rgba(255,255,255,0.1)',
+                            display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', minHeight: '260px',
+                            color: 'var(--text-faint)',
+                            gap: '1rem'
+                        }}
+                    >
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', transition: 'background 0.2s' }}>
+                            <Plus size={22} />
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                            <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)', display: 'block' }}>Create New</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>Start a new ATS flow</span>
+                        </div>
+                    </motion.div>
                 </div>
 
-                {/* Trend Chart Card */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.35 }}
-                    className="glass-card"
-                    style={{ padding: '1.5rem', marginBottom: '3rem' }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <div style={{ padding: '0.4rem', borderRadius: '0.6rem', background: 'rgba(236,72,153,0.1)', color: '#ec4899' }}>
-                                <TrendingUp size={18} />
-                            </div>
-                            <span style={{ fontWeight: '700', color: 'var(--text-sub)', fontSize: '0.9rem' }}>Score Trend</span>
-                        </div>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)', background: 'var(--bg-elevated)', padding: '0.2rem 0.7rem', borderRadius: '9999px' }}>Last 10 updates</span>
-                    </div>
-                    <div style={{ height: '140px' }}>
-                        <TrendChart data={trendData} />
-                    </div>
-                </motion.div>
-
-                {/* Resumes Section */}
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                        <h2 style={{ fontSize: '1.75rem', fontWeight: '800', fontFamily: "'Outfit', sans-serif" }}>Your Resumes</h2>
-                        <button
-                            onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-                            className="ghost-btn"
-                        >
-                            Sort {sortOrder === 'desc' ? '↓ Newest' : '↑ Oldest'}
-                        </button>
-                    </div>
-
-                    {isLoading ? (
-                        <SkeletonGrid count={6} />
-                    ) : fetchError ? (
-                        <div style={{ padding: '5rem', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-xl)', textAlign: 'center', background: 'var(--bg-card)' }}>
-                            <div style={{ width: '64px', height: '64px', background: 'rgba(239,68,68,0.1)', borderRadius: '50%', margin: '0 auto 1.5rem', display: 'grid', placeItems: 'center' }}>
-                                <AlertTriangle size={28} style={{ color: '#ef4444' }} />
-                            </div>
-                            <h3 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Outfit', sans-serif", color: '#ef4444' }}>Connection Error</h3>
-                            <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>{fetchError}</p>
-                            <button onClick={() => window.location.reload()} className="glow-btn" style={{ padding: '0.8rem 2rem', background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)', color: '#ef4444' }}>
-                                Retry Connection
-                            </button>
-                        </div>
-                    ) : resumes.length === 0 ? (
-                        <div style={{ padding: '5rem', border: '2px dashed var(--border)', borderRadius: 'var(--radius-xl)', textAlign: 'center', background: 'var(--bg-card)' }}>
-                            <div style={{ width: '64px', height: '64px', background: 'var(--bg-elevated)', borderRadius: '50%', margin: '0 auto 1.5rem', display: 'grid', placeItems: 'center' }}>
-                                <FileText size={28} style={{ color: 'var(--text-muted)' }} />
-                            </div>
-                            <h3 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Outfit', sans-serif" }}>No resumes yet</h3>
-                            <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Create your first ATS-optimized resume to get started.</p>
-                            <Link to="/" className="glow-btn" style={{ textDecoration: 'none', display: 'inline-flex' }}>
-                                <Plus size={18} /> Create First Resume
-                            </Link>
-                        </div>
-                    ) : (
-                        <div className="dashboard-grid">
-                            {resumes
-                                .sort((a, b) => {
-                                    const dateA = new Date(a.updatedAt);
-                                    const dateB = new Date(b.updatedAt);
-                                    return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-                                })
-                                .map(resume => (
-                                    <ResumeCard
-                                        key={resume._id}
-                                        resume={resume}
-                                        navigate={navigate}
-                                        onRestore={handleRestore}
-                                        onDownload={handleDownload}
-                                        onPreview={openPreview}
-                                        isRestoring={isRestoring}
-                                    />
-                                ))}
-
-                            {/* New resume card */}
-                            <motion.div
-                                whileHover={{ scale: 1.02, borderColor: 'var(--primary)', boxShadow: 'var(--shadow-lg)' }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => navigate('/wizard/new')}
-                                style={{
-                                    border: '2px dashed var(--border)',
-                                    borderRadius: 'var(--radius-lg)',
-                                    display: 'flex', flexDirection: 'column',
-                                    alignItems: 'center', justifyContent: 'center',
-                                    cursor: 'pointer', height: '100%', minHeight: '260px',
-                                    color: 'var(--text-faint)', transition: 'all 0.2s ease',
-                                    background: 'var(--bg-card)',
-                                    gap: '1rem'
-                                }}
-                            >
-                                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', transition: 'background 0.2s' }}>
-                                    <Plus size={22} />
-                                </div>
-                                <div style={{ textAlign: 'center' }}>
-                                    <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)', display: 'block' }}>Create New</span>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>Start a new ATS optimize flow</span>
-                                </div>
-                            </motion.div>
-                        </div>
-                    )}
-                </motion.div>
-            </main>
-
-            {/* Floating AI Chat */}
-            <div style={{ position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000 }}>
-                <AnimatePresence mode="wait">
-                    {!showChat ? (
-                        <motion.button
-                            key="chat-trigger"
-                            initial={{ opacity: 0, rotate: -45 }} animate={{ opacity: 1, rotate: 0 }} exit={{ opacity: 0, rotate: 45 }}
-                            whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                            onClick={() => setShowChat(true)}
-                            className="animate-glow"
-                            style={{ width: '62px', height: '62px', borderRadius: '50%', background: 'var(--gradient-primary)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 8px 32px var(--primary-glow)' }}
-                        >
-                            <Bot size={28} />
-                        </motion.button>
-                    ) : (
+                {/* Quick Action Floating Bar */}
+                <AnimatePresence>
+                    {selectedResume && (
                         <motion.div
-                            key="chat-window"
-                            initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                            style={{ width: '420px', height: '600px', background: 'var(--nav-bg)', backdropFilter: 'var(--blur)', WebkitBackdropFilter: 'var(--blur)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}
+                            initial={{ y: 100, x: '-50%', opacity: 0 }}
+                            animate={{ y: 0, x: '-50%', opacity: 1 }}
+                            exit={{ y: 100, x: '-50%', opacity: 0 }}
+                            style={{
+                                position: 'fixed',
+                                bottom: '2rem',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                zIndex: 100,
+                                background: 'var(--glass-bg)',
+                                backdropFilter: 'blur(20px)',
+                                padding: '0.75rem 1.5rem',
+                                borderRadius: '1.5rem',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '1rem',
+                                boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
+                            }}
                         >
-                            <div style={{ padding: '1rem 1.5rem', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success-light)' }} />
-                                    <span style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--primary-light)' }}>AI ASSISTANT</span>
-                                </div>
-                                <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-faint)', fontWeight: '700' }}>SELECTED</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '700', maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {selectedResume.title}
+                                </span>
+                            </div>
+                            <div style={{ height: '24px', width: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button onClick={() => navigate(`/editor/${selectedResume._id}`)} className="glow-btn" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>
+                                    Edit
+                                </button>
+                                <button onClick={() => handleDownload(selectedResume._id, 1)} className="ghost-btn" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>
+                                    Export
+                                </button>
+                                <button onClick={() => setSelectedResume(null)} style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}>
                                     <X size={18} />
                                 </button>
-                            </div>
-                            <div style={{ flex: 1, overflow: 'hidden' }}>
-                                <AIAssistant />
                             </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
+            </main>
+
 
             {/* Preview Modal */}
             <AnimatePresence>
@@ -573,17 +595,20 @@ const Dashboard = () => {
 
             {/* Responsive styles for Dashboard */}
             <style>{`
+                .bento-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 1.5rem;
+                }
+                @media (max-width: 1024px) {
+                    .bento-grid { grid-template-columns: repeat(2, 1fr); }
+                }
                 @media (max-width: 768px) {
                     main > div:first-child > div:first-child > :first-child { font-size: 2rem !important; }
-                }
-                @media (max-width: 640px) {
-                    main > div:nth-child(2) { grid-template-columns: 1fr 1fr !important; }
-                }
-                @media (max-width: 480px) {
-                    main > div:nth-child(2) { grid-template-columns: 1fr !important; }
+                    .bento-grid { grid-template-columns: 1fr; }
                 }
             `}</style>
-        </div>
+        </div >
     );
 };
 

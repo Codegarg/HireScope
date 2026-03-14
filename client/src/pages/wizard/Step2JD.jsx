@@ -3,14 +3,20 @@ import { motion } from 'framer-motion';
 import { Briefcase, FileUp, AlertCircle, Loader2 } from 'lucide-react';
 import { analyzeResume } from '../../services/api';
 
-const Step2JD = ({ data, updateData, setNextDisabled, onAnalyze }) => {
+const Step2JD = ({ data, updateData, setNextDisabled, onAnalyze, triggerAction }) => {
     const [error, setError] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
 
     useEffect(() => {
-        // Disable Next inherently—they must click "Analyze" to proceed
-        setNextDisabled(true);
-    }, [setNextDisabled]);
+        // Only disable if we haven't analyzed yet
+        setNextDisabled(isAnalyzing || (!data.jdText?.trim() && !data.jdFile));
+    }, [isAnalyzing, data.jdText, data.jdFile, setNextDisabled]);
+
+    useEffect(() => {
+        if (triggerAction > 0) {
+            handleRunAnalysis();
+        }
+    }, [triggerAction]);
 
     const handleJdFileChange = (e) => {
         const file = e.target.files[0];
@@ -62,8 +68,8 @@ const Step2JD = ({ data, updateData, setNextDisabled, onAnalyze }) => {
                 content: res.data.data?.originalContent || ''
             });
 
-            onAnalyze(); // auto-advance to step 3
-
+            // If we want auto-advance after internal button click:
+            onAnalyze();
         } catch (err) {
             console.error("Analysis Error:", err);
             setError(err.response?.data?.message || err.response?.data?.error || "Analysis failed. Please try again.");
@@ -148,18 +154,6 @@ const Step2JD = ({ data, updateData, setNextDisabled, onAnalyze }) => {
                     </motion.div>
                 )}
 
-                <button
-                    onClick={handleRunAnalysis}
-                    disabled={isAnalyzing || (!data.jdText?.trim() && !data.jdFile)}
-                    className="glow-btn"
-                    style={{ width: '100%', marginTop: '1.5rem', padding: '1rem', opacity: (!data.jdText?.trim() && !data.jdFile) ? 0.5 : 1 }}
-                >
-                    {isAnalyzing ? (
-                        <><Loader2 className="animate-spin" size={20} /> Analyzing Match...</>
-                    ) : (
-                        'Analyze Match'
-                    )}
-                </button>
             </div>
         </div>
     );

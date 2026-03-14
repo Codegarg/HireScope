@@ -1,10 +1,10 @@
 import { useState, useContext, useEffect } from "react";
-import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X, CheckCircle, AlertCircle, Lightbulb, TrendingUp, TrendingDown, Bot } from "lucide-react";
+import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X, CheckCircle, AlertCircle, Lightbulb, TrendingUp, TrendingDown } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { analyzeResume } from "../services/api";
 import { AuthContext } from "../context/AuthContext";
-import AIAssistant from "../components/AIAssistant";
+
 import Navbar from "../components/Navbar";
 
 /* ─────────────────────────────────────────────
@@ -74,7 +74,7 @@ const Home = () => {
   const [error, setError] = useState("");
   const [validationError, setValidationError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showChat, setShowChat] = useState(false);
+
 
   // Save analysis results to sessionStorage whenever they change
   useEffect(() => {
@@ -430,43 +430,6 @@ const Home = () => {
           </div>
         </section>
       </main>
-
-      {/* Floating AI Assistant */}
-      <div style={{ position: 'fixed', bottom: '2.5rem', right: '2.5rem', zIndex: 1000 }}>
-        <AnimatePresence mode="wait">
-          {!showChat ? (
-            <motion.button
-              key="chat-trigger"
-              initial={{ opacity: 0, rotate: -45 }} animate={{ opacity: 1, rotate: 0 }} exit={{ opacity: 0, rotate: 45 }}
-              whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-              onClick={() => setShowChat(true)}
-              className="animate-glow"
-              style={{ width: '62px', height: '62px', borderRadius: '50%', background: 'var(--gradient-primary)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 8px 32px var(--primary-glow)' }}
-            >
-              <Bot size={28} />
-            </motion.button>
-          ) : (
-            <motion.div
-              key="chat-window"
-              initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              style={{ width: '420px', height: '580px', background: 'var(--nav-bg)', backdropFilter: 'var(--blur)', WebkitBackdropFilter: 'var(--blur)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}
-            >
-              <div style={{ padding: '1rem 1.5rem', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success-light)' }} />
-                  <span style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--primary-light)' }}>AI ASSISTANT</span>
-                </div>
-                <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex' }}>
-                  <X size={18} />
-                </button>
-              </div>
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <AIAssistant context={result ? { resumeText: result?.resumeText, jdText: result?.jdText, atsResult: result } : {}} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
 
       {/* Responsive styles for Home */}
       <style>{`

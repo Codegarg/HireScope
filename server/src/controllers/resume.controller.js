@@ -1,7 +1,7 @@
 import Resume from "../models/resume.model.js";
 import { ruleBasedATSScore as ruleBasedScore } from "../utils/atsEngine.js";
 import { calculateATSScore as hybridScore } from "../services/atsScorer.js";
-import { generateInterviewPrep, callCloudflareAIStreaming, improveResumeStructured, improveResumeRegenerate } from "../services/ai.service.js";
+import { generateInterviewPrep, callCloudflareAIStreaming, improveResumeStructured, stripPreamble } from "../services/ai.service.js";
 import { extractTextFromFile } from "../services/textExtractor.service.js";
 import { uploadResume as uploadResumeToStorage, uploadResumeVersion, getFileStream, deleteFile, validateFileKey } from "../services/storage.service.js";
 import { logger } from "../utils/logger.js";
@@ -472,6 +472,19 @@ const createImproveVersion = async (resume, improvedText, atsScore, mode, userId
     const { generateResumePDF } = await import("../services/pdfGenerator.service.js");
 
     const candidateObj = { ...resume.toObject(), parsedText: improvedText, atsScore, versions: [] };
+
+    // Detect if AI returned JSON
+    try {
+        const parsedStr = improvedText.trim();
+        if (parsedStr.startsWith('{') && parsedStr.endsWith('}')) {
+            const parsedJson = JSON.parse(parsedStr);
+            if (parsedJson && typeof parsedJson === 'object') {
+                candidateObj.content = parsedJson;
+            }
+        }
+    } catch (e) {
+        // Not JSON or invalid JSON, fall back to default behavior
+    }
     const pdfBuffer = await generateResumePDF(candidateObj);
 
     if (!pdfBuffer || pdfBuffer.length === 0) throw new Error("Generated PDF is empty");
@@ -535,13 +548,8 @@ export const improveResume = async (req, res, next) => {
             breakdown: atsContextFromFrontend?.breakdown || {}
         };
 
-        // Run the correct AI mode
-        let aiResult;
-        if (mode === 'regenerate') {
-            aiResult = await improveResumeRegenerate(content, jobDescription || '', missingKeywordsForPrompt, atsContext);
-        } else {
-            aiResult = await improveResumeStructured(content, jobDescription || '', missingKeywordsForPrompt, atsContext);
-        }
+        // Run the AI optimization (layout preserving)
+        const aiResult = await improveResumeStructured(content, jobDescription || '', missingKeywordsForPrompt, atsContext);
 
         const { optimizedResume: improvedText, improvementSummary, llmFallback } = aiResult;
 
@@ -605,51 +613,82 @@ export const improveResumeStreaming = async (req, res, next) => {
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
 
+        // Check if we have a structured JSON version to act upon
+        const resume = await Resume.findOne({ _id: id, user: req.user.id });
+        const hasJsonContent = resume && resume.content && Object.keys(resume.content).length > 0;
+        let contentToOptimize = content;
+
+        if (hasJsonContent) {
+            contentToOptimize = JSON.stringify(resume.content, null, 2);
+        }
+
         // Pre-score baseline
         let missingKeywords = [];
         let baselineScore = previousScore;
         if (jobDescription) {
             try {
-                const preScore = ruleBasedScore(content, jobDescription);
-                missingKeywords = preScore.missingCriticalSkills?.slice(0, 8) || [];
+                const preScore = ruleBasedScore(contentToOptimize, jobDescription);
+                missingKeywords = preScore.missingCriticalSkills?.slice(0, 10) || [];
                 if (baselineScore === null) baselineScore = preScore.atsScore;
             } catch (err) { }
         }
 
-        // Build system + user prompt based on mode
-        const systemPrompt = mode === 'regenerate'
-            ? `You are an expert technical resume writer and ATS specialist.\nMode: REGENERATE — you may restructure, add, remove, or reorder sections to maximise ATS fit.\nOutput ONLY the rewritten resume as plain text. No JSON. No markdown fences. No explanations.`
-            : `You are a precise resume optimization engine.\nMode: OPTIMIZE — keep ALL section headings, structure, and layout identical. Only improve wording and action verbs.\nOutput ONLY the improved resume as plain text. No JSON. No markdown fences. No explanations.`;
-
-        const keywordHint = missingKeywords.length > 0
-            ? `\nCRITICAL — Try to naturally incorporate these missing skills: ${missingKeywords.join(', ')}\n`
+        const originalFirstLine = content.split('\n').find(l => l.trim().length > 0) || '';
+        const keywordBlock = missingKeywords.length > 0
+            ? `\nMISSING KEYWORDS TO INJECT NATURALLY:\n${missingKeywords.join(', ')}\n`
             : '';
 
-        const userPrompt = `Improve this resume for the JD.\nRULES: No fabrication. Natural keyword integration.\n${keywordHint}\nRESUME:\n${content}\n\nJD:\n${jobDescription || ''}`;
+        const systemPrompt = `You are a "Surgical Resume Weaver". 
+Your ONLY purpose is to weave keywords into a resume WITHOUT changing its length, layout, design, or line count.
+
+ABSOLUTE STRICT CONSTRAINTS:
+1. DO NOT add any new lines, bullet points, or sections. Replace weak words with keywords instead.
+2. The final output MUST have exactly the same number of lines as the input.
+3. DO NOT add any preamble, titles, timestamps, or headers like "ANALYSIS", "IMPROVED", or "REVISION".
+4. START THE RESPONSE DIRECTLY with the name EXACTLY as it appears here: "${originalFirstLine}". No conversational filler.
+5. PRESERVE every single original header, contact detail, and layout character exactly as written.
+6. Ensuring the resume stays within the SAME PAGE COUNT is your highest priority.
+7. Output nothing but the optimized resume text.`;
+
+        const userPrompt = `ORIGINAL RESUME:\n${content}\n${keywordBlock}\nINSTRUCTION: Weave the keywords into existing bullets. Keep the exact same line count. NO extra headers. Start directly with "${originalFirstLine}".`;
+
+        const { callCloudflareAIStreaming, stripPreamble } = await import("../services/ai.service.js");
 
         const messages = [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
         ];
 
-        // Stream from AI
         await callCloudflareAIStreaming(messages, res, {
-            onComplete: async (finalText) => {
+            temperature: 0,
+            max_tokens: 4096,
+            onComplete: async (fullAiResponse) => {
+                // 1. Basic cleaning
+                let cleanedText = fullAiResponse
+                    .replace(/```[\w]*\n?/gi, '')
+                    .replace(/```/g, '')
+                    .trim();
+
+                // 2. Structural stripping
+                cleanedText = stripPreamble(cleanedText, originalFirstLine);
+
                 let finalAnalysis = null;
-                if (finalText && finalText.length > 100 && jobDescription) {
+                if (cleanedText && cleanedText.length > 50 && jobDescription) {
                     try {
-                        finalAnalysis = await hybridScore(finalText, jobDescription, { previousScore: baselineScore });
-                    } catch (err) { }
+                        finalAnalysis = await hybridScore(cleanedText, jobDescription, { previousScore: baselineScore });
+                    } catch (err) {
+                        console.error("[Streaming] Post-score failed:", err);
+                    }
                 }
 
                 let newVersionNumber = null;
-                if (id && finalText && finalText.length > 100) {
+                if (id && cleanedText && cleanedText.length > 50) {
                     try {
                         const resume = await Resume.findOne({ _id: id, user: req.user.id });
                         if (resume) {
                             newVersionNumber = await createImproveVersion(
                                 resume,
-                                finalText,
+                                cleanedText,
                                 finalAnalysis?.atsScore || resume.atsScore,
                                 mode,
                                 req.user.id
@@ -660,6 +699,7 @@ export const improveResumeStreaming = async (req, res, next) => {
                     }
                 }
 
+                // Send the final metadata chunk
                 res.write(`data: ${JSON.stringify({
                     type: 'metadata',
                     newScore: finalAnalysis?.atsScore || null,
@@ -667,11 +707,12 @@ export const improveResumeStreaming = async (req, res, next) => {
                     newAnalysis: finalAnalysis,
                     newVersionNumber
                 })}\n\n`);
+                res.write('data: [DONE]\n\n');
             }
         });
 
     } catch (error) {
-        logger.error('AI', 'Magic Improve Stream Error', { error: error.message, resumeId: req.params.id });
+        console.error("Improvement error:", error);
         res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
         res.end();
     }
@@ -827,7 +868,24 @@ export const commitVersion = async (req, res, next) => {
         }
 
         // Promote candidate version data to the active root state
-        resume.parsedText = improvedText || resume.parsedText;
+        try {
+            if (improvedText) {
+                const parsedStr = improvedText.trim();
+                if (parsedStr.startsWith('{') && parsedStr.endsWith('}')) {
+                    const parsedJson = JSON.parse(parsedStr);
+                    if (parsedJson && typeof parsedJson === 'object') {
+                        resume.content = parsedJson;
+                    } else {
+                        resume.parsedText = improvedText;
+                    }
+                } else {
+                    resume.parsedText = improvedText;
+                }
+            }
+        } catch (e) {
+            resume.parsedText = improvedText || resume.parsedText;
+        }
+
         resume.atsScore = exactVersion.atsScore || resume.atsScore;
 
         // Update the root analysis details if provided

@@ -50,21 +50,6 @@ const Step3Analysis = ({ data, updateData, setNextDisabled, onNext, onBack }) =>
                     )}
                 </div>
             </div>
-
-            {/* Inline Navigation */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3rem', maxWidth: '800px', margin: '3rem auto 0' }}>
-                <button onClick={onBack} className="ghost-btn" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <ArrowLeft size={18} /> Back
-                </button>
-                <button
-                    onClick={onNext}
-                    disabled={!data.atsResult}
-                    className="glow-btn"
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 2rem', opacity: !data.atsResult ? 0.5 : 1 }}
-                >
-                    Next Step <ArrowRight size={18} />
-                </button>
-            </div>
         </div>
     );
 };

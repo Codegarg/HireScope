@@ -269,17 +269,62 @@ const extractSectionOrder = (resumeText) => {
  * The resume starts at the candidate's name — we find the first line of the
  * original resume in the AI output and discard everything before it.
  */
-const stripPreamble = (aiOutput, originalFirstLine) => {
-    if (!originalFirstLine) return aiOutput.trim();
-    const needle = originalFirstLine.trim().toLowerCase();
-    const lines = aiOutput.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-        if (lines[i].trim().toLowerCase().includes(needle.substring(0, Math.min(needle.length, 20)))) {
-            return lines.slice(i).join('\n').trim();
+/**
+ * Strip any preamble before the resume's actual start.
+ * The resume starts at the candidate's name — we find the first line of the
+ * original resume in the AI output and discard everything before it.
+ */
+export const stripPreamble = (aiOutput, originalFirstLine) => {
+    let text = aiOutput.trim();
+
+    // 1. Remove common conversational preambles regardless of originalFirstLine
+    const commonPreambles = [
+        /^here is the (revised|improved|optimized) resume.*/i,
+        /^i've (revised|improved|optimized) the resume.*/i,
+        /^sure, here's the.*/i,
+        /^certainly, here is.*/i,
+        /^below is the.*/i,
+        /^target: .*/i,
+        /^location: .*/i,
+        /^role: .*/i,
+        /^optimized for: .*/i,
+        /^analysis:?.*/i,
+        /^analysis \d+:\d+.*/i,
+        /^evaluation:?.*/i
+    ];
+
+    const lines = text.split('\n');
+    let startIndex = 0;
+
+    // Check first 5 lines for common fillers (increased from 3)
+    for (let i = 0; i < Math.min(5, lines.length); i++) {
+        const trimmedLine = lines[i].trim();
+        if (commonPreambles.some(regex => regex.test(trimmedLine)) || (trimmedLine.length < 50 && /^\W*$/.test(trimmedLine))) {
+            startIndex = i + 1;
+        } else {
+            // Stop at first non-preamble line that isn't empty/punctuation
+            break;
         }
     }
-    // If we can't find the original first line, return as-is
-    return aiOutput.trim();
+
+    if (startIndex > 0) {
+        text = lines.slice(startIndex).join('\n').trim();
+    }
+
+    if (!originalFirstLine) return text;
+
+    const needle = originalFirstLine.trim().toLowerCase();
+    const currentLines = text.split('\n');
+
+    for (let i = 0; i < currentLines.length; i++) {
+        const line = currentLines[i].trim().toLowerCase();
+        // Match if line contains the original first line (e.g. name)
+        if (line.includes(needle.substring(0, Math.min(needle.length, 15)))) {
+            return currentLines.slice(i).join('\n').trim();
+        }
+    }
+
+    return text;
 };
 
 /**
@@ -315,7 +360,12 @@ CRITICAL OUTPUT FORMAT RULES — any violation is a complete failure:
 5. DO NOT copy or include ANY text from the job description (no JD titles, headings, or preamble).
 6. DO NOT add preamble, notes, introductions, watermarks, or any non-resume text.
 7. Preserve ALL dates, company names, school names, and job titles exactly as written.
-8. Output ONLY the improved resume — nothing else before or after it.`;
+8. Output ONLY the improved resume — nothing else before or after it.
+
+SURGICAL CONSTRAINTS:
+- Keep every header, date, and layout character UNCHANGED.
+- Only modify bullet point text to inject keywords.
+- Do not add any new sections or headers.`;
 
     const keywordBlock = allMissing.length > 0
         ? `MISSING KEYWORDS TO INJECT (weave these naturally into existing bullets — skip if no fit):\n${allMissing.map(k => `  • ${k}`).join('\n')}\n`
@@ -366,90 +416,6 @@ ${jobDescription || 'Not provided.'}`;
         optimizedResume,
         improvementSummary: `Optimization applied: ${injectedCount} missing keyword(s) injected, bullet points strengthened. Structure and section order preserved exactly.`,
         llmFallback: false
-    };
-};
-
-/**
- * REGENERATE MODE: ATS-driven rewrite — restructures ONLY if it will increase ATS score.
- * Uses full ATS context to target weak sections and inject missing skills intelligently.
- *
- * @param {string} resumeText
- * @param {string} jobDescription
- * @param {string[]} missingKeywords  — top missing critical skills from rule engine
- * @param {Object}  atsContext        — full ATS analysis: { matchedSkills, weakSections, breakdown, atsScore, missingCriticalSkills }
- */
-export const improveResumeRegenerate = async (resumeText, jobDescription, missingKeywords = [], atsContext = {}) => {
-    const { matchedSkills = [], weakSections = [], breakdown = {}, atsScore = null, missingCriticalSkills = [] } = atsContext;
-
-    const allMissing = [...new Set([...missingCriticalSkills, ...missingKeywords])].slice(0, 20);
-    const weakList = weakSections.length > 0 ? weakSections.join(', ') : 'none';
-
-    // Build a breakdown hint so the AI knows where the score is bleeding
-    const breakdownHint = Object.keys(breakdown).length > 0
-        ? `Score breakdown — ${Object.entries(breakdown).map(([k, v]) => `${k}: ${v}`).join(', ')}`
-        : '';
-
-    const systemPrompt = `You are a senior ATS resume strategist and rewriter.
-Mode: REGENERATE — you may rewrite bullet points, reorganize bullets within a section, and rename section headings ONLY if the rename will increase ATS keyword matching.
-
-ABSOLUTE RULES — violating any of these is a failure:
-1. DO NOT add new sections unless the resume is completely missing a clearly expected section type (e.g., has experience but no Skills section at all).
-2. DO NOT add preamble, closing text, "Created by", watermarks, or the JD title.
-3. DO NOT fabricate companies, roles, degrees, dates, or certifications not in the original.
-4. DO NOT change date values — preserve all dates exactly.
-5. Only rename a section heading if the new name is a standard resume heading AND increases ATS match.
-6. Output ONLY the resume text — start immediately from the first line of the resume.`;
-
-    const keywordBlock = allMissing.length > 0
-        ? `MISSING KEYWORDS (integrate ALL of these that are relevant — this is your top priority):
-${allMissing.map(k => `  • ${k}`).join('\n')}\n`
-        : 'No specific missing keywords provided — focus on stronger verbs and impact.\n';
-
-    const contextBlock = `ATS CONTEXT:
-- Current ATS score: ${atsScore !== null ? atsScore : 'unknown'} / 100
-- Already matched skills (keep these): ${matchedSkills.slice(0, 12).join(', ') || 'none'}
-- Weakest sections (prioritize improving these the most): ${weakList}
-${breakdownHint ? `- ${breakdownHint}` : ''}
-`;
-
-    const userPrompt = `${contextBlock}
-${keywordBlock}
-IMPROVEMENT RULES:
-- Rewrite existing bullet points with stronger action verbs and quantifiable outcomes.
-- Weave in ALL missing keywords naturally across the most relevant sections.
-- Focus the heaviest rewriting on the WEAK SECTIONS listed above.
-- You MAY merge or reorder bullets within a section if it improves flow and keyword density.
-- You MAY rename section headings ONLY if the new name better matches standard ATS headings (e.g., "Work History" → "Work Experience"). Do not rename if already standard.
-- Keep ALL existing sections — only add a new section if a critical one is entirely absent.
-- Keep the professional summary tight and JD-aligned.
-
-RESUME (rewrite and return this only):
-${resumeText}
-
-JOB DESCRIPTION (context only — do NOT copy its title or headings into the resume):
-${jobDescription || 'Not provided — optimize for general professional impact.'}`;
-
-    const aiResponse = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
-
-    // Strip markdown fences the model might add
-    let cleaned = aiResponse
-        .replace(/```[\w]*\n?/gi, '')
-        .replace(/```/g, '')
-        .trim();
-
-    // Strip preamble — ensure output starts at the candidate name
-    const originalFirstLine = resumeText.split('\n').find(l => l.trim().length > 0) || '';
-    cleaned = stripPreamble(cleaned, originalFirstLine);
-
-    if (!cleaned || cleaned.length < 200) {
-        console.error('[Regenerate Mode] Response too short or empty:', cleaned?.substring(0, 100));
-        throw new Error('AI failed to regenerate the resume properly.');
-    }
-
-    const injectedCount = allMissing.filter(kw => cleaned.toLowerCase().includes(kw.toLowerCase())).length;
-    return {
-        optimizedResume: cleaned,
-        improvementSummary: `Full ATS-targeted rewrite: ${injectedCount}/${allMissing.length} missing keyword(s) integrated, weak sections (${weakList}) strengthened.`
     };
 };
 
@@ -803,92 +769,6 @@ Return the improved resumeData as VALID JSON exactly matching this schema:
         return {
             optimizedResumeData: resumeData,
             optimizationSummary: 'AI optimization could not be parsed. Your original resume is preserved.',
-            llmFallback: true,
-        };
-    }
-};
-
-/**
- * REGENERATE MODE V2 — Structural rewrite of resumeData JSON.
- * Allows reordering, heavy summary rewrites, and structural improvements.
- * Still forbids fabricating experience years/roles/dates.
- */
-export const improveResumeRegenerateV2 = async (resumeData, jobDescription, atsContext = {}) => {
-    const { atsScore, missingCriticalSkills = [], weakSections = [], matchedSkills = [] } = atsContext;
-
-    const systemPrompt = `You are an elite Executive Resume Writer and ATS Architect. Your job is to fundamentally restructure and rewrite a resume to maximize impact and ATS score for a specific job description.
-
-STRICT RULES:
-- You MAY rewrite the professional summary completely.
-- You MAY reorganize bullet points by impact.
-- You MAY merge or heavily edit bullet points for better flow and keyword density.
-- You MUST naturally integrate the requested missing skills.
-- DO NOT add new jobs, companies, or degrees.
-- DO NOT change the start/end dates of any experience.
-- DO NOT fabricate tools, technologies, or certifications not present in the original.
-- Return ONLY valid JSON matching the exact resumeData schema provided. No markdown. No explanation.`;
-
-    const userPrompt = `Current ATS Score: ${atsScore ?? 'unknown'}
-Matched Skills: ${matchedSkills.slice(0, 8).join(', ')}
-Missing Critical Skills: ${missingCriticalSkills.slice(0, 8).join(', ')}
-Weak Sections: ${weakSections.join(', ')}
-
-Job Description:
-${jobDescription?.substring(0, 1500) || 'Not provided'}
-
-Resume Data (JSON):
-${JSON.stringify(resumeData, null, 2).substring(0, 3000)}
-
-Return the perfectly restructured resumeData as VALID JSON exactly matching this schema:
-{
-  "personalInfo": { "fullName":"","title":"","email":"","phone":"","linkedin":"","github":"" },
-  "summary": "",
-  "skills": { "languages":[],"core":[],"frontend":[],"backend":[],"databases":[],"cloud":[],"tools":[] },
-  "projects": [{ "name":"","link":"","descriptionPoints":[] }],
-  "experience": [{ "role":"","organization":"","startDate":"","endDate":"","points":[] }],
-  "education": [{ "degree":"","institution":"","startYear":"","endYear":"" }]
-}`;
-
-    try {
-        const raw = await callCloudflareAINonStreaming(systemPrompt, userPrompt);
-        const jsonStr = raw.replace(/```json|```/gi, '').trim();
-        const start = jsonStr.indexOf('{');
-        const end = jsonStr.lastIndexOf('}');
-        if (start === -1 || end === -1) throw new Error('No JSON object found in response');
-
-        const parsed = JSON.parse(jsonStr.slice(start, end + 1));
-
-        if (!parsed.personalInfo || !parsed.experience || !parsed.skills) {
-            throw new Error('Parsed JSON missing required fields');
-        }
-
-        // Guardrails: Even in regenerate, never corrupt dates or core facts
-        if (Array.isArray(parsed.experience) && Array.isArray(resumeData.experience)) {
-            // Match up by company to preserve dates if order changed
-            parsed.experience = parsed.experience.map(aiExp => {
-                const originalExp = resumeData.experience.find(e =>
-                    e.organization && aiExp.organization &&
-                    e.organization.toLowerCase() === aiExp.organization.toLowerCase()
-                ) || aiExp; // fallback to AI if not matched perfectly
-
-                return {
-                    ...aiExp,
-                    startDate: originalExp.startDate || aiExp.startDate,
-                    endDate: originalExp.endDate || aiExp.endDate
-                };
-            });
-        }
-
-        return {
-            optimizedResumeData: parsed,
-            optimizationSummary: 'Full structural regeneration applied. Summary rewritten and experience restructured for maximum impact.',
-            llmFallback: false,
-        };
-    } catch (error) {
-        console.error('[improveResumeRegenerateV2] Fallback triggered:', error.message);
-        return {
-            optimizedResumeData: resumeData,
-            optimizationSummary: 'AI regeneration could not be parsed. Your original resume is preserved.',
             llmFallback: true,
         };
     }
