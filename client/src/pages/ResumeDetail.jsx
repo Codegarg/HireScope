@@ -29,7 +29,7 @@ const ResumeDetail = () => {
             try {
                 const token = localStorage.getItem('token');
                 if (!token) { navigate('/login'); return; }
-                const res = await axios.get(`http://localhost:5000/api/resumes/${id}`, {
+                const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/resumes/${id}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setResume(res.data.data);
@@ -50,7 +50,7 @@ const ResumeDetail = () => {
         setIsRestoring(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`http://localhost:5000/api/resumes/${id}/restore/${versionNumber}`,
+            const res = await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/resumes/${id}/restore/${versionNumber}`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -66,7 +66,7 @@ const ResumeDetail = () => {
 
     const handleDownload = (versionNumber) => {
         const token = localStorage.getItem('token');
-        window.location.href = `http://localhost:5000/api/resumes/${id}/version/${versionNumber}/download?token=${token}`;
+        window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/resumes/${id}/version/${versionNumber}/download?token=${token}`;
     };
 
     if (isLoading) return (
@@ -159,7 +159,7 @@ const ResumeDetail = () => {
                     }}>
                         {resume.originalFileKey ? (
                             <iframe
-                                src={`http://localhost:5000/api/resumes/${resume._id}/file?token=${localStorage.getItem('token')}`}
+                                src={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/resumes/${resume._id}/file?token=${localStorage.getItem('token')}`}
                                 width="100%"
                                 height="100%"
                                 style={{ border: 'none' }}
@@ -316,7 +316,7 @@ const ResumeDetail = () => {
 
                             <div style={{ flex: 1, background: '#f5f5f7' }}>
                                 <iframe
-                                    src={`http://localhost:5000/api/resumes/${id}/version/${selectedVersion.versionNumber}/view?token=${localStorage.getItem('token')}`}
+                                    src={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/resumes/${id}/version/${selectedVersion.versionNumber}/view?token=${localStorage.getItem('token')}`}
                                     width="100%"
                                     height="100%"
                                     style={{ border: 'none' }}

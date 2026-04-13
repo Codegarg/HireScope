@@ -45,7 +45,8 @@ router.get("/google/callback", passport.authenticate("google", {
     session: false
 }), (req, res) => {
     const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
-    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/login?token=${token}`);
+    const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+    res.redirect(`${clientUrl}/login?token=${token}`);
 });
 
 // --- GitHub OAuth ---
@@ -59,7 +60,8 @@ router.get("/github/callback", passport.authenticate("github", {
     session: false
 }), (req, res) => {
     const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
-    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/login?token=${token}`);
+    const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+    res.redirect(`${clientUrl}/login?token=${token}`);
 });
 
 // --- Protected Routes ---

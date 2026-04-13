@@ -176,8 +176,8 @@ const Login = () => {
             {/* OAuth */}
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               {[
-                { href: "http://localhost:5000/api/auth/google", icon: <Chrome size={18} />, label: "Google" },
-                { href: "http://localhost:5000/api/auth/github", icon: <Github size={18} />, label: "GitHub" },
+                { href: `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/api/auth/google`, icon: <Chrome size={18} />, label: "Google" },
+                { href: `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/api/auth/github`, icon: <Github size={18} />, label: "GitHub" },
               ].map(({ href, icon, label }) => (
                 <motion.a
                   key={label}

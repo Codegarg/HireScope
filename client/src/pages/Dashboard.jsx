@@ -285,7 +285,7 @@ const Dashboard = () => {
         setIsRestoring(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`http://localhost:5000/api/resumes/${resumeId}/restore/${versionNumber}`,
+            const res = await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/resumes/${resumeId}/restore/${versionNumber}`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -303,12 +303,12 @@ const Dashboard = () => {
 
     const handleDownload = (resumeId, versionNumber) => {
         const token = localStorage.getItem('token');
-        window.location.href = `http://localhost:5000/api/resumes/${resumeId}/version/${versionNumber}/download?token=${token}`;
+        window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/resumes/${resumeId}/version/${versionNumber}/download?token=${token}`;
     };
 
     const openPreview = (resumeId, versionNumber) => {
         const token = localStorage.getItem('token');
-        setPreviewUrl(`http://localhost:5000/api/resumes/${resumeId}/version/${versionNumber}/view?token=${token}`);
+        setPreviewUrl(`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/resumes/${resumeId}/version/${versionNumber}/view?token=${token}`);
         setIsPreviewOpen(true);
     };
 
@@ -317,7 +317,7 @@ const Dashboard = () => {
             try {
                 const token = localStorage.getItem('token');
                 if (!token) { navigate('/login'); return; }
-                const res = await axios.get('http://localhost:5000/api/resumes', {
+                const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/resumes`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setResumes(res.data.data);
