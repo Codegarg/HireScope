@@ -397,6 +397,22 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
                 ))}
               </div>
 
+              {/* Missing Keywords */}
+              {(analysis.analysis?.missingKeywords?.length ?? 0) > 0 && (
+                <div style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <Target size={14} /> Missing Keywords
+                  </h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {(analysis.analysis?.missingKeywords || []).map((keyword, i) => (
+                      <span key={i} style={{ fontSize: '0.75rem', background: 'rgba(245,158,11,0.1)', color: 'var(--warning-light)', padding: '0.2rem 0.5rem', borderRadius: '0.3rem', border: '1px solid rgba(245,158,11,0.2)' }}>
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Formatting Issues */}
               {(analysis.analysis?.formattingIssues?.length ?? 0) > 0 && (
                 <div style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>

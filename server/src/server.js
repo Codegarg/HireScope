@@ -11,10 +11,26 @@ import passport from "./config/passport.js";
 
 const app = express();
 
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-  credentials: true
-}));
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const isDev = !process.env.NODE_ENV || process.env.NODE_ENV !== "production";
+  if (isDev || ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  }
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Origin,X-Requested-With,Content-Type,Accept,Authorization");
+  if (req.method === "OPTIONS") return res.status(204).end();
+  next();
+});
+
+console.log(`✅ CORS ready | NODE_ENV="${process.env.NODE_ENV}" | isDev=${!process.env.NODE_ENV || process.env.NODE_ENV !== "production"}`);
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));

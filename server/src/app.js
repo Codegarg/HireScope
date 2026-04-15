@@ -11,10 +11,30 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-  credentials: true
-}));
+// Manual CORS middleware — bypasses the cors package entirely
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  // In dev (no NODE_ENV or NODE_ENV !== production), allow any localhost
+  const isDev = !process.env.NODE_ENV || process.env.NODE_ENV !== "production";
+  if (isDev || ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  }
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Origin,X-Requested-With,Content-Type,Accept,Authorization");
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  next();
+});
+
+console.log(`✅ CORS: NODE_ENV="${process.env.NODE_ENV}" | CLIENT_URL="${process.env.CLIENT_URL}"`);
 
 app.use(express.json());
 app.use(passport.initialize());

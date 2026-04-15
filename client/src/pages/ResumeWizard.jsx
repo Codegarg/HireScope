@@ -102,15 +102,13 @@ const GlowingProgressBar = ({ progress }) => {
 import Step1Upload from './wizard/Step1Upload';
 import Step2JD from './wizard/Step2JD';
 import Step3Analysis from './wizard/Step3Analysis';
-import Step4Optimize from './wizard/Step4Optimize';
 import ResumeEditor from './ResumeEditor';
 
 const STEPS = [
     { id: 1, title: 'Upload Resume', icon: '📄' },
     { id: 2, title: 'Job Description', icon: '🎯' },
     { id: 3, title: 'ATS Scan', icon: '🔍' },
-    { id: 4, title: 'AI Optimize', icon: '✨' },
-    { id: 5, title: 'Final Review', icon: '✍️' }
+    { id: 4, title: 'Final Review', icon: '✍️' }
 ];
 
 const ResumeWizard = () => {
@@ -163,11 +161,6 @@ const ResumeWizard = () => {
             setTriggerAction(prev => prev + 1);
             return;
         }
-        if (currentStep === 4 && !resumeData.optimizedContent) {
-            // Trigger magic writing in Step 4 if not done
-            setTriggerAction(prev => prev + 1);
-            return;
-        }
 
         if (currentStep < STEPS.length) setCurrentStep(c => c + 1);
     };
@@ -186,26 +179,21 @@ const ResumeWizard = () => {
             case 3:
                 return <Step3Analysis data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onNext={handleNext} />;
             case 4:
-                return <Step4Optimize data={resumeData} updateData={updateData} setNextDisabled={setIsNextDisabled} onNext={handleNext} triggerAction={triggerAction} />;
-            case 5:
                 return <div style={{ height: '80vh', overflow: 'hidden' }}>
-                    <ResumeEditor wizardMode={true} passedId={resumeData?._id || id} initialContent={resumeData?.optimizedContent || resumeData?.content} setNextDisabled={setIsNextDisabled} />
+                    <ResumeEditor wizardMode={true} passedId={resumeData?._id || id} initialContent={resumeData?.content} setNextDisabled={setIsNextDisabled} />
                 </div>;
             default:
                 return null;
         }
     };
 
-    const getStepLabels = () => {
         switch (currentStep) {
             case 1: return { primary: "Next Step", showBack: false };
             case 2: return { primary: resumeData.atsResult ? "Next Step" : "Analyze Match", showBack: true };
-            case 3: return { primary: "Weave Magic", showBack: true };
-            case 4: return { primary: resumeData.optimizedContent ? "Finish Optimization" : "Start Magic Writing", showBack: true };
-            case 5: return { primary: "Finish & Save", showBack: true };
+            case 3: return { primary: "Final Review", showBack: true };
+            case 4: return { primary: "Finish & Save", showBack: true };
             default: return { primary: "Next", showBack: true };
         }
-    };
 
     const labels = getStepLabels();
 
