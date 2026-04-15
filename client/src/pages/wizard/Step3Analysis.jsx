@@ -19,11 +19,20 @@ const Step3Analysis = ({ data, updateData, setNextDisabled, onNext, onBack }) =>
     return (
         <div style={{ width: '100%', animation: 'fadeIn 0.4s ease' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)', gap: '2rem', alignItems: 'start' }}>
-                <ATSAnalysis
-                    analysis={data.atsResult}
-                    resumeName={data.file?.name || data.fileName || "Stored Resume"}
-                    jdName={data.jdFile?.name || "Target JD"}
-                />
+                <div style={{
+                    height: '1300px',
+                    overflowY: 'auto',
+                    paddingRight: '0.5rem',
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: 'var(--border) transparent'
+                }}>
+                    <ATSAnalysis
+                        initialData={data.atsResult}
+                        resumeContent={data.content}
+                        resumeName={data.file?.name || data.fileName || "Stored Resume"}
+                        jdName={data.jdFile?.name || "Target JD"}
+                    />
+                </div>
 
                 <div style={{
                     background: 'white',
@@ -31,7 +40,7 @@ const Step3Analysis = ({ data, updateData, setNextDisabled, onNext, onBack }) =>
                     overflow: 'hidden',
                     boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
                     border: '1px solid var(--border)',
-                    height: '750px',
+                    height: '1300px',
                     position: 'sticky',
                     top: '2rem'
                 }}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, CheckCircle, BarChart3, Loader2, Upload, RefreshCw, Target, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, BarChart3, Loader2, Upload, RefreshCw, Target, X, FileText } from 'lucide-react';
 import API from '../services/api';
 
 /* ─────────────────────────────────────────────
@@ -434,6 +434,30 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
                   {(analysis.analysis?.strengths || []).map((strength, i) => (
                     <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.25rem', paddingLeft: '1.4rem' }}>• {strength}</div>
                   ))}
+                </div>
+              )}
+
+              {/* Extracted PDF Text */}
+              {resumeContent && (
+                <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <FileText size={14} /> Extracted PDF Text
+                  </h4>
+                  <div style={{ 
+                    fontSize: '0.8rem', 
+                    color: 'var(--text-muted)', 
+                    lineHeight: '1.6', 
+                    whiteSpace: 'pre-wrap',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    padding: '0.75rem',
+                    background: 'rgba(0,0,0,0.1)',
+                    borderRadius: '0.4rem',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                    fontFamily: 'monospace'
+                  }}>
+                    {resumeContent}
+                  </div>
                 </div>
               )}
             </motion.div>

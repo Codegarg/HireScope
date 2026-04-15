@@ -74,6 +74,7 @@ const Home = () => {
   const [error, setError] = useState("");
   const [validationError, setValidationError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('resume');
 
 
   // Save analysis results to sessionStorage whenever they change
@@ -176,7 +177,7 @@ const Home = () => {
         {result && (
           <div style={{ maxWidth: '1200px', margin: '0 auto 1.5rem' }}>
             <button
-              onClick={() => { setResult(null); setShowChat(false); sessionStorage.removeItem('hireScope_analysisResults'); setStoredNames({ resumeName: "", jdName: "" }); setJdText(""); setResume(null); setJdFile(null); }}
+              onClick={() => { setResult(null); sessionStorage.removeItem('hireScope_analysisResults'); setStoredNames({ resumeName: "", jdName: "" }); setJdText(""); setResume(null); setJdFile(null); setActiveTab('resume'); }}
               className="ghost-btn"
               style={{ marginBottom: '0.5rem' }}
             >
@@ -191,14 +192,68 @@ const Home = () => {
             display: 'grid',
             gridTemplateColumns: result ? '1fr 1fr' : '1fr',
             gap: '2rem',
-            alignItems: 'start',
+            alignItems: 'stretch',
           }}>
 
             {/* Input Form Card */}
-            <motion.div layout className="glass-card" style={{ padding: 'clamp(1.5rem, 4vw, 3rem)' }}>
-              <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '2rem', fontFamily: "'Outfit', sans-serif", color: 'var(--text-main)' }}>
-                Analyze Your Fit
+            <motion.div layout className="glass-card" style={{ padding: 'clamp(1.5rem, 4vw, 3rem)', display: 'flex', flexDirection: 'column', height: result ? '1300px' : 'auto' }}>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '1.5rem', fontFamily: "'Outfit', sans-serif", color: 'var(--text-main)' }}>
+                {result ? 'Your Documents' : 'Analyze Your Fit'}
               </h2>
+
+              {/* ── Document Viewer (shown after analysis) ── */}
+              {result && (
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  transition={{ duration: 0.3 }}
+                  style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+                >
+                  {/* Tab Bar */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', background: 'var(--bg-elevated)', padding: '0.35rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                    {[{ id: 'resume', label: '📄 Resume' }, { id: 'jd', label: '💼 Job Description' }].map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => setActiveTab(t.id)}
+                        style={{
+                          flex: 1, padding: '0.55rem 1rem', borderRadius: 'calc(var(--radius-md) - 4px)',
+                          border: 'none', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer',
+                          transition: 'all 0.25s ease',
+                          background: activeTab === t.id ? 'var(--primary)' : 'transparent',
+                          color: activeTab === t.id ? 'white' : 'var(--text-muted)',
+                          boxShadow: activeTab === t.id ? '0 4px 14px var(--primary-glow)' : 'none',
+                        }}
+                      >{t.label}</button>
+                    ))}
+                  </div>
+
+                  {/* File name badge */}
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.72rem', background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '0.25rem 0.65rem', borderRadius: '0.4rem', border: '1px solid var(--border)', fontWeight: '600' }}>
+                      {activeTab === 'resume'
+                        ? (resume?.name || storedNames.resumeName || 'Resume')
+                        : (jdFile?.name || storedNames.jdName || 'Job Description')}
+                    </span>
+                  </div>
+
+                  {/* Content */}
+                  <div style={{
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)', padding: '1.25rem',
+                    overflowY: 'auto', flex: 1, minHeight: '260px',
+                    fontSize: '0.8rem', lineHeight: '1.75',
+                    whiteSpace: 'pre-wrap', color: 'var(--text-sub)',
+                    fontFamily: "ui-monospace, 'Cascadia Code', Menlo, Monaco, monospace",
+                  }}>
+                    {activeTab === 'resume'
+                      ? (result.resumeText || 'Resume text not available.')
+                      : (result.jdText || jdText || 'Job description not available.')}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ── Upload Form (shown before analysis) ── */}
+              {!result && (<>
 
               {/* Upload Grid */}
               <div
@@ -320,6 +375,7 @@ const Home = () => {
                   </p>
                 )}
               </div>
+            </> )}
             </motion.div>
 
             {/* Results Panel */}
@@ -328,7 +384,15 @@ const Home = () => {
                 <motion.div
                   initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }}
                   className="glass-card"
-                  style={{ padding: 'clamp(1.5rem, 4vw, 3rem)', position: 'sticky', top: '7rem' }}
+                  style={{ 
+                    padding: 'clamp(1.5rem, 4vw, 3rem)', 
+                    position: 'sticky', 
+                    top: '7rem', 
+                    height: '1300px', 
+                    overflowY: 'auto',
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: 'var(--border) transparent'
+                  }}
                 >
                   {/* Header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' }}>
@@ -344,22 +408,55 @@ const Home = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    {/* Matched Skills */}
-                    <div>
-                      <h3 style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '1rem' }}>Matched Skills</h3>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-                        {result.matchedSkills.map(skill => (
-                          <span key={skill} className="skill-chip">{skill}</span>
-                        ))}
-                      </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+                    {/* Quick Stats Row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                      {[
+                        { label: 'ATS Score', value: `${result.atsScore}%`, color: result.atsScore >= 70 ? 'var(--success)' : result.atsScore >= 50 ? 'var(--warning)' : 'var(--error)' },
+                        { label: 'Matched', value: `${result.matchedSkills?.length ?? 0} skills`, color: 'var(--success)' },
+                        { label: 'Missing', value: `${result.missingSkills?.length ?? 0} skills`, color: 'var(--warning)' },
+                      ].map(stat => (
+                        <div key={stat.label} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0.875rem', textAlign: 'center' }}>
+                          <div style={{ fontSize: '1.1rem', fontWeight: '800', color: stat.color, fontFamily: "'Outfit', sans-serif" }}>{stat.value}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', marginTop: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</div>
+                        </div>
+                      ))}
                     </div>
+
+                    {/* Matched Skills */}
+                    {(result.matchedSkills?.length ?? 0) > 0 && (
+                      <div>
+                        <h3 style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <CheckCircle size={13} color="var(--success)" /> Matched Skills
+                        </h3>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          {result.matchedSkills.map(skill => (
+                            <span key={skill} style={{ fontSize: '0.78rem', background: 'rgba(16,185,129,0.1)', color: 'var(--success)', padding: '0.25rem 0.65rem', borderRadius: '0.4rem', border: '1px solid rgba(16,185,129,0.25)', fontWeight: '600' }}>{skill}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Missing Skills */}
+                    {(result.missingSkills?.length ?? 0) > 0 && (
+                      <div>
+                        <h3 style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <AlertCircle size={13} color="var(--warning)" /> Missing Skills
+                        </h3>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          {result.missingSkills.map(skill => (
+                            <span key={skill} style={{ fontSize: '0.78rem', background: 'rgba(245,158,11,0.08)', color: 'var(--warning)', padding: '0.25rem 0.65rem', borderRadius: '0.4rem', border: '1px solid rgba(245,158,11,0.25)', fontWeight: '600' }}>{skill}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Analysis sections */}
                     {analysisSections && (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
                         {analysisSections.strengths.length > 0 && (
-                          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
+                          <div style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: 'var(--success)' }}>
                               <TrendingUp size={16} /><h3 style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Strengths</h3>
                             </div>
@@ -374,7 +471,7 @@ const Home = () => {
                         )}
 
                         {analysisSections.weaknesses.length > 0 && (
-                          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
+                          <div style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: 'var(--error)' }}>
                               <TrendingDown size={16} /><h3 style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Improvements</h3>
                             </div>
@@ -392,38 +489,30 @@ const Home = () => {
 
                     {/* Tips */}
                     {analysisSections && analysisSections.tips.length > 0 && (
-                      <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
+                      <div style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: 'var(--primary-light)' }}>
                           <Lightbulb size={16} /><h3 style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Actionable Tips</h3>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                           {analysisSections.tips.map((item, i) => (
-                            <div key={i} style={{ display: 'flex', gap: '0.6rem', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.6rem', fontSize: '0.875rem', color: 'var(--text-sub)', lineHeight: '1.5' }}>
-                              <span style={{ fontWeight: '700', color: 'var(--primary-light)', flexShrink: 0 }}>{i + 1}.</span><span>{item}</span>
+                            <div key={i} style={{ display: 'flex', gap: '0.75rem', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.6rem', fontSize: '0.875rem', color: 'var(--text-sub)', lineHeight: '1.5' }}>
+                              <span style={{ fontWeight: '800', color: 'var(--primary-light)', flexShrink: 0, minWidth: '1.2rem' }}>{i + 1}.</span><span>{item}</span>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {/* Action Buttons */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <button
-                        onClick={() => navigate(`/editor/${result.resumeId}?improve=true`, { state: { initialResume: { ...result, _id: result.resumeId, content: result.resumeText }, analysisResults: result } })}
-                        className="glow-btn"
-                        style={{ justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent), #d97706)' }}
-                      >
-                        ✨ Magic AI Improve
-                      </button>
-                      <button
-                        onClick={() => navigate(`/editor/${result.resumeId}`, { state: { initialResume: { ...result, _id: result.resumeId, content: result.resumeText }, analysisResults: result } })}
-                        className="glow-btn"
-                        style={{ justifyContent: 'center' }}
-                      >
-                        🚀 Open Editor
-                      </button>
-                    </div>
+                    {/* Open Editor CTA */}
+                    <button
+                      onClick={() => navigate(`/editor/${result.resumeId}`, { state: { initialResume: { ...result, _id: result.resumeId, content: result.resumeText }, analysisResults: result } })}
+                      className="glow-btn"
+                      style={{ justifyContent: 'center', width: '100%', fontSize: '1rem', padding: '1rem' }}
+                    >
+                      🚀 Open Resume Editor
+                    </button>
                   </div>
+
                 </motion.div>
               )}
             </AnimatePresence>
