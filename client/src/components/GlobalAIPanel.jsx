@@ -15,6 +15,30 @@ import AIAssistant from './AIAssistant';
  */
 const GlobalAIPanel = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const [context, setContext] = useState("global-assistant");
+
+    // Load dynamic context whenever the panel is opened
+    React.useEffect(() => {
+        if (isOpen) {
+            const savedData = sessionStorage.getItem('hireScope_analysisResults');
+            if (savedData) {
+                try {
+                    const parsed = JSON.parse(savedData);
+                    if (parsed.result) {
+                        setContext({
+                            type: "analysis-context",
+                            resumeText: parsed.result.resumeText || "",
+                            jobDescription: parsed.jdText || parsed.result.jdText || "",
+                            resumeId: parsed.result.resumeId,
+                            atsScore: parsed.result.atsScore
+                        });
+                    }
+                } catch (e) {
+                    console.error("Failed to parse AI context", e);
+                }
+            }
+        }
+    }, [isOpen]);
 
     return (
         <>
@@ -138,7 +162,7 @@ const GlobalAIPanel = () => {
 
                         {/* AIAssistant content — fills remaining space */}
                         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                            <AIAssistant context="global-assistant" hideHeader={true} />
+                            <AIAssistant context={context} hideHeader={true} />
                         </div>
                     </motion.div>
                 )}

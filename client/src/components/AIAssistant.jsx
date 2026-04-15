@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Plus, ArrowLeft, Trash2, Clock, ChevronRight, Menu, X, PanelLeftClose, PanelLeft, Send } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import API from '../services/api';
 
 const AIAssistant = ({ context, hideHeader = false }) => {
@@ -308,7 +309,7 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                             animate={{ opacity: 1, y: 0 }}
                             style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
                         >
-                            <div style={{
+                            <div className="message-content" style={{
                                 maxWidth: '85%',
                                 padding: '0.75rem 1rem',
                                 borderRadius: '1rem',
@@ -318,10 +319,17 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                                 color: msg.role === 'user' ? 'white' : 'var(--text-main)',
                                 border: msg.role === 'user' ? 'none' : '1px solid var(--border)',
                                 borderBottomRightRadius: msg.role === 'user' ? '0.2rem' : '1rem',
-                                borderBottomLeftRadius: msg.role === 'user' ? '1rem' : '0.2rem',
-                                whiteSpace: 'pre-wrap'
+                                borderBottomLeftRadius: msg.role === 'user' ? '1rem' : '0.2rem'
                             }}>
-                                {msg.content || (isLoading && idx === messages.length - 1 ? '...' : '')}
+                                {msg.role === 'user' ? (
+                                    <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                                ) : (
+                                    <div className="markdown-body">
+                                        <ReactMarkdown>
+                                            {msg.content || (isLoading && idx === messages.length - 1 ? '...' : '')}
+                                        </ReactMarkdown>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     ))}
@@ -370,6 +378,22 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                     </button>
                 </div>
             </form>
+            {/* Markdown styling */}
+            <style>{`
+                .markdown-body p { margin-bottom: 0.75rem; }
+                .markdown-body p:last-child { margin-bottom: 0; }
+                .markdown-body ul, .markdown-body ol { margin-bottom: 0.75rem; padding-left: 1.25rem; }
+                .markdown-body li { margin-bottom: 0.25rem; }
+                .markdown-body li:last-child { margin-bottom: 0; }
+                .markdown-body strong { color: inherit; font-weight: 800; }
+                .markdown-body code { 
+                    background: rgba(255,255,255,0.1); 
+                    padding: 0.1rem 0.3rem; 
+                    border-radius: 4px; 
+                    font-family: monospace;
+                    font-size: 0.85rem;
+                }
+            `}</style>
         </div>
     );
 };

@@ -49,10 +49,19 @@ export const sendMessage = async (req, res, next) => {
 
         // Prepare context for AI
         const history = chat.messages.slice(-6, -1).map(m => ({ role: m.role, content: m.content }));
+        
+        // Extract context details
+        const resumeText = context?.resumeText || "";
+        const jobDescription = context?.jobDescription || "";
+        const atsScore = context?.atsScore || "";
+
         const systemPrompt = `You are an expert Career Coach and Resume Strategist.
-        Context:
-        ${chat.context?.jobDescription ? `Target Job Description: ${chat.context.jobDescription.substring(0, 500)}...` : ''}
-        Your Goal: Provide actionable, encouraging, and specific advice. Keep responses concise (under 200 words).
+        
+        ${resumeText ? `USER RESUME CONTENT:\n${resumeText.substring(0, 2000)}\n(end of resume)\n` : ''}
+        ${jobDescription ? `TARGET JOB DESCRIPTION:\n${jobDescription.substring(0, 1500)}\n(end of jd)\n` : ''}
+        ${atsScore ? `ATS Match Score: ${atsScore}%` : ''}
+
+        Your Goal: Provide actionable, encouraging, and specific advice based on the user's resume and target job. Keep responses concise (under 200 words). Use markdown for formatting (bold, lists).
         `;
 
         const messages = [
