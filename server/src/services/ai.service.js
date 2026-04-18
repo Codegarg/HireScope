@@ -517,7 +517,8 @@ export const callLlamaEvaluator = async (resumeText, jdText, ruleResult = {}) =>
 Output ONLY valid JSON. No markdown, no explanation, no extra text.
 For the 'targetSkillsAnalysis' field, perform two tasks:
 1. Identify 10-15 core skills: Use the JD context and role title to recommend industry-standard skills (Technical, Professional, or Soft) that a candidate for this profile 'must' have, even if not explicitly typed in the JD.
-2. Conceptual Matching: Analyze the resume for evidence of these skills. Set 'evidenceInResume' to true if the candidate's experience implies mastery of the skill, even if they used different terminology.`;
+2. Conceptual Matching: Analyze the resume for evidence of these skills. Set 'evidenceInResume' to true if the candidate's experience implies mastery of the skill, even if they used different terminology.
+3. Narrative Feedback: Provide concise Strengths, Weaknesses, and Actionable Tips based on the comparison.`;
 
     const userPrompt = `Evaluate this resume against the job description and return EXACTLY this JSON structure:
 
@@ -532,7 +533,12 @@ For the 'targetSkillsAnalysis' field, perform two tasks:
   "experienceYearsRequired": <integer or null>,
   "experienceYearsFound": <integer or null>,
   "yearsMismatch": <boolean>,
-  "evaluationNotes": <string: max 5 words>
+  "evaluationNotes": <string: max 5 words>,
+  "narrativeFeedback": {
+    "strengths": [<string: short bullet point>],
+    "weaknesses": [<string: short bullet point>],
+    "tips": [<string: short bullet point>]
+  }
 }
 
 SCORING RULES (follow strictly):
@@ -644,6 +650,15 @@ ${resumeSnippet}`;
         parsed.roleAlignment = typeof parsed.roleAlignment === "number"
             ? Math.max(0, Math.min(100, parsed.roleAlignment))
             : Math.round(parsed.score * 0.9);
+
+        // Sanitize narrative feedback
+        if (!parsed.narrativeFeedback || typeof parsed.narrativeFeedback !== 'object') {
+            parsed.narrativeFeedback = { strengths: [], weaknesses: [], tips: [] };
+        } else {
+            parsed.narrativeFeedback.strengths = Array.isArray(parsed.narrativeFeedback.strengths) ? parsed.narrativeFeedback.strengths.slice(0, 3) : [];
+            parsed.narrativeFeedback.weaknesses = Array.isArray(parsed.narrativeFeedback.weaknesses) ? parsed.narrativeFeedback.weaknesses.slice(0, 3) : [];
+            parsed.narrativeFeedback.tips = Array.isArray(parsed.narrativeFeedback.tips) ? parsed.narrativeFeedback.tips.slice(0, 4) : [];
+        }
 
         return parsed;
     } catch (error) {

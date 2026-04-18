@@ -248,6 +248,9 @@ export const calculateATSScore = async (resumeText, jdText, options = {}) => {
     // LLM evaluation notes
     evaluationNotes: llmResult?.evaluationNotes || null,
 
+    // Narrative feedback (strengths, weaknesses, tips)
+    narrativeFeedback: llmResult?.narrativeFeedback || { strengths: [], weaknesses: [], tips: [] },
+
     // Legacy shape (frontend compatibility — ATSAnalysis.jsx reads these)
     analysis: ruleResult.analysis,
     matchRate: ruleResult.matchRate,

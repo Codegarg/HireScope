@@ -45,12 +45,20 @@ export const analyzeResume = async (req, res, next) => {
     // ── Hybrid ATS scoring (rule-based + Llama 3) ──────────────────────────
     const atsResult = await calculateATSScore(resumeText, jdText, { previousScore });
 
-    // ── AI narrative suggestions (non-fatal) ──────────────────────────────
-    let aiSuggestions = [];
-    try {
-      aiSuggestions = await generateSuggestions(resumeText, jdText, atsResult);
-    } catch (aiErr) {
-      console.warn("[analyzeResume] AI suggestions skipped:", aiErr.message);
+    // ── AI narrative suggestions (consolidated) ──────────────────────────
+    let aiSuggestions = "";
+    if (atsResult.narrativeFeedback) {
+      const { strengths = [], weaknesses = [], tips = [] } = atsResult.narrativeFeedback;
+      aiSuggestions = [
+        "### Strengths",
+        ...strengths.map(s => `- ${s}`),
+        "",
+        "### Improvements",
+        ...weaknesses.map(w => `- ${w}`),
+        "",
+        "### Actionable Tips",
+        ...tips.map((t, i) => `${i + 1}. ${t}`)
+      ].join("\n");
     }
 
     // ── Auto-save resume if user is logged in ─────────────────────────────
