@@ -513,15 +513,19 @@ export const callLlamaEvaluator = async (resumeText, jdText, ruleResult = {}) =>
     const missingSkills = (ruleResult.missingCriticalSkills || []).slice(0, 6).join(", ") || "none";
     const matchedSkills = (ruleResult.matchedSkills || []).slice(0, 6).join(", ") || "none";
 
-    const systemPrompt = `You are a strict, impartial ATS (Applicant Tracking System) evaluator.
-Output ONLY valid JSON. No markdown, no explanation, no extra text. Use extremely short strings for knockouts and risks.
-Base your evaluation ONLY on the resume text provided. Do NOT infer, assume, or fabricate any skills, experience, or facts.
-If information is absent from the resume, treat it as absent — never invent it.`;
+    const systemPrompt = `You are an expert Talent Profile Analyst and ATS evaluator.
+Output ONLY valid JSON. No markdown, no explanation, no extra text.
+For the 'targetSkillsAnalysis' field, perform two tasks:
+1. Identify 10-15 core skills: Use the JD context and role title to recommend industry-standard skills (Technical, Professional, or Soft) that a candidate for this profile 'must' have, even if not explicitly typed in the JD.
+2. Conceptual Matching: Analyze the resume for evidence of these skills. Set 'evidenceInResume' to true if the candidate's experience implies mastery of the skill, even if they used different terminology.`;
 
     const userPrompt = `Evaluate this resume against the job description and return EXACTLY this JSON structure:
 
 {
   "score": <integer 0-100>,
+  "targetSkillsAnalysis": [
+    { "skill": "<string>", "isFromJD": <boolean>, "evidenceInResume": <boolean> }
+  ],
   "knockouts": [<string: short knockout reason or empty array>],
   "risks": [<string: short risk or empty array>],
   "roleAlignment": <integer 0-100>,
@@ -634,6 +638,7 @@ ${resumeSnippet}`;
         }
 
         // Sanitize arrays
+        parsed.targetSkillsAnalysis = Array.isArray(parsed.targetSkillsAnalysis) ? parsed.targetSkillsAnalysis.slice(0, 20) : [];
         parsed.knockouts = Array.isArray(parsed.knockouts) ? parsed.knockouts.slice(0, 5) : [];
         parsed.risks = Array.isArray(parsed.risks) ? parsed.risks.slice(0, 5) : [];
         parsed.roleAlignment = typeof parsed.roleAlignment === "number"

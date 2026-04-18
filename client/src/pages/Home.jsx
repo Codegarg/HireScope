@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from "react";
-import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X, CheckCircle, AlertCircle, Lightbulb, TrendingUp, TrendingDown } from "lucide-react";
+import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X, CheckCircle, AlertCircle, Lightbulb, TrendingUp, TrendingDown, Zap } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { analyzeResume } from "../services/api";
@@ -409,15 +409,22 @@ const Home = () => {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-
                     {/* Quick Stats Row */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
                       {[
                         { label: 'ATS Score', value: `${result.atsScore}%`, color: result.atsScore >= 70 ? 'var(--success)' : result.atsScore >= 50 ? 'var(--warning)' : 'var(--error)' },
-                        { label: 'Matched', value: `${result.matchedSkills?.length ?? 0} skills`, color: 'var(--success)' },
-                        { label: 'Missing', value: `${result.missingSkills?.length ?? 0} skills`, color: 'var(--warning)' },
+                        { 
+                          label: 'Matched', 
+                          value: `${result.matchedSkills?.length ?? 0} skills`, 
+                          color: 'var(--success)',
+                        },
+                        { 
+                          label: 'Missing', 
+                          value: `${result.missingSkills?.length ?? 0} skills`, 
+                          color: 'var(--warning)',
+                        },
                       ].map(stat => (
-                        <div key={stat.label} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0.875rem', textAlign: 'center' }}>
+                        <div key={stat.label} title={stat.tooltip} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0.875rem', textAlign: 'center' }}>
                           <div style={{ fontSize: '1.1rem', fontWeight: '800', color: stat.color, fontFamily: "'Outfit', sans-serif" }}>{stat.value}</div>
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', marginTop: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</div>
                         </div>
@@ -449,6 +456,25 @@ const Home = () => {
                             <span key={skill} style={{ fontSize: '0.78rem', background: 'rgba(245,158,11,0.08)', color: 'var(--warning)', padding: '0.25rem 0.65rem', borderRadius: '0.4rem', border: '1px solid rgba(245,158,11,0.25)', fontWeight: '600' }}>{skill}</span>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Signature Keywords */}
+                    {(result.matchingKeywords?.length ?? 0) > 0 && (
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginBottom: '0.5rem' }}>
+                        <h3 style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <Zap size={13} color="var(--primary-light)" /> Vocabulary Alignment
+                        </h3>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                          {result.matchingKeywords.map((kw, idx) => (
+                            <span key={idx} style={{ padding: '0.25rem 0.6rem', background: 'var(--primary-faint)', border: '1px dashed var(--primary-low)', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: '600', color: 'var(--primary-light)', textTransform: 'lowercase' }}>
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                        <p style={{ fontSize: '0.65rem', color: 'var(--text-faint)', marginTop: '0.55rem', fontStyle: 'italic' }}>
+                          * These terms reflect alignment with the unique terminology found in this specific job description.
+                        </p>
                       </div>
                     )}
 

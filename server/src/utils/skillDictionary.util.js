@@ -1,20 +1,22 @@
 // server/src/utils/skillDictionary.util.js
 // Comprehensive vocabulary for the Hybrid ATS Engine
 
-// ── Tech Skills (used for skill extraction) ─────────────────────────────────
-export const TECH_SKILLS = [
+// ── Internal Technical Skills ───────────────────────────────────────────────
+const TECH_SKILLS_INTERNAL = [
   // Languages
   "javascript", "typescript", "python", "java", "c++", "c#", "golang", "go",
   "rust", "swift", "kotlin", "ruby", "php", "scala", "r", "matlab", "perl",
   "bash", "shell", "powershell", "dart", "elixir", "haskell", "lua",
+  "data structures", "algorithms", "dsa", "object oriented programming", "oop",
+  "system design", "design patterns", "computer science",
 
   // Frontend
   "react", "next.js", "nextjs", "vue", "vue.js", "angular", "svelte",
   "html", "html5", "css", "css3", "sass", "scss", "less", "tailwind",
   "tailwindcss", "bootstrap", "material ui", "chakra ui", "styled components",
-  "redux", "zustand", "recoil", "jotai", "webpack", "vite", "parcel",
-  "babel", "eslint", "jest", "cypress", "playwright", "storybook",
-  "three.js", "d3.js", "d3", "webgl", "canvas",
+  "redux", "zustand", "recoil", "jotai", "webpack", "vite", "parcel", "rollup",
+  "babel", "eslint", "prettier", "jest", "mocha", "chai", "cypress", "playwright", "storybook",
+  "three.js", "d3.js", "d3", "webgl", "canvas", "p5.js",
 
   // Backend
   "node.js", "nodejs", "node", "express", "express.js", "fastify", "koa",
@@ -58,7 +60,9 @@ export const TECH_SKILLS = [
 
   // Mobile
   "react native", "flutter", "ios", "android", "swift ui",
-  "expo", "ionic",
+  "expo", "ionic", "cordova", "capacitor",
+  "unity", "unity3d", "unreal engine", "ue4", "ue5", "game development",
+  "game design", "mobile development", "native development",
 
   // Legacy / Enterprise
   "sql", "pl/sql", "stored procedures", "etl", "xml", "json",
@@ -66,8 +70,60 @@ export const TECH_SKILLS = [
   "tomcat", "weblogic", "websphere", "jboss",
 ];
 
+// ── Power Skills (Professional & Soft) ──────────────────────────────────────
+const POWER_SKILLS = [
+  // Management & Leadership
+  "project management", "product management", "agile", "scrum", "kanban",
+  "strategic planning", "team leadership", "stakeholder management",
+  "resource allocation", "budgeting", "risk assessment", "pmp", "capm",
+  "mentoring", "coaching", "recruiting", "talent acquisition",
+
+  // Marketing & Sales
+  "seo", "sem", "digital marketing", "content strategy", "social media",
+  "email marketing", "google analytics", "hubsoft", "salesforce",
+  "crm", "lead generation", "market research", "brand strategy",
+  "copywriting", "public relations", "conversion optimization",
+
+  // Design & UX
+  "ui/ux", "user experience", "user interface", "product design",
+  "wireframing", "prototyping", "figma", "adobe xd", "sketch",
+  "photoshop", "illustrator", "design systems", "typography",
+  "accessibility", "wcag",
+
+  // Data & Finance
+  "data analysis", "data visualization", "tableau", "power bi",
+  "excel", "google sheets", "financial modeling", "accounting",
+  "business intelligence", "market analysis", "forecasting",
+
+  // Communication & Productivity
+  "public speaking", "technical writing", "problem solving",
+  "critical thinking", "time management", "bilingual", "multilingual",
+  "conflict resolution", "negotiation", "customer success",
+  "interpersonal skills", "collaborative relations", "teamwork",
+  "creative thinking", "analytical skills",
+];
+
+// Combine all into the final export
+export const TECH_SKILLS = [...TECH_SKILLS_INTERNAL, ...POWER_SKILLS];
+
 // Keep old SKILLS for backward compat
 export const SKILLS = TECH_SKILLS;
+
+/**
+ * Skills that are considered too generic to be highlighted as specific tags.
+ * They still contribute to overall semantic scoring but are hidden from the
+ * 'Matched/Missing Skills' lists in the UI.
+ */
+export const GENERIC_SKILLS = [
+  "computer science",
+  "problem solving",
+  "communication skills",
+  "teamwork",
+  "analytical skills",
+  "critical thinking",
+  "technical writing",
+  "interpersonal skills",
+];
 
 // ── Section Header Patterns ──────────────────────────────────────────────────
 export const SECTION_HEADERS = {

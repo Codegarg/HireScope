@@ -39,26 +39,32 @@ const STOP_WORDS = new Set([
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Normalize text: lowercase, remove punctuation */
+/** Normalize text: lowercase, remove punctuation but PRESERVE special tech chars (+, #, ., /, -) */
 const normalize = (text = "") =>
-    text.toLowerCase().replace(/[^a-z0-9\s\-\.\/]/g, " ").replace(/\s+/g, " ").trim();
+    text.toLowerCase()
+        .replace(/[^a-z0-9\s\+\#\-\.\/]/g, " ") // Added + and # to whitelist
+        .replace(/\s+/g, " ")
+        .trim();
 
 /** Tokenize into meaningful words */
 const tokenize = (text) =>
     normalize(text).split(" ").filter((w) => w.length > 1 && !STOP_WORDS.has(w));
 
-/** Count occurrences of a keyword (word-boundary aware) */
-const countOccurrences = (text, keyword) => {
+/** Count occurrences of a keyword (boundary-aware, handles special chars like C++, C#, .NET) */
+export const countOccurrences = (text, keyword) => {
     try {
         const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        return (text.match(new RegExp(`\\b${escaped}\\b`, "gi")) || []).length;
+        // Improved boundary: (start/whitespace/punct) keyword (end/whitespace/punct)
+        // Uses lookbehind/lookahead for zero-width matching of boundaries
+        const regex = new RegExp(`(?<=^|[\\s\\(\\)\\[\\]\\{\\},\\.\\/\\\\!?;:])(${escaped})(?=$|[\\s\\(\\)\\[\\]\\{\\},\\.\\/\\\\!?;:])`, "gi");
+        return (text.match(regex) || []).length;
     } catch {
         return 0;
     }
 };
 
 /** Check if text contains a keyword */
-const containsKeyword = (text, keyword) => countOccurrences(text, keyword) > 0;
+export const containsKeyword = (text, keyword) => countOccurrences(text, keyword) > 0;
 
 /** Extract contact info */
 const extractContactInfo = (text) => ({
@@ -101,6 +107,31 @@ const buildTFVector = (text) => {
     const total = tokens.length || 1;
     Object.keys(freq).forEach((k) => { freq[k] /= total; });
     return freq;
+};
+
+/** Extract high-value role-specific keywords (non-technical skills) */
+const extractImportantKeywords = (resumeText, jdText, jdSkills) => {
+    const jdTokens = tokenize(jdText);
+    const resumeLower = normalize(resumeText);
+    const skillTerms = new Set(jdSkills.flatMap(s => s.toLowerCase().split(" ")));
+    
+    // Find unique tokens in JD that aren't technical skills or stop words
+    const counts = {};
+    jdTokens.forEach(t => {
+        if (!skillTerms.has(t) && t.length > 3) {
+            counts[t] = (counts[t] || 0) + 1;
+        }
+    });
+
+    // Get tokens that appear multiple times or are distinctive
+    const keywords = Object.entries(counts)
+        .filter(([_, count]) => count >= 1)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20)
+        .map(([k]) => k);
+
+    // Filter to keywords that actually exist in the resume
+    return keywords.filter(k => containsKeyword(resumeLower, k));
 };
 
 /** Cosine similarity between two TF vectors */
@@ -497,5 +528,6 @@ export const ruleBasedATSScore = (resumeText, jobDescription) => {
         // Legacy shape (for frontend compatibility)
         analysis,
         matchRate: Math.round((matchedSkills.length / Math.max(jdSkills.length, 1)) * 100),
+        matchingKeywords: extractImportantKeywords(resumeText, jobDescription, jdSkills),
     };
 };

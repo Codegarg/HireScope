@@ -109,7 +109,14 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
     });
 
     // If it already has 'analysis' object (Advanced engine), normalise and return
-    if (data.analysis && data.score !== undefined) return ensureAnalysis(data);
+    if (data.analysis && data.score !== undefined) {
+      const normalized = ensureAnalysis(data);
+      // If no skills found in JD, update strengths to reflect scan context
+      if (data.noKeywordsInJD && (!normalized.analysis.strengths || normalized.analysis.strengths.length === 0)) {
+        normalized.analysis.strengths = ["Overall profile and formatting analyzed (No JD-specific target keywords identified)."];
+      }
+      return normalized;
+    }
 
     // Map Simple engine (Home page) to expected structure
     return ensureAnalysis({

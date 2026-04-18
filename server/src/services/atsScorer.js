@@ -7,9 +7,10 @@
  * Falls back gracefully if Llama 3 / Cloudflare is unavailable.
  */
 
-import { ruleBasedATSScore, extractExperienceYears } from "../utils/atsEngine.js";
+import { ruleBasedATSScore, extractExperienceYears, containsKeyword } from "../utils/atsEngine.js";
 import { callLlamaEvaluator } from "./ai.service.js";
 import { cleanText } from "../utils/textCleaner.util.js";
+import { GENERIC_SKILLS } from "../utils/skillDictionary.util.js";
 
 // ── Knockout Gate ─────────────────────────────────────────────────────────────
 /**
@@ -114,6 +115,43 @@ export const calculateATSScore = async (resumeText, jdText, options = {}) => {
   // Determine LLM score
   const llmScore = llmResult !== null ? llmResult.score : ruleScore;
   if (llmResult === null) llmFallback = true;
+  
+  // ── Step 2.5: Merge AI-inferred skills into lists ─────────────────────────
+  // This allows the system to analyze skills even if not explicitly typed in JD
+  let finalMatched = [...ruleResult.matchedSkills];
+  let finalMissing = [...ruleResult.missingSkills];
+  let finalMissingCritical = [...ruleResult.missingCriticalSkills];
+  
+  if (llmResult?.targetSkillsAnalysis?.length > 0) {
+    llmResult.targetSkillsAnalysis.forEach(item => {
+        const s = item.skill.toLowerCase().trim();
+        const matchedViaAI = item.evidenceInResume === true;
+
+        // Dedup: if already matched via keywords, skip
+        if (finalMatched.includes(s)) return;
+        
+        if (matchedViaAI) {
+            finalMatched.push(s);
+            // If it was in missing, remove it
+            finalMissing = finalMissing.filter(m => m !== s);
+            finalMissingCritical = finalMissingCritical.filter(m => m !== s);
+        } else {
+            // If not matched via AI AND not matched via keywords, it is missing
+            if (!finalMissing.includes(s)) {
+                finalMissing.push(s);
+                // AI target skills are usually considered important
+                if (finalMissingCritical.length < 12) finalMissingCritical.push(s);
+            }
+        }
+    });
+  }
+
+  // ── Step 2.6: Filter Generic/Basic Skills ─────────────────────────────────
+  // Hide basic skills from specific lists as requested, keeping them only for semantic overlap
+  const isGeneric = (s) => GENERIC_SKILLS.includes(s.toLowerCase().trim());
+  finalMatched = finalMatched.filter(s => !isGeneric(s));
+  finalMissing = finalMissing.filter(s => !isGeneric(s));
+  finalMissingCritical = finalMissingCritical.filter(s => !isGeneric(s));
 
   // ── Step 3: Combine scores ────────────────────────────────────────────────
   const combinedScore = Math.round(0.7 * ruleScore + 0.3 * llmScore);
@@ -126,7 +164,12 @@ export const calculateATSScore = async (resumeText, jdText, options = {}) => {
   if (knockouts.length > 0) {
     const knockoutPenalty = Math.min(knockouts.length * 12, 40);
     finalScore = Math.min(finalScore, 100 - knockoutPenalty);
-    finalScore = Math.min(finalScore, 30 + (100 - 30) * (ruleResult.matchedSkills.length / Math.max((ruleResult.missingCriticalSkills.length + ruleResult.matchedSkills.length), 1)));
+    
+    // Adjusted to use hybrid lists for knockout curve
+    const totalCritical = finalMissingCritical.length + finalMatched.length;
+    const matchRatio = finalMatched.length / Math.max(totalCritical, 1);
+    
+    finalScore = Math.min(finalScore, 30 + (100 - 30) * matchRatio);
     finalScore = Math.round(Math.max(finalScore, 0));
   }
 
@@ -149,8 +192,13 @@ export const calculateATSScore = async (resumeText, jdText, options = {}) => {
 
   // ── Step 8: Build improvement suggestions ────────────────────────────────
   const suggestions = [...(ruleResult.improvementSuggestions || [])];
+  
+  if (ruleResult.matchedSkills.length === 0 && ruleResult.missingSkills.length === 0) {
+    suggestions.push("💡 Note: No specific technical keywords were identified in the JD. This analysis focuses on general structure and experience.");
+  }
+  
   if (knockouts.length > 0)
-    suggestions.unshift("⚠ Address knockout factors first before applying.");
+    suggestions.push("⚠ Address knockout factors first before applying.");
   if (risks.length > 0 && !suggestions.some((s) => s.includes("risk")))
     risks.forEach((r) => suggestions.push(`Risk: ${r}`));
 
@@ -168,9 +216,9 @@ export const calculateATSScore = async (resumeText, jdText, options = {}) => {
     breakdown: ruleResult.breakdown,
 
     // Lists
-    matchedSkills: ruleResult.matchedSkills,
-    missingSkills: ruleResult.missingSkills,
-    missingCriticalSkills: ruleResult.missingCriticalSkills,
+    matchedSkills: finalMatched,
+    missingSkills: finalMissing,
+    missingCriticalSkills: finalMissingCritical,
     weakSections: ruleResult.weakSections,
     improvementSuggestions: suggestions.slice(0, 10),
 
@@ -178,6 +226,7 @@ export const calculateATSScore = async (resumeText, jdText, options = {}) => {
     knockouts,
     risks,
     roleAlignment,
+    noKeywordsInJD: finalMatched.length === 0 && finalMissing.length === 0,
 
     // Experience validation
     experienceYearsRequired: ruleResult.experienceYearsRequired ?? llmResult?.experienceYearsRequired ?? null,
@@ -202,5 +251,6 @@ export const calculateATSScore = async (resumeText, jdText, options = {}) => {
     // Legacy shape (frontend compatibility — ATSAnalysis.jsx reads these)
     analysis: ruleResult.analysis,
     matchRate: ruleResult.matchRate,
+    matchingKeywords: ruleResult.matchingKeywords || [],
   };
 };
