@@ -79,8 +79,15 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRest
         >
             {/* Top Row: Icon & Score */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.15)', display: 'grid', placeItems: 'center', color: 'var(--primary-light)' }}>
-                    <FileText size={18} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.15)', display: 'grid', placeItems: 'center', color: 'var(--primary-light)' }}>
+                        <FileText size={18} />
+                    </div>
+                    {latestVersion?.type && (
+                        <span style={{ fontSize: '0.6rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-faint)', textTransform: 'uppercase', fontWeight: '800', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            {latestVersion.type}
+                        </span>
+                    )}
                 </div>
                 {resume.atsScore > 0 && (
                     <span style={{ padding: '0.2rem 0.6rem', borderRadius: '9999px', background: `${scoreColor}12`, border: `1px solid ${scoreColor}33`, color: scoreColor, fontSize: '0.72rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -121,54 +128,84 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRest
                 </motion.button>
             </div>
 
-            {/* Versions Toggler */}
-            <button
-                onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
-                style={{
-                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 'var(--radius-sm)',
-                    width: '100%', display: 'flex', justifyContent: 'space-between',
-                    alignItems: 'center', color: 'var(--text-sub)', fontSize: '0.78rem', cursor: 'pointer', padding: '0.5rem 0.75rem',
-                    transition: 'all 0.2s'
-                }}
-            >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '700' }}>
-                    <History size={13} />
-                    {resume.versions?.length || 1} Version{(resume.versions?.length || 1) !== 1 ? 's' : ''}
-                </span>
-                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+            {/* History Tabs Toggler */}
+            <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
+                <button
+                    onClick={(e) => { e.stopPropagation(); setIsExpanded(isExpanded === 'versions' ? false : 'versions'); }}
+                    style={{
+                        flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 'var(--radius-sm)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-sub)', fontSize: '0.75rem', cursor: 'pointer', padding: '0.5rem 0.6rem',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '700' }}>
+                        <Clock size={13} /> {resume.versions?.length || 1} v
+                    </span>
+                    {isExpanded === 'versions' ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
 
-            {/* Expanded Version History */}
-            <AnimatePresence>
-                {isExpanded && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); setIsExpanded(isExpanded === 'analyses' ? false : 'analyses'); }}
+                    style={{
+                        flex: 1.5, background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 'var(--radius-sm)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--primary-light)', fontSize: '0.75rem', cursor: 'pointer', padding: '0.5rem 0.6rem',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '800' }}>
+                        <Target size={13} /> {resume.analyses?.length || 0} Matches
+                    </span>
+                    {isExpanded === 'analyses' ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+            </div>
+
+            {/* Expanded Content View */}
+            <AnimatePresence mode="wait">
+                {isExpanded === 'versions' && (
                     <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
+                        key="versions"
+                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                         style={{ overflow: 'hidden' }}
                     >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingTop: '0.4rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingTop: '0.6rem' }}>
+                            <div style={{ fontSize: '0.65rem', color: 'var(--text-faint)', fontWeight: '700', marginLeft: '0.2rem' }}>VERSION HISTORY</div>
                             {sortedVersions.map((v, idx) => (
-                                <div key={`${v.versionNumber}-${idx}`} style={{ padding: '0.5rem 0.65rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div key={`v-${v.versionNumber}`} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: idx === 0 ? 'var(--primary-light)' : 'var(--text-main)' }}>
-                                            v{v.versionNumber} {idx === 0 && '• Active'}
-                                        </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span style={{ fontSize: '0.72rem', fontWeight: '800', color: idx === 0 ? 'var(--primary-light)' : 'var(--text-main)' }}>v{v.versionNumber}</span>
+                                            {v.atsScore > 0 && <span style={{ fontSize: '0.6rem', color: 'var(--success-light)' }}>({v.atsScore}%)</span>}
+                                        </div>
                                         <span style={{ fontSize: '0.62rem', color: 'var(--text-faint)' }}>{new Date(v.createdAt).toLocaleDateString()}</span>
                                     </div>
                                     <div style={{ display: 'flex', gap: '0.15rem' }}>
-                                        <button onClick={(e) => { e.stopPropagation(); onPreview(resume._id, v.versionNumber); }} title="Quick Preview" style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><Eye size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); onDownload(resume._id, v.versionNumber); }} title="Download PDF" style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><Download size={12} /></button>
-                                        {idx !== 0 && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onRestore(resume._id, v.versionNumber); }}
-                                                disabled={isRestoring}
-                                                title="Make this current active version"
-                                                style={{ padding: '0.3rem', background: 'transparent', border: 'none', color: 'var(--error-light)', cursor: 'pointer', opacity: isRestoring ? 0.3 : 1 }}
-                                            >
-                                                <RotateCcw size={12} />
-                                            </button>
-                                        )}
+                                        <button onClick={(e) => { e.stopPropagation(); onPreview(resume._id, v.versionNumber); }} className="action-icon-btn"><Eye size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); onDownload(resume._id, v.versionNumber); }} className="action-icon-btn"><Download size={12} /></button>
+                                        {idx !== 0 && <button onClick={(e) => { e.stopPropagation(); onRestore(resume._id, v.versionNumber); }} disabled={isRestoring} className="action-icon-btn" style={{ color: 'var(--error-light)' }}><RotateCcw size={12} /></button>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+
+                {isExpanded === 'analyses' && (
+                    <motion.div
+                        key="analyses"
+                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                        style={{ overflow: 'hidden' }}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingTop: '0.6rem' }}>
+                            <div style={{ fontSize: '0.65rem', color: 'var(--text-faint)', fontWeight: '700', marginLeft: '0.2rem' }}>ATS MATCH HISTORY</div>
+                            {[...(resume.analyses || [])].reverse().map((a, idx) => (
+                                <div key={idx} style={{ padding: '0.6rem', background: 'rgba(124,58,237,0.03)', border: '1px solid rgba(124,58,237,0.1)', borderRadius: 'var(--radius-sm)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{a.jdTitle || "Untitled Job"}</span>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--primary-light)' }}>{a.atsScore}%</span>
+                                    </div>
+                                    <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>{new Date(a.timestamp).toLocaleDateString()}</span>
+                                        <span style={{ fontStyle: 'italic' }}>Historical Result</span>
                                     </div>
                                 </div>
                             ))}
@@ -593,7 +630,6 @@ const Dashboard = () => {
                 )}
             </AnimatePresence>
 
-            {/* Responsive styles for Dashboard */}
             <style>{`
                 .bento-grid {
                     display: grid;
@@ -606,6 +642,20 @@ const Dashboard = () => {
                 @media (max-width: 768px) {
                     main > div:first-child > div:first-child > :first-child { font-size: 2rem !important; }
                     .bento-grid { grid-template-columns: 1fr; }
+                }
+                .action-icon-btn {
+                    padding: 0.35rem;
+                    background: transparent;
+                    border: none;
+                    color: var(--text-faint);
+                    cursor: pointer;
+                    display: flex;
+                    transition: all 0.2s;
+                    border-radius: 4px;
+                }
+                .action-icon-btn:hover {
+                    background: rgba(255,255,255,0.08);
+                    color: var(--text-main);
                 }
             `}</style>
         </div >

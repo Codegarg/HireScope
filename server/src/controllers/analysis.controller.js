@@ -42,10 +42,56 @@ export const analyzeResume = async (req, res, next) => {
       throw new ApiError(400, "Job Description text or file is required");
     }
 
-    // ── Hybrid ATS scoring (rule-based + Llama 3) ──────────────────────────
+    // ── Pre-Calculation Check: Deduplication / Reuse Logic ──────────────────
+    let resumeDoc = null;
+    let savedResumeId = null;
+
+    if (req.user) {
+      const userId = req.user.id;
+      
+      // Find existing resume for this user with same content
+      resumeDoc = await Resume.findOne({ 
+        user: userId, 
+        $or: [
+          { parsedText: resumeText },
+          { originalContent: resumeText }
+        ]
+      }).sort({ updatedAt: -1 });
+
+      if (resumeDoc) {
+        savedResumeId = resumeDoc._id;
+        // Check if this EXACT JD has already been analyzed for this resume
+        const normalizedJd = jdText.trim().toLowerCase();
+        const existingAnalysis = resumeDoc.analyses?.find(a => 
+          a.jdText?.trim().toLowerCase() === normalizedJd
+        );
+
+        if (existingAnalysis) {
+          logger.analysis('Repeat analysis detected - returning cached result', { resumeId: savedResumeId, userId });
+          return res.status(200).json({
+            success: true,
+            cached: true,
+            data: {
+              atsScore: existingAnalysis.atsScore,
+              matchedSkills: existingAnalysis.analysis?.matchedSkills || [],
+              missingSkills: existingAnalysis.analysis?.missingSkills || [],
+              missingCriticalSkills: existingAnalysis.analysis?.missingCriticalSkills || [],
+              improvementSuggestions: existingAnalysis.analysis?.suggestions || [],
+              aiSuggestions: existingAnalysis.aiSuggestions,
+              resumeId: savedResumeId,
+              resumeText,
+              jdText,
+            },
+          });
+        }
+      }
+    }
+
+    // ── Hybrid ATS scoring (rule-based + AI) ──────────────────────────────────
+    // Only happens if not already cached
     const atsResult = await calculateATSScore(resumeText, jdText, { previousScore });
 
-    // ── AI narrative suggestions (consolidated) ──────────────────────────
+    // ── AI narrative suggestions ──────────────────────────────────────────────
     let aiSuggestions = "";
     if (atsResult.narrativeFeedback) {
       const { strengths = [], weaknesses = [], tips = [] } = atsResult.narrativeFeedback;
@@ -61,71 +107,70 @@ export const analyzeResume = async (req, res, next) => {
       ].join("\n");
     }
 
-    // ── Auto-save resume if user is logged in ─────────────────────────────
-    let savedResumeId = null;
-
+    // ── Auto-save results ─────────────────────────────────────────────────────
     if (req.user) {
       const userId = req.user.id;
-
+      
       // Upload original file to storage if provided (non-fatal)
       let originalFileKey = "";
       if (resumeFile) {
         try {
-          originalFileKey = await uploadResumeToStorage(
-            userId,
-            resumeFile.buffer,
-            resumeFile.mimetype,
-            resumeFile.originalname
-          );
-          // Validate the returned key before proceeding
-          if (!validateFileKey(originalFileKey)) {
-            console.error("[Storage] Storage service returned unexpected key format:", originalFileKey);
-            originalFileKey = "";
-          }
+          originalFileKey = await uploadResumeToStorage(userId, resumeFile.buffer, resumeFile.mimetype, resumeFile.originalname);
+          if (!validateFileKey(originalFileKey)) originalFileKey = "";
         } catch (uploadErr) {
-          console.error("[Storage] Upload failed (non-fatal):", uploadErr.message);
+          console.error("[Storage] Upload failed:", uploadErr.message);
           originalFileKey = "";
         }
       } else if (req.body.resumeId) {
-        const existing = await Resume.findById(req.body.resumeId);
-        if (existing) {
-          originalFileKey = existing.originalFileKey || "";
-        }
+        const existing = resumeDoc || (await Resume.findById(req.body.resumeId));
+        if (existing) originalFileKey = existing.originalFileKey || "";
       }
 
-      const newResume = new Resume({
-        user: userId,
-        title: (() => {
+      const analysisEntry = {
+        jdTitle: (() => {
           const titleMatch = jdText.match(/(?:Job Title|Role|Position):\s*([^\n]+)/i);
-          if (titleMatch?.[1]) return `Target: ${titleMatch[1].trim().substring(0, 40)}`;
-          return `Analysis ${new Date().toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })} - ${jdText.substring(0, 15)}...`;
+          return titleMatch?.[1]?.trim().substring(0, 50) || jdText.substring(0, 30);
         })(),
-        originalContent: resumeText,
-        parsedText: resumeText,
+        jdText,
         atsScore: atsResult.atsScore || 0,
-        suggestionsCount: aiSuggestions?.length || 0,
         analysis: {
           matchedSkills: atsResult.matchedSkills || [],
           missingSkills: atsResult.missingSkills || [],
           missingCriticalSkills: atsResult.missingCriticalSkills || [],
           suggestions: atsResult.improvementSuggestions || []
         },
-        originalFileKey,
-        versions: [{
-          versionNumber: 1,
+        aiSuggestions,
+        timestamp: new Date()
+      };
+
+      if (resumeDoc) {
+        // Update existing record
+        resumeDoc.atsScore = atsResult.atsScore || 0;
+        resumeDoc.analysis = analysisEntry.analysis;
+        resumeDoc.suggestionsCount = aiSuggestions?.length || 0;
+        if (!resumeDoc.analyses) resumeDoc.analyses = [];
+        resumeDoc.analyses.push(analysisEntry);
+        await resumeDoc.save();
+        logger.analysis('Analysis cached for existing resume', { resumeId: savedResumeId, userId });
+      } else {
+        // Create new record
+        resumeDoc = new Resume({
+          user: userId,
+          title: resumeFile?.originalname?.replace(/\.[^/.]+$/, "") || `Resume ${new Date().toLocaleDateString()}`,
+          originalContent: resumeText,
+          parsedText: resumeText,
           atsScore: atsResult.atsScore || 0,
-          fileKey: originalFileKey,
-          type: "original",
-          createdAt: new Date()
-        }],
-        versionCounter: 1
-      });
-      const saved = await newResume.save();
-      savedResumeId = saved._id;
-      logger.analysis('Analysis saved successfully', { resumeId: savedResumeId, userId });
+          suggestionsCount: aiSuggestions?.length || 0,
+          analysis: analysisEntry.analysis,
+          originalFileKey,
+          versions: [{ versionNumber: 1, atsScore: atsResult.atsScore || 0, fileKey: originalFileKey, type: "original", createdAt: new Date() }],
+          versionCounter: 1,
+          analyses: [analysisEntry]
+        });
+        const saved = await resumeDoc.save();
+        savedResumeId = saved._id;
+        logger.analysis('New resume created and analyzed', { resumeId: savedResumeId, userId });
+      }
     }
 
     return res.status(200).json({

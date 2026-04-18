@@ -186,7 +186,7 @@ const ResumeWizard = () => {
                 return null;
         }
     };
-
+    const getStepLabels = () => {
         switch (currentStep) {
             case 1: return { primary: "Next Step", showBack: false };
             case 2: return { primary: resumeData.atsResult ? "Next Step" : "Analyze Match", showBack: true };
@@ -194,6 +194,7 @@ const ResumeWizard = () => {
             case 4: return { primary: "Finish & Save", showBack: true };
             default: return { primary: "Next", showBack: true };
         }
+    };
 
     const labels = getStepLabels();
 

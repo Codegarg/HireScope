@@ -1,8 +1,8 @@
 import { useState, useContext, useEffect } from "react";
-import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X, CheckCircle, AlertCircle, Lightbulb, TrendingUp, TrendingDown, Zap } from "lucide-react";
+import { Lock, FileText, Upload, Briefcase, FileUp, Sparkles, ArrowRight, MessageSquare, X, CheckCircle, AlertCircle, Lightbulb, TrendingUp, TrendingDown, Zap, History } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { analyzeResume } from "../services/api";
+import { analyzeResume, getUserResumes } from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 
 import Navbar from "../components/Navbar";
@@ -60,6 +60,70 @@ const ScoreRing = ({ score }) => {
 };
 
 /* ─────────────────────────────────────────────
+   Saved Resumes Selection Modal
+   ───────────────────────────────────────────── */
+const SavedResumesModal = ({ resumes, onSelect, onClose }) => (
+  <motion.div
+    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    style={{
+      position: 'fixed', inset: 0, zIndex: 2000,
+      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem'
+    }}
+    onClick={onClose}
+  >
+    <motion.div
+      initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+      style={{
+        width: '100%', maxWidth: '500px', background: 'var(--bg-card)',
+        borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)',
+        overflow: 'hidden', display: 'flex', flexDirection: 'column'
+      }}
+      onClick={e => e.stopPropagation()}
+    >
+      <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: '800', fontFamily: "'Outfit', sans-serif" }}>Your Saved Resumes</h3>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+      </div>
+      <div style={{ padding: '1rem', maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {resumes.length === 0 ? (
+          <p style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '2rem' }}>No saved resumes found.</p>
+        ) : (
+          resumes.map(r => (
+            <div
+              key={r._id}
+              onClick={() => onSelect(r)}
+              className="saved-resume-item"
+              style={{
+                padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                background: 'var(--bg-elevated)', cursor: 'pointer', transition: 'all 0.2s',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.2rem' }}>{r.title}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Updated {new Date(r.updatedAt).toLocaleDateString()}</div>
+              </div>
+              <ArrowRight size={16} color="var(--primary-light)" />
+            </div>
+          ))
+        )}
+      </div>
+      <div style={{ padding: '1rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={onClose} className="ghost-btn" style={{ fontSize: '0.8rem' }}>Close</button>
+      </div>
+    </motion.div>
+    <style>{`
+      .saved-resume-item:hover {
+        border-color: var(--primary-light) !important;
+        background: rgba(124,58,237,0.08) !important;
+        transform: translateX(4px);
+      }
+    `}</style>
+  </motion.div>
+);
+
+/* ─────────────────────────────────────────────
    Home Page
    ───────────────────────────────────────────── */
 const Home = () => {
@@ -67,6 +131,9 @@ const Home = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [resume, setResume] = useState(null);
+  const [savedResumes, setSavedResumes] = useState([]);
+  const [selectedResumeId, setSelectedResumeId] = useState(null);
+  const [showSavedModal, setShowSavedModal] = useState(false);
   const [jdFile, setJdFile] = useState(null);
   const [jdText, setJdText] = useState("");
   const [result, setResult] = useState(null);
@@ -109,14 +176,40 @@ const Home = () => {
     }
   }, []);
 
+  // Fetch saved resumes on mount if user is logged in
+  useEffect(() => {
+    const fetchSaved = async () => {
+      if (user) {
+        try {
+          const res = await getUserResumes();
+          setSavedResumes(res.data.data);
+        } catch (err) {
+          console.error("Failed to fetch resumes", err);
+        }
+      }
+    };
+    fetchSaved();
+  }, [user]);
+
   const handleAnalyze = async () => {
     setValidationError(""); setError(""); setResult(null);
-    if (!resume) { setValidationError("Please re-upload your Resume file to run a new analysis."); return; }
-    if (!jdText.trim() && !jdFile) { setValidationError("Please provide a Job Description (paste text or upload file)."); return; }
+
+    // Validation
+    if (!resume && !selectedResumeId) {
+      setValidationError("Please upload a resume or select a saved one to proceed.");
+      return;
+    }
+    if (!jdText.trim() && !jdFile) {
+      setValidationError("Please provide a Job Description (paste text or upload file).");
+      return;
+    }
+
     const formData = new FormData();
-    formData.append("resume", resume);
+    if (resume) formData.append("resume", resume);
+    if (selectedResumeId) formData.append("resumeId", selectedResumeId);
     if (jdFile) formData.append("jd", jdFile);
     if (jdText) formData.append("jdText", jdText);
+
     try {
       setLoading(true);
       const res = await analyzeResume(formData);
@@ -279,14 +372,32 @@ const Home = () => {
                     onMouseOut={(e) => zoneHover(e, false)}
                     onClick={(e) => { if (!user) return; e.stopPropagation(); document.getElementById('resume-upload').click(); }}
                   >
-                    <input type="file" id="resume-upload" hidden disabled={!user} onClick={(e) => { e.target.value = null; }} onChange={(e) => setResume(e.target.files[0])} accept=".pdf,.doc,.docx" />
+                    <input type="file" id="resume-upload" hidden disabled={!user} onClick={(e) => { e.target.value = null; }} onChange={(e) => { setResume(e.target.files[0]); setSelectedResumeId(null); }} accept=".pdf,.doc,.docx" />
                     <Upload size={28} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', display: 'block', margin: '0 auto 0.75rem', opacity: user ? 1 : 0.4 }} />
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                       {resume ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{resume.name}</span>
-                        : storedNames.resumeName ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{storedNames.resumeName}</span>
-                          : "Drop your PDF / Word here"}
+                        : selectedResumeId ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>Saved Resume Selected</span>
+                          : storedNames.resumeName ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{storedNames.resumeName}</span>
+                            : "Drop your PDF / Word here"}
                     </p>
                   </div>
+
+                  {user && (
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={(e) => { e.stopPropagation(); setShowSavedModal(true); }}
+                      style={{
+                        marginTop: '1rem', width: '100%', padding: '0.6rem',
+                        background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)',
+                        borderRadius: 'var(--radius-sm)', color: 'var(--primary-light)',
+                        fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+                      }}
+                    >
+                      <History size={14} /> Browse Saved Resumes
+                    </motion.button>
+                  )}
                 </div>
 
                 {/* JD Upload */}
@@ -542,9 +653,24 @@ const Home = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
-        </section>
-      </main>
+      </div>
+
+      <AnimatePresence>
+        {showSavedModal && (
+          <SavedResumesModal
+            resumes={savedResumes}
+            onClose={() => setShowSavedModal(false)}
+            onSelect={(r) => {
+              setSelectedResumeId(r._id);
+              setResume(null); // Clear manual upload
+              setStoredNames(prev => ({ ...prev, resumeName: r.title }));
+              setShowSavedModal(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </section>
+  </main>
 
       {/* Responsive styles for Home */}
       <style>{`

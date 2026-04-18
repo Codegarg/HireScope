@@ -20,6 +20,10 @@ export const analyzeResume = (formData) =>
     }
   });
 
+export const getUserResumes = () => API.get("/resumes");
+
+export const updateResume = (id, data) => API.put(`/resumes/${id}`, data);
+
 export const sendChatMessage = (message, context) =>
   API.post("/chat", { message, context });
 

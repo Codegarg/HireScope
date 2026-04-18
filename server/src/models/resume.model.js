@@ -78,7 +78,23 @@ const resumeSchema = new mongoose.Schema({
     versionCounter: {
         type: Number,
         default: 0
-    }
+    },
+    
+    // ── Analysis History ──────────────────────────────────────────────────────
+    // Each entry represents a separate JD match for this specific resume content
+    analyses: [{
+        jdTitle: String,
+        jdText: String,
+        atsScore: Number,
+        analysis: {
+            matchedSkills: { type: [String], default: [] },
+            missingSkills: { type: [String], default: [] },
+            missingCriticalSkills: { type: [String], default: [] },
+            suggestions: { type: [String], default: [] }
+        },
+        aiSuggestions: String,
+        timestamp: { type: Date, default: Date.now }
+    }]
 
 }, { timestamps: true });
 
