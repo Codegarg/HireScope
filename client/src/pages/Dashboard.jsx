@@ -47,7 +47,7 @@ const StatCard = ({ title, value, icon: Icon, accent, delay, style = {} }) => (
 /* ─────────────────────────────────────────────
    Resume Card
    ───────────────────────────────────────────── */
-const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRestoring, isSelected }) => {
+const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, onViewAnalysis, isRestoring, isSelected }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     const scoreColor = resume.atsScore >= 70 ? 'var(--success-light)'
@@ -198,16 +198,21 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, isRest
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingTop: '0.6rem' }}>
                             <div style={{ fontSize: '0.65rem', color: 'var(--text-faint)', fontWeight: '700', marginLeft: '0.2rem' }}>ATS MATCH HISTORY</div>
                             {[...(resume.analyses || [])].reverse().map((a, idx) => (
-                                <div key={idx} style={{ padding: '0.6rem', background: 'rgba(124,58,237,0.03)', border: '1px solid rgba(124,58,237,0.1)', borderRadius: 'var(--radius-sm)' }}>
+                                <motion.div 
+                                    key={idx} 
+                                    whileHover={{ scale: 1.02, background: 'rgba(124,58,237,0.06)' }}
+                                    onClick={(e) => { e.stopPropagation(); onViewAnalysis(a); }}
+                                    style={{ padding: '0.6rem', background: 'rgba(124,58,237,0.03)', border: '1px solid rgba(124,58,237,0.1)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s' }}
+                                >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
                                         <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{a.jdTitle || "Untitled Job"}</span>
                                         <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--primary-light)' }}>{a.atsScore}%</span>
                                     </div>
                                     <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', display: 'flex', justifyContent: 'space-between' }}>
                                         <span>{new Date(a.timestamp).toLocaleDateString()}</span>
-                                        <span style={{ fontStyle: 'italic' }}>Historical Result</span>
+                                        <span style={{ fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '3px' }}>View Analysis <Eye size={10} /></span>
                                     </div>
-                                </div>
+                                </motion.div>
                             ))}
                         </div>
                     </motion.div>
@@ -313,6 +318,7 @@ const Dashboard = () => {
     const [isRestoring, setIsRestoring] = useState(false);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [previewUrl, setPreviewUrl] = useState('');
+    const [selectedAnalysis, setSelectedAnalysis] = useState(null);
 
     const navigate = useNavigate();
 
@@ -508,6 +514,7 @@ const Dashboard = () => {
                                     onRestore={handleRestore}
                                     onDownload={handleDownload}
                                     onPreview={openPreview}
+                                    onViewAnalysis={setSelectedAnalysis}
                                     isRestoring={isRestoring}
                                     isSelected={selectedResume?._id === resume._id}
                                 />
@@ -584,6 +591,84 @@ const Dashboard = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
+ 
+             {/* Historical Analysis Detail Modal */}
+             <AnimatePresence>
+                 {selectedAnalysis && (
+                     <motion.div
+                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                         style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', zIndex: 11000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
+                         onClick={() => setSelectedAnalysis(null)}
+                     >
+                         <motion.div
+                             initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }}
+                             onClick={e => e.stopPropagation()}
+                             style={{ width: '100%', maxWidth: '700px', maxHeight: '85vh', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
+                         >
+                             {/* Modal Header */}
+                             <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(124,58,237,0.05)' }}>
+                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                     <div style={{ width: '50px', height: '50px', borderRadius: '12px', background: 'var(--primary-light)', color: 'white', display: 'grid', placeItems: 'center', fontSize: '1.25rem', fontWeight: '800' }}>
+                                         {selectedAnalysis.atsScore}
+                                     </div>
+                                     <div>
+                                         <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.15rem' }}>{selectedAnalysis.jdTitle || "Analysis Details"}</h3>
+                                         <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>Matched on {new Date(selectedAnalysis.timestamp).toLocaleString()}</span>
+                                     </div>
+                                 </div>
+                                 <button onClick={() => setSelectedAnalysis(null)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', borderRadius: '50%', width: '32px', height: '32px', display: 'grid', placeItems: 'center', color: 'var(--text-faint)' }}>
+                                     <X size={20} />
+                                 </button>
+                             </div>
+ 
+                             {/* Modal Body */}
+                             <div className="custom-scrollbar" style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                 {/* Skills Grid */}
+                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                     <div>
+                                         <div style={{ color: 'var(--success-light)', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                             <TrendingUp size={14} /> Matched Skills
+                                         </div>
+                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                             {selectedAnalysis.analysis?.matchedSkills?.length > 0 ? selectedAnalysis.analysis.matchedSkills.map(s => (
+                                                 <span key={s} style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(16,185,129,0.1)', color: 'var(--success-light)', border: '1px solid rgba(16,185,129,0.15)' }}>{s}</span>
+                                             )) : <span style={{ color: 'var(--text-faint)', fontSize: '0.7rem' }}>No direct matches</span>}
+                                         </div>
+                                     </div>
+                                     <div>
+                                         <div style={{ color: 'var(--error-light)', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                             <AlertTriangle size={14} /> Missing Skills
+                                         </div>
+                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                             {selectedAnalysis.analysis?.missingSkills?.length > 0 ? selectedAnalysis.analysis.missingSkills.map(s => (
+                                                 <span key={s} style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(239,68,68,0.1)', color: 'var(--error-light)', border: '1px solid rgba(239,68,68,0.15)' }}>{s}</span>
+                                             )) : <span style={{ color: 'var(--success-light)', fontSize: '0.7rem' }}>All skills covered!</span>}
+                                         </div>
+                                     </div>
+                                 </div>
+ 
+                                 {/* AI Suggestions Section */}
+                                 {selectedAnalysis.aiSuggestions && (
+                                     <div style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                         <div style={{ color: 'var(--primary-light)', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                             <Bot size={16} /> AI Advice & Suggestions
+                                         </div>
+                                         <div 
+                                             style={{ fontSize: '0.875rem', color: 'var(--text-sub)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}
+                                             dangerouslySetInnerHTML={{ __html: selectedAnalysis.aiSuggestions.replace(/### (.*)/g, '<h4 style="color:var(--text-main); font-weight:700; margin-top:1rem; margin-bottom:0.5rem; font-size:0.9rem">$1</h4>').replace(/\n/g, '<br/>') }}
+                                         />
+                                     </div>
+                                 )}
+                             </div>
+ 
+                             {/* Modal Footer */}
+                             <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.2)' }}>
+                                 <button onClick={() => setSelectedAnalysis(null)} className="ghost-btn" style={{ fontSize: '0.85rem', padding: '0.5rem 1.25rem' }}>Close</button>
+                             </div>
+                         </motion.div>
+                     </motion.div>
+                 )}
+             </AnimatePresence>
             </main>
 
 
