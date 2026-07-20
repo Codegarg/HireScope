@@ -4,7 +4,7 @@ import { ApiError } from "../middlewares/error.middleware.js";
 
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
-const MODEL = "@cf/meta/llama-3-8b-instruct";
+const MODEL = "@cf/meta/llama-3.1-8b-instruct";
 
 const callCloudflareAI = async (prompt, systemPrompt = "You are an expert career assistant and ATS specialist. Provide concise, professional, and actionable advice.") => {
     if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_API_TOKEN) {
