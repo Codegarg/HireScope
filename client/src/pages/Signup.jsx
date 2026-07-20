@@ -38,7 +38,9 @@ const Signup = () => {
 
   return (
     <div className="page-wrapper" style={{ minHeight: '100vh' }}>
-      <div className="ambient-bg" />
+      <div className="ambient-bg">
+        <div className="cyber-grid" />
+      </div>
       <Navbar />
 
       <div className="auth-layout" style={{ paddingTop: '5rem' }}>

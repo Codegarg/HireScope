@@ -651,3 +651,127 @@ input:-webkit-autofill:active {
         padding: 0.75rem 1.25rem;
     }
 }
+
+/* ============================================================
+   FUTURISTIC AI / CYBERPUNK STYLES (UI UPGRADE)
+   ============================================================ */
+
+/* Glowing cyberpunk grid background overlay */
+.cyber-grid {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(rgba(124, 58, 237, 0.05) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(124, 58, 237, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: center center;
+    mask-image: radial-gradient(ellipse at 50% 50%, black 50%, transparent 95%);
+    pointer-events: none;
+    opacity: 0.8;
+    z-index: 0;
+}
+
+/* Neon laser scanning line effect */
+.scan-laser-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--primary-light), transparent);
+    box-shadow: 0 0 12px var(--primary-glow), 0 0 20px var(--primary-glow);
+    animation: laserScan 2.5s ease-in-out infinite;
+    z-index: 10;
+    pointer-events: none;
+}
+
+@keyframes laserScan {
+    0% {
+        top: 0%;
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+    }
+    90% {
+        opacity: 1;
+    }
+    100% {
+        top: 100%;
+        opacity: 0;
+    }
+}
+
+/* Hover-glowing border container */
+.neon-border-glow {
+    position: relative;
+    border-radius: var(--radius-lg);
+    background: var(--glass-bg);
+    transition: all 0.3s ease;
+}
+
+.neon-border-glow::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: calc(var(--radius-lg) + 1px);
+    background: linear-gradient(135deg, var(--primary), var(--secondary), transparent, transparent);
+    z-index: -1;
+    opacity: 0.3;
+    transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+.neon-border-glow:hover::before {
+    opacity: 1;
+    background: linear-gradient(135deg, var(--primary-light), var(--secondary), var(--primary-light));
+    filter: drop-shadow(0 0 8px var(--primary-glow));
+}
+
+/* Live glowing dots */
+.glow-dot-active {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--success);
+    box-shadow: 0 0 8px var(--success), 0 0 16px var(--success);
+    animation: pulseDot 2s infinite;
+}
+
+/* Futuristic interactive title block */
+.futuristic-hero-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    background: linear-gradient(135deg, #fff 10%, var(--primary-light) 50%, var(--secondary) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 30px rgba(124, 58, 237, 0.1);
+}
+
+/* Custom premium badge glows */
+.badge-glow-purple {
+    background: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #d8b4fe;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.1);
+}
+
+.badge-glow-cyan {
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    color: #67e8f9;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.1);
+}
+
+/* Bento hover lift with intense shadow */
+.bento-tile {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bento-tile:hover {
+    transform: translateY(-6px) scale(1.01);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 24px var(--primary-glow);
+}
