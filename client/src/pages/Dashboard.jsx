@@ -19,7 +19,7 @@ const StatCard = ({ title, value, icon: Icon, accent, delay, style = {} }) => (
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay }}
-        className="glass-card"
+        className="glass-card bento-tile neon-border-glow"
         style={{
             padding: '1.5rem',
             overflow: 'hidden',
@@ -69,7 +69,7 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, onView
                 boxShadow: isSelected ? '0 0 30px rgba(124, 58, 237, 0.2)' : 'var(--shadow-md)'
             }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="glass-card"
+            className="glass-card bento-tile neon-border-glow"
             style={{
                 padding: '1.25rem',
                 display: 'flex', flexDirection: 'column',
@@ -400,7 +400,9 @@ const Dashboard = () => {
 
     return (
         <div className="page-wrapper">
-            <div className="ambient-bg" />
+            <div className="ambient-bg">
+                <div className="cyber-grid" />
+            </div>
             <Navbar />
 
             <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '8rem 1.5rem 5rem', position: 'relative', zIndex: 1 }}>
@@ -428,9 +430,8 @@ const Dashboard = () => {
                 >
                     <div>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.4rem' }}>{getGreeting()},</p>
-                        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: '800', letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: '0.75rem', fontFamily: "'Outfit', sans-serif" }}>
-                            <span style={{ color: 'var(--text-main)' }}>Welcome back,{' '}</span>
-                            <span style={{ background: 'var(--gradient-hero)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{firstName}</span>
+                        <h1 className="futuristic-hero-title" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: '800', letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: '0.75rem', fontFamily: "'Outfit', sans-serif" }}>
+                            Welcome back, {firstName}
                         </h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>
                             Your resumes are performing{' '}
@@ -458,7 +459,7 @@ const Dashboard = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.35 }}
-                        className="glass-card"
+                        className="glass-card bento-tile neon-border-glow"
                         style={{
                             padding: '1.5rem',
                             gridColumn: 'span 2',
@@ -526,7 +527,7 @@ const Dashboard = () => {
                         whileHover={{ scale: 1.02, borderColor: 'var(--primary)', boxShadow: 'var(--shadow-lg)' }}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => navigate('/wizard/new')}
-                        className="glass-card"
+                        className="glass-card bento-tile neon-border-glow"
                         style={{
                             border: '2px dashed rgba(255,255,255,0.1)',
                             display: 'flex', flexDirection: 'column',

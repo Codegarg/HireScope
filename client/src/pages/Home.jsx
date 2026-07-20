@@ -235,7 +235,9 @@ const Home = () => {
   return (
     <div className="page-wrapper">
       {/* Ambient glow */}
-      <div className="ambient-bg" />
+      <div className="ambient-bg">
+        <div className="cyber-grid" />
+      </div>
 
       <Navbar />
 
@@ -250,9 +252,8 @@ const Home = () => {
             style={{ textAlign: 'center', maxWidth: '860px', margin: '2rem auto 5rem' }}
           >
 
-            <h1 style={{ fontSize: 'clamp(2.75rem, 7vw, 4.75rem)', fontWeight: '800', lineHeight: '1.08', marginBottom: '1.5rem', fontFamily: "'Outfit', sans-serif", letterSpacing: '-0.04em' }}>
-              Elevate Your{' '}
-              <span style={{ background: 'var(--gradient-hero)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Career</span>
+            <h1 className="futuristic-hero-title" style={{ fontSize: 'clamp(2.75rem, 7vw, 4.75rem)', fontWeight: '800', lineHeight: '1.08', marginBottom: '1.5rem', fontFamily: "'Outfit', sans-serif", letterSpacing: '-0.04em' }}>
+              Elevate Your Career
               <br />with HireScope
             </h1>
 
@@ -289,7 +290,8 @@ const Home = () => {
           }}>
 
             {/* Input Form Card */}
-            <motion.div layout className="glass-card" style={{ padding: 'clamp(1.5rem, 4vw, 3rem)', display: 'flex', flexDirection: 'column', height: result ? '1300px' : 'auto' }}>
+            <motion.div layout className="glass-card neon-border-glow" style={{ padding: 'clamp(1.5rem, 4vw, 3rem)', display: 'flex', flexDirection: 'column', height: result ? '1300px' : 'auto', position: 'relative' }}>
+              {loading && <div className="scan-laser-line" />}
               <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '1.5rem', fontFamily: "'Outfit', sans-serif", color: 'var(--text-main)' }}>
                 {result ? 'Your Documents' : 'Analyze Your Fit'}
               </h2>
