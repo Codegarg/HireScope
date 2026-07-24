@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, CheckCircle, BarChart3, Loader2, Upload, RefreshCw, Target, X, FileText } from 'lucide-react';
+import { AlertTriangle, CheckCircle, BarChart3, Loader2, Upload, RefreshCw, Target, X, FileText, AlertOctagon, TrendingUp, Lightbulb, Info } from 'lucide-react';
 import API from '../services/api';
 
 /* ─────────────────────────────────────────────
@@ -97,37 +97,24 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
   // Helper to normalize data structure between "Simple" (Home) and "Advanced" (Editor) engines
   const normalizeData = (data) => {
     if (!data) return null;
-    // Always ensure the nested analysis object has the fields we render
-    const ensureAnalysis = (d) => ({
-      ...d,
+    
+    // Always preserve all original data fields, just ensure 'analysis' structure exists for legacy compat
+    const normalized = {
+      ...data,
+      score: data.score !== undefined ? data.score : (data.atsScore || 0),
       analysis: {
         formattingIssues: [],
-        strengths: [],
-        missingKeywords: [],
-        ...(d.analysis || {}),
+        strengths: data.matchedSkills && (!data.analysis || !data.analysis.strengths) ? [`Matches ${data.matchedSkills.length} key skills`] : [],
+        missingKeywords: data.missingSkills || [],
+        ...(data.analysis || {}),
       },
-    });
+    };
 
-    // If it already has 'analysis' object (Advanced engine), normalise and return
-    if (data.analysis && data.score !== undefined) {
-      const normalized = ensureAnalysis(data);
-      // If no skills found in JD, update strengths to reflect scan context
-      if (data.noKeywordsInJD && (!normalized.analysis.strengths || normalized.analysis.strengths.length === 0)) {
-        normalized.analysis.strengths = ["Overall profile and formatting analyzed (No JD-specific target keywords identified)."];
-      }
-      return normalized;
+    if (normalized.noKeywordsInJD && (!normalized.analysis.strengths || normalized.analysis.strengths.length === 0)) {
+      normalized.analysis.strengths = ["Overall profile and formatting analyzed (No JD-specific target keywords identified)."];
     }
 
-    // Map Simple engine (Home page) to expected structure
-    return ensureAnalysis({
-      score: data.atsScore || 0,
-      analysis: {
-        formattingIssues: [],
-        strengths: data.matchedSkills ? [`Matches ${data.matchedSkills.length} key skills`] : [],
-        missingKeywords: data.missingSkills || []
-      },
-      matchRate: 0
-    });
+    return normalized;
   };
 
   const [analysis, setAnalysis] = useState(normalizeData(initialData));
@@ -202,7 +189,7 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
       });
 
       const data = res.data.data;
-      setAnalysis(data);
+      setAnalysis(normalizeData(data));
       if (onAnalysisComplete) onAnalysisComplete(data);
     } catch (err) {
       console.error("Analysis failed:", err);
@@ -226,13 +213,16 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
   // Build real score breakdown from backend data when available,
   // falling back to estimate from overall score
   const getBreakdown = (score, breakdown) => {
-    if (breakdown) {
+    if (breakdown && Object.keys(breakdown).length > 0) {
       return [
-        { label: 'Required Skills', value: Math.round((breakdown.requiredSkills / 30) * 100), delay: 0.3 },
-        { label: 'Preferred Skills', value: Math.round((breakdown.preferredSkills / 15) * 100), delay: 0.4 },
-        { label: 'Experience Match', value: Math.round((breakdown.experienceMatch / 15) * 100), delay: 0.5 },
-        { label: 'Keyword Density', value: Math.round((breakdown.densityScore / 10) * 100), delay: 0.6 },
-        { label: 'Section Quality', value: Math.round((breakdown.sectionScore / 10) * 100), delay: 0.7 },
+        { label: 'Required Skills', value: Math.round((breakdown.requiredSkills / 30) * 100) || 0, delay: 0.3 },
+        { label: 'Preferred Skills', value: Math.round((breakdown.preferredSkills / 15) * 100) || 0, delay: 0.4 },
+        { label: 'Experience Match', value: Math.round((breakdown.experienceMatch / 15) * 100) || 0, delay: 0.5 },
+        { label: 'Keyword Density', value: Math.round((breakdown.densityScore / 10) * 100) || 0, delay: 0.6 },
+        { label: 'Section Quality', value: Math.round((breakdown.sectionScore / 10) * 100) || 0, delay: 0.7 },
+        { label: 'Action Verbs', value: Math.round((breakdown.actionVerbScore / 5) * 100) || 0, delay: 0.8 },
+        { label: 'Formatting', value: Math.round((breakdown.formattingScore / 5) * 100) || 0, delay: 0.9 },
+        { label: 'Semantic Similarity', value: Math.round((breakdown.semanticScore / 10) * 100) || 0, delay: 1.0 },
       ];
     }
     // Fallback estimate
@@ -243,6 +233,19 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
       { label: 'Format Score', value: Math.min(100, base + 12), delay: 0.6 },
     ];
   };
+
+  // Dedup suggestions
+  const allSuggestions = [];
+  if (analysis?.narrativeFeedback?.tips) {
+    analysis.narrativeFeedback.tips.forEach(tip => {
+      if (!allSuggestions.includes(tip)) allSuggestions.push(tip);
+    });
+  }
+  if (analysis?.improvementSuggestions) {
+    analysis.improvementSuggestions.forEach(sugg => {
+      if (!allSuggestions.includes(sugg)) allSuggestions.push(sugg);
+    });
+  }
 
 
   return (
@@ -393,11 +396,33 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
             >
-              <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ textAlign: 'center', marginBottom: '1.5rem', position: 'relative' }}>
                 <ScoreRing score={analysis.score} />
                 <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>
                   {analysis.score >= 70 ? '🟢 Strong match!' : analysis.score >= 50 ? '🟡 Good potential' : '🔴 Needs improvement'}
                 </p>
+                
+                {/* Score Delta and Role Alignment prominently displayed */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                  {analysis.scoreDeltaLabel && (
+                    <span style={{ 
+                      fontSize: '0.75rem', fontWeight: '600', background: 'rgba(16,185,129,0.15)', 
+                      color: 'var(--success-light)', padding: '0.3rem 0.6rem', borderRadius: '1rem',
+                      display: 'flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(16,185,129,0.3)'
+                    }}>
+                      <TrendingUp size={12} /> {analysis.scoreDeltaLabel}
+                    </span>
+                  )}
+                  {analysis.roleAlignment !== undefined && (
+                    <span style={{ 
+                      fontSize: '0.75rem', fontWeight: '600', background: 'rgba(59,130,246,0.15)', 
+                      color: '#60a5fa', padding: '0.3rem 0.6rem', borderRadius: '1rem',
+                      display: 'flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(59,130,246,0.3)'
+                    }}>
+                      <Target size={12} /> Role Alignment: {analysis.roleAlignment}%
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div style={{ 
@@ -405,6 +430,19 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
                 marginBottom: '1.5rem',
                 opacity: 0.6
               }} />
+
+              {/* Knockout Factors (Urgent/Red) */}
+              {(analysis.knockouts?.length ?? 0) > 0 && (
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--error-light)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <AlertOctagon size={16} /> Knockout Factors
+                  </h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontStyle: 'italic' }}>These issues typically cause immediate rejection by ATS systems.</p>
+                  {analysis.knockouts.map((k, i) => (
+                    <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.25rem', paddingLeft: '1.4rem' }}>• {k}</div>
+                  ))}
+                </div>
+              )}
 
               {/* Score Breakdown Progress Bars */}
               <div style={{ marginBottom: '1.5rem' }}>
@@ -414,27 +452,113 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
                 ))}
               </div>
 
-              {/* Missing Keywords */}
-              {(analysis.analysis?.missingKeywords?.length ?? 0) > 0 && (
-                <div style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                  <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-                    <Target size={14} /> Missing Keywords
-                  </h4>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {(analysis.analysis?.missingKeywords || []).map((keyword, i) => (
-                      <span key={i} style={{ fontSize: '0.75rem', background: 'rgba(245,158,11,0.1)', color: 'var(--warning-light)', padding: '0.2rem 0.5rem', borderRadius: '0.3rem', border: '1px solid rgba(245,158,11,0.2)' }}>
-                        {keyword}
-                      </span>
-                    ))}
+              {/* Skills Analysis */}
+              <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem' }}>
+                  <Target size={16} /> Skills Analysis
+                </h4>
+                
+                {/* Matched Skills */}
+                {(analysis.matchedSkills?.length ?? 0) > 0 && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--success-light)', marginBottom: '0.5rem' }}>Matched Skills</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {analysis.matchedSkills.map((skill, i) => (
+                        <span key={i} style={{ fontSize: '0.75rem', background: 'rgba(16,185,129,0.1)', color: 'var(--success-light)', padding: '0.2rem 0.5rem', borderRadius: '0.3rem', border: '1px solid rgba(16,185,129,0.2)' }}>
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
                   </div>
+                )}
+
+                {/* Missing Critical Skills */}
+                {(analysis.missingCriticalSkills?.length ?? 0) > 0 && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--error-light)', marginBottom: '0.5rem' }}>Missing Critical Skills</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {analysis.missingCriticalSkills.map((skill, i) => (
+                        <span key={i} style={{ fontSize: '0.75rem', background: 'rgba(239,68,68,0.1)', color: 'var(--error-light)', padding: '0.2rem 0.5rem', borderRadius: '0.3rem', border: '1px solid rgba(239,68,68,0.2)' }}>
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Missing General Skills */}
+                {((analysis.missingSkills?.length ?? 0) > 0 || (analysis.analysis?.missingKeywords?.length ?? 0) > 0) && (
+                  <div>
+                    <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--warning-light)', marginBottom: '0.5rem' }}>Missing Skills / Keywords</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {Array.from(new Set([...(analysis.missingSkills || []), ...(analysis.analysis?.missingKeywords || [])])).map((skill, i) => {
+                        // Don't show if already in critical skills
+                        if (analysis.missingCriticalSkills?.includes(skill)) return null;
+                        return (
+                          <span key={i} style={{ fontSize: '0.75rem', background: 'rgba(245,158,11,0.1)', color: 'var(--warning-light)', padding: '0.2rem 0.5rem', borderRadius: '0.3rem', border: '1px solid rgba(245,158,11,0.2)' }}>
+                            {skill}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Risks (Warning/Amber) */}
+              {(analysis.risks?.length ?? 0) > 0 && (
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--warning-light)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <AlertTriangle size={16} /> Potential Risks
+                  </h4>
+                  {analysis.risks.map((r, i) => (
+                    <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.25rem', paddingLeft: '1.4rem' }}>• {r}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* Weak Sections */}
+              {(analysis.weakSections?.length ?? 0) > 0 && (
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--warning-light)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <Info size={16} /> Weak Sections
+                  </h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontStyle: 'italic' }}>These sections are underdeveloped or missing.</p>
+                  {analysis.weakSections.map((sec, i) => (
+                    <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.25rem', paddingLeft: '1.4rem' }}>• {sec}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* Weaknesses */}
+              {(analysis.narrativeFeedback?.weaknesses?.length ?? 0) > 0 && (
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--warning-light)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <AlertTriangle size={16} /> Weaknesses
+                  </h4>
+                  {analysis.narrativeFeedback.weaknesses.map((w, i) => (
+                    <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.25rem', paddingLeft: '1.4rem' }}>• {w}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* Suggestions / How to Fix */}
+              {allSuggestions.length > 0 && (
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <Lightbulb size={16} /> Suggestions & How to Fix
+                  </h4>
+                  {allSuggestions.map((s, i) => (
+                    <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.35rem', paddingLeft: '1.4rem' }}>• {s}</div>
+                  ))}
                 </div>
               )}
 
               {/* Formatting Issues */}
               {(analysis.analysis?.formattingIssues?.length ?? 0) > 0 && (
-                <div style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                  <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--error)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-                    <AlertTriangle size={14} /> Formatting Alerts
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--error-light)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <AlertOctagon size={16} /> Formatting Alerts
                   </h4>
                   {(analysis.analysis?.formattingIssues || []).map((issue, i) => (
                     <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.25rem', paddingLeft: '1.4rem' }}>• {issue}</div>
@@ -444,9 +568,9 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
 
               {/* Strengths */}
               {(analysis.analysis?.strengths?.length ?? 0) > 0 && (
-                <div style={{ padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                  <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-                    <CheckCircle size={14} /> Profile Strengths
+                <div style={{ padding: '1rem', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--success-light)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <CheckCircle size={16} /> Profile Strengths
                   </h4>
                   {(analysis.analysis?.strengths || []).map((strength, i) => (
                     <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.25rem', paddingLeft: '1.4rem' }}>• {strength}</div>
