@@ -139,7 +139,7 @@ const GlobalAIPanel = () => {
                                     fontSize: '0.85rem',
                                     color: 'var(--primary-light)',
                                     letterSpacing: '0.05em',
-                                    fontFamily: "'Outfit', sans-serif"
+                                    fontFamily: "'Space Grotesk', sans-serif"
                                 }}>AI ASSISTANT</span>
                             </div>
 

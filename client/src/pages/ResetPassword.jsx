@@ -48,19 +48,19 @@ const ResetPassword = () => {
             <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'rgba(16,185,129,0.12)', border: '1px solid var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <CheckCircle2 size={36} color="var(--success-light)" />
             </div>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', fontFamily: "'Outfit', sans-serif" }}>Password Reset!</h2>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', fontFamily: "'Space Grotesk', sans-serif" }}>Password Reset!</h2>
             <p style={{ color: 'var(--text-muted)' }}>Redirecting you to login…</p>
-            <div style={{ width: '100%', height: '4px', background: 'var(--bg-elevated)', borderRadius: '9999px', overflow: 'hidden', marginTop: '0.5rem' }}>
-              <motion.div style={{ height: '100%', background: 'var(--gradient-primary)', borderRadius: '9999px' }} initial={{ width: '0%' }} animate={{ width: '100%' }} transition={{ duration: 3, ease: 'linear' }} />
+            <div style={{ width: '100%', height: '4px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginTop: '0.5rem' }}>
+              <motion.div style={{ height: '100%', background: 'var(--gradient-primary)', borderRadius: 'var(--radius-md)' }} initial={{ width: '0%' }} animate={{ width: '100%' }} transition={{ duration: 3, ease: 'linear' }} />
             </div>
           </motion.div>
         ) : (
           <>
-            <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(124,58,237,0.12)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+            <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(34,192,142,0.12)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
               <Lock size={24} color="var(--primary-light)" />
             </div>
 
-            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Outfit', sans-serif" }}>Set New Password</h2>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Space Grotesk', sans-serif" }}>Set New Password</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.75rem' }}>Choose a strong password for your account.</p>
 
             {error && (

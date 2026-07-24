@@ -51,7 +51,7 @@ const ScoreRing = ({ score }) => {
           style={{
             fontSize: '1.75rem', fontWeight: '800',
             color: scoreColor, lineHeight: 1,
-            fontFamily: "'Outfit', sans-serif",
+            fontFamily: "'Space Grotesk', sans-serif",
           }}
         >{score}%</motion.span>
         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', marginTop: '2px' }}>MATCH</span>
@@ -247,6 +247,10 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
 
   return (
     <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      maxHeight: '100%',
       background: 'var(--bg-card)',
       border: '1px solid var(--border)',
       borderRadius: 'var(--radius-lg)',
@@ -258,10 +262,10 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
         padding: '1.25rem 1.5rem',
         borderBottom: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: 'linear-gradient(135deg, rgba(124,58,237,0.06) 0%, transparent 100%)',
+        background: 'linear-gradient(135deg, rgba(34,192,142,0.06) 0%, transparent 100%)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ padding: '0.4rem', borderRadius: '0.5rem', background: 'rgba(124,58,237,0.15)' }}>
+          <div style={{ padding: '0.4rem', borderRadius: '0.5rem', background: 'rgba(34,192,142,0.15)' }}>
             <BarChart3 size={18} color="var(--primary)" />
           </div>
           <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)' }}>ATS Optimizer</h3>
@@ -303,7 +307,7 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
       </div>
 
       {/* Body */}
-      <div style={{ padding: '1.5rem' }}>
+      <div style={{ flex: 1, padding: '1.5rem', position: 'relative', overflowY: 'auto' }}>
         {/* Error state */}
         {error && (
           <div style={{ padding: '0.75rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-sm)', color: 'var(--error-light)', marginBottom: '1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -372,6 +376,7 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
         {/* Loading */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2.5rem 0', color: 'var(--text-muted)', gap: '1rem' }}>
+            <div className="scan-laser-line" />
             <Loader2 className="animate-spin" size={36} style={{ color: 'var(--primary)' }} />
             <div style={{ textAlign: 'center' }}>
               <p style={{ fontWeight: '600', color: 'var(--text-sub)' }}>Analyzing your fit...</p>
@@ -388,13 +393,18 @@ const ATSAnalysis = ({ resumeId, onJobDescriptionChange, value, initialData, res
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
             >
-              {/* Circular Score */}
-              <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+              <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                 <ScoreRing score={analysis.score} />
                 <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>
                   {analysis.score >= 70 ? '🟢 Strong match!' : analysis.score >= 50 ? '🟡 Good potential' : '🔴 Needs improvement'}
                 </p>
               </div>
+
+              <div style={{ 
+                borderBottom: '2px dashed var(--border-strong)', 
+                marginBottom: '1.5rem',
+                opacity: 0.6
+              }} />
 
               {/* Score Breakdown Progress Bars */}
               <div style={{ marginBottom: '1.5rem' }}>

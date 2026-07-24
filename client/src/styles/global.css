@@ -10,8 +10,8 @@ WWWWWW/* ================================================================
 /* --- Semantic aliases that bridge into ThemeContext values --- */
 :root {
     /* Primary palette */
-    --primary-color: var(--primary, #7c3aed);
-    --accent-color: var(--secondary, #4f46e5);
+    --primary-color: var(--primary, #22C08E);
+    --accent-color: var(--secondary, #2E9BD6);
 
     /* Backgrounds */
     --background-dark: var(--bg-deep, #030014);
@@ -209,7 +209,7 @@ WWWWWW/* ================================================================
 .skeleton-badge {
     width: 64px;
     height: 28px;
-    border-radius: 9999px;
+    border-radius: var(--radius-sm);
 }
 
 /* ================================================================
@@ -225,9 +225,9 @@ button[class*="btn"] {
 
 /* Focus ring for accessibility */
 :focus-visible {
-    outline: 2px solid var(--primary, #7c3aed);
+    outline: 2px solid var(--primary, #22C08E);
     outline-offset: 3px;
-    border-radius: var(--radius-sm, 0.75rem);
+    border-radius: var(--radius-sm, 0.4rem);
 }
 
 /* Full-width forms on mobile */

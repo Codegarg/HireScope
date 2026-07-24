@@ -595,24 +595,28 @@ ${resumeSnippet}`;
         }
 
         const data = await response.json();
-        const rawText = data.result?.response || "";
-
-        // Strip markdown code fences if present
-        const cleaned = rawText
-            .replace(/```json\s*/gi, "")
-            .replace(/```\s*/g, "")
-            .trim();
-
-        // Extract JSON object
-        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-
+        let rawText = data.result?.response || "";
         let parsed = null;
+        let cleaned = typeof rawText === 'string' ? rawText : "";
 
-        if (jsonMatch) {
-            try {
-                parsed = JSON.parse(jsonMatch[0]);
-            } catch (e) {
-                // If it fails to parse, we will attempt regex fallback below
+        if (typeof rawText === 'object') {
+            parsed = rawText;
+        } else {
+            // Strip markdown code fences if present
+            cleaned = rawText
+                .replace(/```json\s*/gi, "")
+                .replace(/```\s*/g, "")
+                .trim();
+
+            // Extract JSON object
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+
+            if (jsonMatch) {
+                try {
+                    parsed = JSON.parse(jsonMatch[0]);
+                } catch (e) {
+                    // If it fails to parse, we will attempt regex fallback below
+                }
             }
         }
 
@@ -632,7 +636,7 @@ ${resumeSnippet}`;
                     evaluationNotes: "Truncated evaluation"
                 };
             } else {
-                console.warn("[LlamaEvaluator] Failed to evaluate valid JSON. Raw text preview:", rawText.substring(0, 100));
+                console.warn("[LlamaEvaluator] Failed to evaluate valid JSON. Raw text preview:", typeof rawText === 'string' ? rawText.substring(0, 100) : "Object");
                 return null;
             }
         }

@@ -44,6 +44,9 @@ export const login = async (req, res, next) => {
             throw new ApiError(401, "Invalid credentials");
         }
 
+        user.lastLoginAt = new Date();
+        await user.save({ validateModifiedOnly: true });
+
         const token = generateToken(user._id);
 
         // Consistent response structure ensures AuthContext.jsx triggers redirection
@@ -51,7 +54,8 @@ export const login = async (req, res, next) => {
             user: {
                 id: user._id,
                 name: user.username,
-                email: user.email
+                email: user.email,
+                lastLoginAt: user.lastLoginAt
             },
             token
         });
@@ -86,8 +90,8 @@ export const forgotPassword = async (req, res, next) => {
             }
         });
 
-        // Ensure this matches your frontend routing
-        const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+        const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+        const resetUrl = `${clientUrl}/reset-password/${resetToken}`;
 
         const mailOptions = {
             to: user.email,

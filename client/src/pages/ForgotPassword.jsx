@@ -37,11 +37,11 @@ const ForgotPassword = () => {
           style={{ width: '100%', maxWidth: '420px', padding: '2.5rem' }}
         >
           {/* Icon */}
-          <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(124,58,237,0.12)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(34,192,142,0.12)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
             <Mail size={24} color="var(--primary-light)" />
           </div>
 
-          <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Outfit', sans-serif" }}>Recover Password</h2>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Space Grotesk', sans-serif" }}>Recover Password</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.75rem' }}>
             We'll send a secure reset link to your email.
           </p>

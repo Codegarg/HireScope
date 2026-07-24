@@ -162,7 +162,7 @@ const Profile = () => {
                         }}>
                             {user.name ? user.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '?'}
                         </div>
-                        <h1 style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '800', fontFamily: "'Outfit', sans-serif", marginBottom: '0.5rem', background: 'linear-gradient(to right, var(--text-main), var(--text-muted))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        <h1 style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '800', fontFamily: "'Space Grotesk', sans-serif", marginBottom: '0.5rem', background: 'linear-gradient(to right, var(--text-main), var(--text-muted))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                             Your Space
                         </h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>Manage your personal information and security.</p>
@@ -173,14 +173,14 @@ const Profile = () => {
                         {/* Profile Info Card */}
                         <motion.div
                             style={{
-                                background: 'rgba(20, 20, 25, 0.4)', backdropFilter: 'blur(20px)',
+                                background: 'var(--bg-card)', backdropFilter: 'blur(20px)',
                                 border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
                                 padding: '2.5rem', position: 'relative', overflow: 'hidden'
                             }}
                         >
                             <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '150px', height: '150px', background: 'var(--primary)', opacity: '0.05', filter: 'blur(40px)', borderRadius: '50%' }} />
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                                 <UserIcon size={20} className="text-primary" />
                                 <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Personal Information</h3>
                             </div>
@@ -193,7 +193,7 @@ const Profile = () => {
                                     <label style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-sub)', marginBottom: '0.5rem' }}>Username</label>
 
                                     {!isEditingUsername ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid transparent' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                                             <span style={{ fontSize: '1rem', fontWeight: '500' }}>{user.name}</span>
                                             <button
                                                 onClick={() => {
@@ -222,7 +222,7 @@ const Profile = () => {
                                                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                                                 type="button"
                                                 onClick={() => setIsEditingUsername(false)}
-                                                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 'var(--radius-sm)', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-main)', cursor: 'pointer' }}
+                                                style={{ background: 'var(--bg-card)', border: 'none', borderRadius: 'var(--radius-sm)', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-main)', cursor: 'pointer' }}
                                             >
                                                 <X size={18} />
                                             </motion.button>
@@ -242,10 +242,10 @@ const Profile = () => {
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-sub)', marginBottom: '0.5rem' }}>
                                         Email Address
                                     </label>
-                                    <div style={{ display: 'flex', alignItems: 'center', padding: '0.875rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid transparent', color: 'var(--text-muted)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', padding: '0.875rem 1rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                                         <Mail size={16} style={{ marginRight: '0.5rem', opacity: 0.7 }} />
                                         {user.email}
-                                        <span style={{ marginLeft: 'auto', fontSize: '0.75rem', padding: '0.1rem 0.5rem', background: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>Read only</span>
+                                        <span style={{ marginLeft: 'auto', fontSize: '0.75rem', padding: '0.1rem 0.5rem', background: 'var(--bg-card)', borderRadius: '10px' }}>Read only</span>
                                     </div>
                                 </div>
 
@@ -255,12 +255,12 @@ const Profile = () => {
                         {/* Security Card */}
                         <motion.div
                             style={{
-                                background: 'rgba(20, 20, 25, 0.4)', backdropFilter: 'blur(20px)',
+                                background: 'var(--bg-card)', backdropFilter: 'blur(20px)',
                                 border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
                                 padding: '2.5rem', position: 'relative', overflow: 'hidden'
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                                 <Lock size={20} className="text-primary" />
                                 <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Security Settings</h3>
                             </div>
@@ -304,17 +304,17 @@ const Profile = () => {
                                     style={{
                                         marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                                         padding: '0.875rem 1.5rem', borderRadius: 'var(--radius-sm)',
-                                        background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', fontWeight: '600', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)',
+                                        background: 'var(--bg-elevated)', color: 'var(--text-main)', fontWeight: '600', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)',
                                         transition: 'all 0.2s ease', opacity: isLoading ? 0.7 : 1
                                     }}
                                     onMouseEnter={e => { e.currentTarget.style.background = 'var(--gradient-primary)'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.boxShadow = '0 4px 15px var(--primary-glow)' }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.boxShadow = 'none' }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.boxShadow = 'none' }}
                                 >
                                     {isLoading ? "Updating..." : <><Save size={18} /><span>Update Password</span></>}
                                 </motion.button>
                             </form>
 
-                            <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--text-faint)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                            <div style={{ marginTop: '2rem', padding: '1rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--text-faint)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
                                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5, flex: 1, minWidth: '200px' }}>
                                     If you logged in using Google or GitHub and haven't set a password yet, we can send you an email to set one up.
                                 </p>
@@ -339,11 +339,11 @@ const Profile = () => {
                                     disabled={isLoading}
                                     style={{
                                         padding: '0.6rem 1rem', borderRadius: 'var(--radius-sm)',
-                                        background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)',
+                                        background: 'var(--bg-elevated)', color: 'var(--text-main)', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)',
                                         transition: 'all 0.2s ease', opacity: isLoading ? 0.7 : 1, whiteSpace: 'nowrap'
                                     }}
                                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
                                 >
                                     Send Reset Link
                                 </button>
@@ -353,7 +353,7 @@ const Profile = () => {
                         {/* Danger Zone Card */}
                         <motion.div
                             style={{
-                                background: 'rgba(20, 20, 25, 0.4)', backdropFilter: 'blur(20px)',
+                                background: 'var(--bg-card)', backdropFilter: 'blur(20px)',
                                 border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 'var(--radius-lg)',
                                 padding: '2.5rem', position: 'relative', overflow: 'hidden'
                             }}
@@ -399,11 +399,11 @@ const Profile = () => {
                                                 onClick={() => setShowDeleteConfirm(false)}
                                                 style={{
                                                     padding: '0.75rem 1.5rem', borderRadius: 'var(--radius-sm)',
-                                                    background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', fontWeight: '600', cursor: 'pointer',
+                                                    background: 'var(--bg-elevated)', color: 'var(--text-main)', fontWeight: '600', cursor: 'pointer',
                                                     border: '1px solid rgba(255,255,255,0.1)', transition: 'background 0.2s'
                                                 }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
                                             >
                                                 Cancel
                                             </button>

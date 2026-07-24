@@ -5,13 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Sun, Moon, Stars, Gem, Menu, X, LayoutDashboard, Home, User } from 'lucide-react';
 
-/* Theme icon map */
-const THEME_ICONS = {
-    dark: <Moon size={16} />,
-    light: <Sun size={16} />,
-    midnight: <Stars size={16} />,
-    glass: <Gem size={16} />,
-};
+
 
 const Navbar = () => {
     const { user, logout } = useContext(AuthContext);
@@ -65,18 +59,26 @@ const Navbar = () => {
                     {/* Logo */}
                     <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <div style={{
+                            position: 'relative',
                             width: '34px', height: '34px',
-                            background: 'var(--gradient-primary)',
-                            borderRadius: '9px',
+                            background: 'transparent',
+                            border: '1.5px solid var(--primary)',
+                            borderRadius: '4px',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontWeight: '800', color: 'white', fontSize: '1rem',
-                            boxShadow: '0 4px 12px var(--primary-glow)',
-                            fontFamily: "'Outfit', sans-serif",
+                            fontWeight: '800', color: 'var(--primary)', fontSize: '1rem',
+                            fontFamily: "'JetBrains Mono', monospace",
                             flexShrink: 0,
-                        }}>H</div>
+                        }}>
+                            H
+                            <div style={{
+                                position: 'absolute', top: '-4px', right: '-4px',
+                                width: '8px', height: '8px', borderRadius: '50%',
+                                background: 'var(--success-light)', boxShadow: '0 0 10px var(--success)'
+                            }} />
+                        </div>
                         <span style={{
                             fontSize: '1.3rem', fontWeight: '800', letterSpacing: '-0.5px',
-                            fontFamily: "'Outfit', sans-serif",
+                            fontFamily: "'Space Grotesk', sans-serif",
                             background: 'var(--gradient-text)',
                             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                         }}>HireScope</span>
@@ -153,16 +155,16 @@ const Navbar = () => {
                         <AnimatePresence mode="wait">
                             <motion.span
                                 key={theme.id}
-                                initial={{ opacity: 0, rotate: -45, scale: 0.5 }}
-                                animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                                exit={{ opacity: 0, rotate: 45, scale: 0.5 }}
+                                initial={{ opacity: 0, y: -10, filter: 'blur(4px)' }}
+                                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                exit={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
                                 transition={{ duration: 0.2 }}
-                                style={{ display: 'flex', alignItems: 'center' }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                             >
-                                {THEME_ICONS[theme.id]}
+                                <span style={{ fontWeight: '800' }}>{theme.label}</span> 
+                                <span style={{ fontSize: '1.1em' }}>({theme.icon})</span>
                             </motion.span>
                         </AnimatePresence>
-                        <span className="hide-mobile">{theme.label}</span>
                     </motion.button>
 
                     {/* Auth section */}
