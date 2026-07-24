@@ -17,12 +17,20 @@ const userSchema = new mongoose.Schema({
     password: {
         type: String,
         required: function() {
-            return !this.googleId;
+            return !this.googleId && !this.githubId;
         }
     },
     googleId: {
         type: String,
         default: null
+    },
+    githubId: {
+        type: String,
+        default: null
+    },
+    lastLoginAt: {
+        type: Date,
+        default: Date.now
     },
     avatar: {
         type: String,

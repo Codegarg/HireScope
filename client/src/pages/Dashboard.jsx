@@ -28,8 +28,7 @@ const StatCard = ({ title, value, icon: Icon, accent, delay, style = {} }) => (
             ...style
         }}
     >
-        {/* glow orb */}
-        <div style={{ position: 'absolute', top: -20, right: -20, width: '100px', height: '100px', background: accent, filter: 'blur(40px)', opacity: 0.25, borderRadius: '50%', pointerEvents: 'none' }} />
+
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
             <div style={{ padding: '0.55rem', borderRadius: '0.75rem', background: `${accent}18`, color: accent, border: `1px solid ${accent}25`, display: 'flex' }}>
@@ -38,7 +37,7 @@ const StatCard = ({ title, value, icon: Icon, accent, delay, style = {} }) => (
             <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: '600' }}>{title}</span>
         </div>
 
-        <div style={{ fontSize: '2.75rem', fontWeight: '800', color: 'var(--text-main)', lineHeight: 1, fontFamily: "'Outfit', sans-serif" }}>
+        <div style={{ fontSize: '2.75rem', fontWeight: '800', color: 'var(--text-main)', lineHeight: 1, fontFamily: "'Space Grotesk', sans-serif" }}>
             {value}
         </div>
     </motion.div>
@@ -66,7 +65,7 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, onView
                 opacity: 1,
                 scale: 1,
                 borderColor: isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
-                boxShadow: isSelected ? '0 0 30px rgba(124, 58, 237, 0.2)' : 'var(--shadow-md)'
+                boxShadow: isSelected ? '0 0 30px rgba(34,192,142, 0.2)' : 'var(--shadow-md)'
             }}
             exit={{ opacity: 0, scale: 0.95 }}
             className="glass-card bento-tile neon-border-glow"
@@ -80,7 +79,7 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, onView
             {/* Top Row: Icon & Score */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.15)', display: 'grid', placeItems: 'center', color: 'var(--primary-light)' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(34,192,142,0.1)', border: '1px solid rgba(34,192,142,0.15)', display: 'grid', placeItems: 'center', color: 'var(--primary-light)' }}>
                         <FileText size={18} />
                     </div>
                     {latestVersion?.type && (
@@ -90,7 +89,7 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, onView
                     )}
                 </div>
                 {resume.atsScore > 0 && (
-                    <span style={{ padding: '0.2rem 0.6rem', borderRadius: '9999px', background: `${scoreColor}12`, border: `1px solid ${scoreColor}33`, color: scoreColor, fontSize: '0.72rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-md)', background: `${scoreColor}12`, border: `1px solid ${scoreColor}33`, color: scoreColor, fontSize: '0.72rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Target size={11} /> {resume.atsScore}% Match
                     </span>
                 )}
@@ -147,7 +146,7 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, onView
                 <button
                     onClick={(e) => { e.stopPropagation(); setIsExpanded(isExpanded === 'analyses' ? false : 'analyses'); }}
                     style={{
-                        flex: 1.5, background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 'var(--radius-sm)',
+                        flex: 1.5, background: 'rgba(34,192,142,0.08)', border: '1px solid rgba(34,192,142,0.2)', borderRadius: 'var(--radius-sm)',
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--primary-light)', fontSize: '0.75rem', cursor: 'pointer', padding: '0.5rem 0.6rem',
                         transition: 'all 0.2s'
                     }}
@@ -200,9 +199,9 @@ const ResumeCard = ({ resume, navigate, onRestore, onDownload, onPreview, onView
                             {[...(resume.analyses || [])].reverse().map((a, idx) => (
                                 <motion.div 
                                     key={idx} 
-                                    whileHover={{ scale: 1.02, background: 'rgba(124,58,237,0.06)' }}
+                                    whileHover={{ scale: 1.02, background: 'rgba(34,192,142,0.06)' }}
                                     onClick={(e) => { e.stopPropagation(); onViewAnalysis(a); }}
-                                    style={{ padding: '0.6rem', background: 'rgba(124,58,237,0.03)', border: '1px solid rgba(124,58,237,0.1)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s' }}
+                                    style={{ padding: '0.6rem', background: 'rgba(34,192,142,0.03)', border: '1px solid rgba(34,192,142,0.1)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s' }}
                                 >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
                                         <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{a.jdTitle || "Untitled Job"}</span>
@@ -251,8 +250,8 @@ const TrendChart = ({ data }) => {
             <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ overflow: 'visible' }}>
                 <defs>
                     <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="rgba(124,58,237,0.35)" />
-                        <stop offset="100%" stopColor="rgba(124,58,237,0)" />
+                        <stop offset="0%" stopColor="rgba(34,192,142,0.35)" />
+                        <stop offset="100%" stopColor="rgba(34,192,142,0)" />
                     </linearGradient>
                 </defs>
                 <path d={`M${padding},${height} L${points.split(' ')[0]} ${points} L${width - padding},${height} Z`} fill="url(#chartGrad)" />
@@ -430,7 +429,7 @@ const Dashboard = () => {
                 >
                     <div>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.4rem' }}>{getGreeting()},</p>
-                        <h1 className="futuristic-hero-title" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: '800', letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: '0.75rem', fontFamily: "'Outfit', sans-serif" }}>
+                        <h1 className="futuristic-hero-title" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: '800', letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: '0.75rem', fontFamily: "'Space Grotesk', sans-serif" }}>
                             Welcome back, {firstName}
                         </h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>
@@ -470,12 +469,12 @@ const Dashboard = () => {
                     >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                <div style={{ padding: '0.4rem', borderRadius: '0.6rem', background: 'rgba(236,72,153,0.1)', color: '#ec4899' }}>
+                                <div style={{ padding: '0.4rem', borderRadius: '0.6rem', background: 'rgba(46,155,214,0.1)', color: '#2E9BD6' }}>
                                     <TrendingUp size={18} />
                                 </div>
                                 <span style={{ fontWeight: '700', color: 'var(--text-sub)', fontSize: '0.9rem' }}>Score Trend</span>
                             </div>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)', background: 'var(--bg-elevated)', padding: '0.2rem 0.7rem', borderRadius: '9999px' }}>Last 10 updates</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)', background: 'var(--bg-elevated)', padding: '0.2rem 0.7rem', borderRadius: 'var(--radius-md)' }}>Last 10 updates</span>
                         </div>
                         <div style={{ flex: 1, minHeight: '140px' }}>
                             <TrendChart data={trendData} />
@@ -607,7 +606,7 @@ const Dashboard = () => {
                              style={{ width: '100%', maxWidth: '700px', maxHeight: '85vh', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
                          >
                              {/* Modal Header */}
-                             <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(124,58,237,0.05)' }}>
+                             <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(34,192,142,0.05)' }}>
                                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                      <div style={{ width: '50px', height: '50px', borderRadius: '12px', background: 'var(--primary-light)', color: 'white', display: 'grid', placeItems: 'center', fontSize: '1.25rem', fontWeight: '800' }}>
                                          {selectedAnalysis.atsScore}
@@ -699,7 +698,7 @@ const Dashboard = () => {
                             }}
                         >
                             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)' }}>
-                                <h3 style={{ fontWeight: '700', fontFamily: "'Outfit', sans-serif" }}>Version Preview</h3>
+                                <h3 style={{ fontWeight: '700', fontFamily: "'Space Grotesk', sans-serif" }}>Version Preview</h3>
                                 <button onClick={() => setIsPreviewOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                                     <X size={24} />
                                 </button>

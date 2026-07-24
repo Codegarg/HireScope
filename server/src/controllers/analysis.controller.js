@@ -66,7 +66,7 @@ export const analyzeResume = async (req, res, next) => {
           a.jdText?.trim().toLowerCase() === normalizedJd
         );
 
-        if (existingAnalysis) {
+        if (existingAnalysis && existingAnalysis.analysis?.matchingKeywords !== undefined) {
           logger.analysis('Repeat analysis detected - returning cached result', { resumeId: savedResumeId, userId });
           return res.status(200).json({
             success: true,
@@ -77,6 +77,7 @@ export const analyzeResume = async (req, res, next) => {
               missingSkills: existingAnalysis.analysis?.missingSkills || [],
               missingCriticalSkills: existingAnalysis.analysis?.missingCriticalSkills || [],
               improvementSuggestions: existingAnalysis.analysis?.suggestions || [],
+              matchingKeywords: existingAnalysis.analysis?.matchingKeywords || [],
               aiSuggestions: existingAnalysis.aiSuggestions,
               resumeId: savedResumeId,
               resumeText,
@@ -137,7 +138,8 @@ export const analyzeResume = async (req, res, next) => {
           matchedSkills: atsResult.matchedSkills || [],
           missingSkills: atsResult.missingSkills || [],
           missingCriticalSkills: atsResult.missingCriticalSkills || [],
-          suggestions: atsResult.improvementSuggestions || []
+          suggestions: atsResult.improvementSuggestions || [],
+          matchingKeywords: atsResult.matchingKeywords || []
         },
         aiSuggestions,
         timestamp: new Date()

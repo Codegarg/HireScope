@@ -112,7 +112,7 @@ const ResumeDetail = () => {
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
                         <div>
-                            <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Outfit', sans-serif" }}>
+                            <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: "'Space Grotesk', sans-serif" }}>
                                 {resume.title || 'Untitled Resume'}
                             </h1>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
@@ -144,7 +144,7 @@ const ResumeDetail = () => {
                 <section style={{ marginBottom: '4rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                         <FileText size={20} color="var(--primary)" />
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', fontFamily: "'Outfit', sans-serif" }}>Original PDF</h2>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', fontFamily: "'Space Grotesk', sans-serif" }}>Original PDF</h2>
                     </div>
 
                     <div style={{
@@ -178,7 +178,7 @@ const ResumeDetail = () => {
                 <section>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                         <RotateCcw size={20} color="var(--primary)" />
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', fontFamily: "'Outfit', sans-serif" }}>Version History</h2>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', fontFamily: "'Space Grotesk', sans-serif" }}>Version History</h2>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

@@ -91,7 +91,7 @@ const GlowingProgressBar = ({ progress }) => {
                 style={{
                     height: '100%',
                     background: 'var(--accent-glow)',
-                    boxShadow: '0 0 10px #7c3aed, 0 0 20px #ec4899'
+                    boxShadow: '0 0 10px #22C08E, 0 0 20px #2E9BD6'
                 }}
             />
         </div>

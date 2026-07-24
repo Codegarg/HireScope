@@ -47,7 +47,8 @@ const resumeSchema = new mongoose.Schema({
         matchedSkills: { type: [String], default: [] },
         missingSkills: { type: [String], default: [] },
         missingCriticalSkills: { type: [String], default: [] },
-        suggestions: { type: [String], default: [] }
+        suggestions: { type: [String], default: [] },
+        matchingKeywords: { type: [String], default: [] }
     },
 
     // ── Versioning ────────────────────────────────────────────────────────────
@@ -90,7 +91,8 @@ const resumeSchema = new mongoose.Schema({
             matchedSkills: { type: [String], default: [] },
             missingSkills: { type: [String], default: [] },
             missingCriticalSkills: { type: [String], default: [] },
-            suggestions: { type: [String], default: [] }
+            suggestions: { type: [String], default: [] },
+            matchingKeywords: { type: [String], default: [] }
         },
         aiSuggestions: String,
         timestamp: { type: Date, default: Date.now }

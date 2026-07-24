@@ -50,11 +50,24 @@ const Signup = () => {
 
           <div style={{ position: 'relative', zIndex: 1, maxWidth: '420px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '3rem' }}>
-              <div style={{ width: '44px', height: '44px', background: 'var(--gradient-primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '800', color: 'white', fontFamily: "'Outfit', sans-serif", boxShadow: '0 8px 20px var(--primary-glow)' }}>H</div>
-              <span style={{ fontSize: '1.6rem', fontWeight: '800', fontFamily: "'Outfit', sans-serif", background: 'var(--gradient-text)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>HireScope</span>
+              <div style={{
+                position: 'relative', width: '44px', height: '44px', background: 'transparent',
+                border: '1.5px solid var(--primary)', borderRadius: '4px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1.4rem', fontWeight: '800', color: 'var(--primary)',
+                fontFamily: "'JetBrains Mono', monospace", flexShrink: 0
+              }}>
+                H
+                <div style={{
+                  position: 'absolute', top: '-5px', right: '-5px',
+                  width: '10px', height: '10px', borderRadius: '50%',
+                  background: 'var(--success-light)', boxShadow: '0 0 12px var(--success)'
+                }} />
+              </div>
+              <span style={{ fontSize: '1.6rem', fontWeight: '800', fontFamily: "'Space Grotesk', sans-serif", background: 'var(--gradient-text)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>HireScope</span>
             </div>
 
-            <h2 style={{ fontSize: 'clamp(2rem, 3.5vw, 2.75rem)', fontWeight: '800', lineHeight: '1.15', marginBottom: '1.25rem', fontFamily: "'Outfit', sans-serif" }}>
+            <h2 style={{ fontSize: 'clamp(2rem, 3.5vw, 2.75rem)', fontWeight: '800', lineHeight: '1.15', marginBottom: '1.25rem', fontFamily: "'Space Grotesk', sans-serif" }}>
               Build a<br />
               <span style={{ background: 'var(--gradient-hero)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>better resume.</span>
             </h2>
@@ -73,7 +86,7 @@ const Signup = () => {
                   transition={{ delay: 0.2 + i * 0.1 }}
                   style={{ padding: '1.25rem 1rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}
                 >
-                  <div style={{ color: 'var(--primary)', background: 'rgba(124,58,237,0.1)', padding: '0.5rem', borderRadius: '0.75rem', display: 'flex' }}>
+                  <div style={{ color: 'var(--primary)', background: 'rgba(34,192,142,0.1)', padding: '0.5rem', borderRadius: '0.75rem', display: 'flex' }}>
                     {icon}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', lineHeight: '1.3' }}>{label}</div>
@@ -92,7 +105,7 @@ const Signup = () => {
             style={{ width: '100%', maxWidth: '400px' }}
           >
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <h2 style={{ fontSize: '1.9rem', fontWeight: '800', marginBottom: '0.4rem', fontFamily: "'Outfit', sans-serif" }}>
+              <h2 style={{ fontSize: '1.9rem', fontWeight: '800', marginBottom: '0.4rem', fontFamily: "'Space Grotesk', sans-serif" }}>
                 Create your account
               </h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Start optimizing your career today</p>

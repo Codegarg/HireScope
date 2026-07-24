@@ -224,7 +224,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 <div className="ambient-bg" />
                 <div style={{ textAlign: 'center', position: 'relative', zIndex: 1, background: 'var(--bg-card)', padding: '3rem', borderRadius: '1rem', border: '1px solid rgba(239,68,68,0.2)', maxWidth: '400px' }}>
                     <AlertTriangle size={48} style={{ color: '#ef4444', margin: '0 auto 1.5rem' }} />
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.5rem', color: 'var(--text-main)', fontFamily: "'Outfit', sans-serif" }}>Unable to Load Resume</h2>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.5rem', color: 'var(--text-main)', fontFamily: "'Space Grotesk', sans-serif" }}>Unable to Load Resume</h2>
                     <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>{fetchError || "We couldn't find this resume. It may have been deleted or the file is temporarily unavailable."}</p>
                     <button onClick={() => navigate('/')} className="glow-btn" style={{ padding: '0.8rem 2rem' }}>
                         Return Home
@@ -266,7 +266,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                 )}
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>
+                    <div style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Space Grotesk', sans-serif" }}>
                         {resume?.title || 'Resume Editor'}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: saveStatusColor, fontWeight: '600', marginTop: '1px' }}>{saveStatusLabel}</div>
@@ -285,7 +285,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                     }}
                     style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        background: 'rgba(124,58,237,0.08)', border: '1px solid var(--primary-glow)',
+                        background: 'var(--primary-glow)', border: '1px solid var(--primary-glow)',
                         borderRadius: '0.6rem', padding: '0.5rem 1rem', color: 'var(--primary-light)',
                         cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600',
                         transition: 'all 0.2s ease'
@@ -307,7 +307,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                     disabled={saveStatus === 'saving'}
                     style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        background: saveStatus === 'unsaved' ? 'rgba(16,185,129,0.1)' : 'var(--bg-card)',
+                        background: saveStatus === 'unsaved' ? 'var(--primary-glow)' : 'var(--bg-card)',
                         border: `1px solid ${saveStatus === 'unsaved' ? 'var(--success)' : 'var(--border)'}`,
                         borderRadius: '0.6rem', padding: '0.5rem 1rem',
                         color: saveStatus === 'unsaved' ? 'var(--success-light)' : 'var(--text-muted)',
@@ -335,9 +335,9 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                     onClick={handleStartManualEdit}
                     style={{
                         display: 'flex', alignItems: 'center', gap: '0.5rem',
-                        padding: '0.55rem 1rem', background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.8rem',
-                        color: 'white', cursor: 'pointer', fontSize: '0.85rem'
+                        padding: '0.55rem 1rem', background: 'var(--bg-card)',
+                        border: '1px solid var(--border)', borderRadius: '0.8rem',
+                        color: 'var(--text-main)', cursor: 'pointer', fontSize: '0.85rem'
                     }}
                 >
                     <Edit3 size={15} />
@@ -407,7 +407,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            style={{ width: '100%', maxWidth: '600px', position: 'relative' }}
+                            style={{ width: '100%', maxWidth: '600px', maxHeight: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column', position: 'relative' }}
                         >
                             <ATSAnalysis
                                 resumeId={id}

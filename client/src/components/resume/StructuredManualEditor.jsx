@@ -16,8 +16,8 @@ const SectionHeader = ({ icon: Icon, title, isExpanded, onToggle }) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
                 width: '32px', height: '32px', borderRadius: '8px',
-                background: 'rgba(124, 58, 237, 0.1)', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', color: '#a78bfa'
+                background: 'rgba(34,192,142, 0.1)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', color: '#4CDBA8'
             }}>
                 <Icon size={18} />
             </div>
@@ -146,7 +146,7 @@ const StructuredManualEditor = ({ initialContent, initialTitle, onSave, onCancel
                         disabled={isSaving}
                         style={{
                             padding: '0.5rem 1.25rem', borderRadius: '0.6rem', border: 'none',
-                            background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', color: 'white',
+                            background: 'linear-gradient(135deg, #22C08E, #2E9BD6)', color: 'white',
                             cursor: isSaving ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: '600',
                             display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: isSaving ? 0.7 : 1
                         }}

@@ -12,10 +12,36 @@ const Step1Upload = ({ data, updateData, setNextDisabled, onNext, onBack }) => {
         setNextDisabled(!data._id || uploading);
     }, [data._id, uploading, setNextDisabled]);
 
+    const [isDragging, setIsDragging] = React.useState(false);
+
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
-        if (!file) return;
+        if (file) await processFile(file);
+    };
 
+    const handleDrop = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        if (uploading) return;
+
+        const file = e.dataTransfer.files[0];
+        if (file) await processFile(file);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!uploading) setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const processFile = async (file) => {
         setUploading(true);
         setError('');
 
@@ -45,13 +71,13 @@ const Step1Upload = ({ data, updateData, setNextDisabled, onNext, onBack }) => {
 
     const zoneHover = (e, on) => {
         e.currentTarget.style.borderColor = on ? 'var(--primary)' : 'var(--border)';
-        e.currentTarget.style.background = on ? 'rgba(124,58,237,0.05)' : 'var(--bg-card)';
+        e.currentTarget.style.background = on ? 'rgba(34,192,142,0.05)' : 'var(--bg-card)';
         e.currentTarget.style.boxShadow = on ? '0 0 20px var(--primary-glow)' : 'none';
     };
 
     return (
         <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '1rem', fontFamily: "'Outfit', sans-serif" }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '1rem', fontFamily: "'Space Grotesk', sans-serif" }}>
                 Upload Your Resume
             </h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '3rem', fontSize: '1.1rem' }}>
@@ -70,7 +96,7 @@ const Step1Upload = ({ data, updateData, setNextDisabled, onNext, onBack }) => {
                 }}
             >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                    <div style={{ width: '48px', height: '48px', background: 'rgba(124,58,237,0.12)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                    <div style={{ width: '48px', height: '48px', background: 'rgba(34,192,142,0.12)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
                         <FileText size={24} />
                     </div>
                 </div>
@@ -79,6 +105,9 @@ const Step1Upload = ({ data, updateData, setNextDisabled, onNext, onBack }) => {
                     className="upload-zone"
                     onMouseOver={(e) => !uploading && zoneHover(e, true)}
                     onMouseOut={(e) => !uploading && zoneHover(e, false)}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
                     onClick={(e) => {
                         if (uploading) return;
                         e.stopPropagation();
@@ -86,15 +115,16 @@ const Step1Upload = ({ data, updateData, setNextDisabled, onNext, onBack }) => {
                     }}
                     style={{
                         padding: '3rem 2rem',
-                        border: '2px dashed var(--border)',
+                        border: `2px dashed ${isDragging ? 'var(--primary)' : 'var(--border)'}`,
                         borderRadius: 'var(--radius-sm)',
                         cursor: uploading ? 'not-allowed' : 'pointer',
                         transition: 'all 0.2s',
                         opacity: uploading ? 0.7 : 1,
-                        background: uploading ? 'rgba(124,58,237,0.02)' : 'var(--bg-card)'
+                        background: uploading || isDragging ? 'rgba(34,192,142,0.02)' : 'var(--bg-card)',
+                        boxShadow: isDragging ? '0 0 20px var(--primary-glow)' : 'none'
                     }}
                 >
-                    <input type="file" id="resume-wizard-upload" hidden onChange={handleFileChange} accept=".pdf" />
+                    <input type="file" id="resume-wizard-upload" hidden onChange={handleFileChange} accept=".pdf,.doc,.docx" />
 
                     {uploading ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
@@ -103,16 +133,17 @@ const Step1Upload = ({ data, updateData, setNextDisabled, onNext, onBack }) => {
                         </div>
                     ) : (
                         <>
-                            <Upload size={36} style={{ color: 'var(--text-muted)', marginBottom: '1rem', display: 'block', margin: '0 auto 1rem' }} />
+                            <Upload size={36} style={{ color: isDragging ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '1rem', display: 'block', margin: '0 auto 1rem', transition: 'color 0.2s' }} />
                             <p style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>
                                 {data._id ? (
                                     <span style={{ color: 'var(--success-light)', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                                         <FileText size={18} /> {data.fileName} (Uploaded)
                                     </span>
                                 ) : (
-                                    "Click to upload your Resume (PDF only)"
+                                    isDragging ? "Drop resume here" : "Click or drag & drop to upload your Resume"
                                 )}
                             </p>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-faint)', marginTop: '0.5rem' }}>Supports PDF and Word formats</p>
                         </>
                     )}
                 </div>

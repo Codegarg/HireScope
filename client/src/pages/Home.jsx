@@ -18,7 +18,7 @@ const parseAnalysis = (text) => {
     const trimmed = line.trim();
     const lower = trimmed.toLowerCase();
     if (lower.includes('strengths') || lower.includes('strength:')) currentSection = 'strengths';
-    else if (lower.includes('weaknesses') || lower.includes('weakness:')) currentSection = 'weaknesses';
+    else if (lower.includes('weaknesses') || lower.includes('weakness:') || lower.includes('improvement')) currentSection = 'weaknesses';
     else if (lower.includes('tips') || lower.includes('actionable')) currentSection = 'tips';
     else if (trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.match(/^\d+\./)) {
       const content = trimmed.replace(/^[-•\d\.]\s*/, '').trim();
@@ -52,7 +52,7 @@ const ScoreRing = ({ score }) => {
         />
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: '1.5rem', fontWeight: '800', color: scoreColor, lineHeight: 1, fontFamily: "'Outfit', sans-serif" }}>{score}%</span>
+        <span style={{ fontSize: '1.5rem', fontWeight: '800', color: scoreColor, lineHeight: 1, fontFamily: "'Space Grotesk', sans-serif" }}>{score}%</span>
         <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '600' }}>MATCH</span>
       </div>
     </div>
@@ -82,7 +82,7 @@ const SavedResumesModal = ({ resumes, onSelect, onClose }) => (
       onClick={e => e.stopPropagation()}
     >
       <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: '800', fontFamily: "'Outfit', sans-serif" }}>Your Saved Resumes</h3>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: '800', fontFamily: "'Space Grotesk', sans-serif" }}>Your Saved Resumes</h3>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
       </div>
       <div style={{ padding: '1rem', maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -116,7 +116,7 @@ const SavedResumesModal = ({ resumes, onSelect, onClose }) => (
     <style>{`
       .saved-resume-item:hover {
         border-color: var(--primary-light) !important;
-        background: rgba(124,58,237,0.08) !important;
+        background: rgba(34,192,142,0.08) !important;
         transform: translateX(4px);
       }
     `}</style>
@@ -143,7 +143,31 @@ const Home = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('resume');
 
+  const [isDraggingResume, setIsDraggingResume] = useState(false);
+  const [isDraggingJD, setIsDraggingJD] = useState(false);
 
+  const handleResumeDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingResume(false);
+    if (!user) return;
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      setResume(file);
+      setSelectedResumeId(null);
+    }
+  };
+
+  const handleJDDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingJD(false);
+    if (!user) return;
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      setJdFile(file);
+    }
+  };
   // Save analysis results to sessionStorage whenever they change
   useEffect(() => {
     if (result) {
@@ -228,7 +252,7 @@ const Home = () => {
   /* upload zone hover handler */
   const zoneHover = (el, on) => {
     el.currentTarget.style.borderColor = on ? 'var(--primary)' : 'var(--border)';
-    el.currentTarget.style.background = on ? 'rgba(124,58,237,0.05)' : 'var(--bg-card)';
+    el.currentTarget.style.background = on ? 'rgba(34,192,142,0.05)' : 'var(--bg-card)';
     el.currentTarget.style.boxShadow = on ? '0 0 20px var(--primary-glow)' : 'none';
   };
 
@@ -252,16 +276,24 @@ const Home = () => {
             style={{ textAlign: 'center', maxWidth: '860px', margin: '2rem auto 5rem' }}
           >
 
-            <h1 className="futuristic-hero-title" style={{ fontSize: 'clamp(2.75rem, 7vw, 4.75rem)', fontWeight: '800', lineHeight: '1.08', marginBottom: '1.5rem', fontFamily: "'Outfit', sans-serif", letterSpacing: '-0.04em' }}>
-              Elevate Your Career
-              <br />with HireScope
+            <div style={{
+              display: 'inline-block', padding: '0.35rem 0.85rem', border: '1px solid var(--primary)',
+              borderRadius: '2px', color: 'var(--primary-light)', fontSize: '0.75rem',
+              fontWeight: '700', letterSpacing: '0.05em', marginBottom: '1.5rem',
+              fontFamily: "'JetBrains Mono', monospace", background: 'rgba(34,192,142,0.1)'
+            }}>
+              ATS CLEARANCE ENGINE
+            </div>
+            <h1 className="futuristic-hero-title" style={{ fontSize: 'clamp(2.75rem, 7vw, 4.75rem)', fontWeight: '800', lineHeight: '1.08', marginBottom: '1.5rem', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.04em' }}>
+              Get your resume
+              <br />cleared for takeoff.
             </h1>
 
             <p style={{ fontSize: '1.15rem', color: 'var(--text-muted)', lineHeight: '1.7', maxWidth: '640px', margin: '0 auto 2.5rem' }}>
               Instantly analyze your resume against any job description. Get AI-powered ATS scores, keyword insights, and targeted improvements.
             </p>
 
-            <a href="#analyze" className="glow-btn" style={{ fontSize: '1rem', padding: '1rem 2.5rem', borderRadius: '9999px', textDecoration: 'none' }}>
+            <a href="#analyze" className="glow-btn" style={{ fontSize: '1rem', padding: '1rem 2.5rem', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
               Analyze My Resume <ArrowRight size={18} />
             </a>
           </motion.section>
@@ -292,7 +324,7 @@ const Home = () => {
             {/* Input Form Card */}
             <motion.div layout className="glass-card neon-border-glow" style={{ padding: 'clamp(1.5rem, 4vw, 3rem)', display: 'flex', flexDirection: 'column', height: result ? '1300px' : 'auto', position: 'relative' }}>
               {loading && <div className="scan-laser-line" />}
-              <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '1.5rem', fontFamily: "'Outfit', sans-serif", color: 'var(--text-main)' }}>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '1.5rem', fontFamily: "'Space Grotesk', sans-serif", color: 'var(--text-main)' }}>
                 {result ? 'Your Documents' : 'Analyze Your Fit'}
               </h2>
 
@@ -363,24 +395,33 @@ const Home = () => {
                     </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-                    <div style={{ width: '42px', height: '42px', background: 'rgba(124,58,237,0.12)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                    <div style={{ width: '42px', height: '42px', background: 'rgba(34,192,142,0.12)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
                       <FileText size={20} />
                     </div>
                     <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)' }}>Your Resume</h3>
                   </div>
                   <div
                     className="upload-zone"
+                    style={{
+                      border: `2px dashed ${isDraggingResume ? 'var(--primary)' : 'var(--border)'}`,
+                      background: isDraggingResume ? 'rgba(34,192,142,0.05)' : 'transparent',
+                      boxShadow: isDraggingResume ? '0 0 20px var(--primary-glow)' : 'none',
+                      transition: 'all 0.2s'
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); user && setIsDraggingResume(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); user && setIsDraggingResume(false); }}
+                    onDrop={handleResumeDrop}
                     onMouseOver={(e) => user && zoneHover(e, true)}
-                    onMouseOut={(e) => zoneHover(e, false)}
+                    onMouseOut={(e) => user && zoneHover(e, false)}
                     onClick={(e) => { if (!user) return; e.stopPropagation(); document.getElementById('resume-upload').click(); }}
                   >
                     <input type="file" id="resume-upload" hidden disabled={!user} onClick={(e) => { e.target.value = null; }} onChange={(e) => { setResume(e.target.files[0]); setSelectedResumeId(null); }} accept=".pdf,.doc,.docx" />
-                    <Upload size={28} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', display: 'block', margin: '0 auto 0.75rem', opacity: user ? 1 : 0.4 }} />
+                    <Upload size={28} style={{ color: isDraggingResume ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '0.75rem', display: 'block', margin: '0 auto 0.75rem', opacity: user ? 1 : 0.4, transition: 'color 0.2s' }} />
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                       {resume ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{resume.name}</span>
                         : selectedResumeId ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>Saved Resume Selected</span>
                           : storedNames.resumeName ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{storedNames.resumeName}</span>
-                            : "Drop your PDF / Word here"}
+                            : isDraggingResume ? "Drop your PDF / Word here" : "Click or drag & drop to upload your Resume"}
                     </p>
                   </div>
 
@@ -391,7 +432,7 @@ const Home = () => {
                       onClick={(e) => { e.stopPropagation(); setShowSavedModal(true); }}
                       style={{
                         marginTop: '1rem', width: '100%', padding: '0.6rem',
-                        background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)',
+                        background: 'rgba(34,192,142,0.1)', border: '1px solid rgba(34,192,142,0.2)',
                         borderRadius: 'var(--radius-sm)', color: 'var(--primary-light)',
                         fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
@@ -410,7 +451,7 @@ const Home = () => {
                     </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-                    <div style={{ width: '42px', height: '42px', background: 'rgba(79,70,229,0.12)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>
+                    <div style={{ width: '42px', height: '42px', background: 'rgba(46,155,214,0.12)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>
                       <Briefcase size={20} />
                     </div>
                     <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)' }}>Job Description</h3>
@@ -418,17 +459,26 @@ const Home = () => {
 
                   <div
                     className="upload-zone"
-                    style={{ marginBottom: '1rem' }}
+                    style={{
+                      marginBottom: '1rem',
+                      border: `2px dashed ${isDraggingJD ? 'var(--secondary)' : 'var(--border)'}`,
+                      background: isDraggingJD ? 'rgba(46,155,214,0.05)' : 'transparent',
+                      boxShadow: isDraggingJD ? '0 0 20px rgba(46,155,214,0.15)' : 'none',
+                      transition: 'all 0.2s'
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); user && setIsDraggingJD(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); user && setIsDraggingJD(false); }}
+                    onDrop={handleJDDrop}
                     onMouseOver={(e) => user && zoneHover(e, true)}
-                    onMouseOut={(e) => zoneHover(e, false)}
+                    onMouseOut={(e) => user && zoneHover(e, false)}
                     onClick={(e) => { if (!user) return; e.stopPropagation(); document.getElementById('jd-upload').click(); }}
                   >
                     <input type="file" id="jd-upload" hidden disabled={!user} onClick={(e) => { e.target.value = null; }} onChange={(e) => setJdFile(e.target.files[0])} accept=".pdf,.doc,.docx" />
-                    <FileUp size={24} style={{ color: 'var(--text-muted)', display: 'block', margin: '0 auto 0.5rem', opacity: user ? 1 : 0.4 }} />
+                    <FileUp size={24} style={{ color: isDraggingJD ? 'var(--secondary)' : 'var(--text-muted)', display: 'block', margin: '0 auto 0.5rem', opacity: user ? 1 : 0.4, transition: 'color 0.2s' }} />
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       {jdFile ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{jdFile.name}</span>
                         : storedNames.jdName ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{storedNames.jdName}</span>
-                          : "Upload Target JD"}
+                          : isDraggingJD ? "Drop Target JD here" : "Upload or drag & drop Target JD"}
                     </p>
                   </div>
 
@@ -508,10 +558,10 @@ const Home = () => {
                   }}
                 >
                   {/* Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem' }}>
                     <ScoreRing score={result.atsScore} />
                     <div>
-                      <h2 style={{ fontSize: '1.6rem', fontWeight: '800', fontFamily: "'Outfit', sans-serif", marginBottom: '0.25rem' }}>ATS Analysis</h2>
+                      <h2 style={{ fontSize: '1.6rem', fontWeight: '800', fontFamily: "'Space Grotesk', sans-serif", marginBottom: '0.25rem' }}>ATS Analysis</h2>
                       <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Match score · skills · structure</p>
                       <div style={{ marginTop: '0.5rem' }}>
                         <span className={`badge ${result.atsScore >= 70 ? 'badge-success' : result.atsScore >= 50 ? 'badge-warning' : 'badge-error'}`}>
@@ -520,6 +570,12 @@ const Home = () => {
                       </div>
                     </div>
                   </div>
+
+                  <div style={{ 
+                    borderBottom: '2px dashed var(--border-strong)', 
+                    marginBottom: '1.5rem',
+                    opacity: 0.6
+                  }} />
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     {/* Quick Stats Row */}
@@ -538,7 +594,7 @@ const Home = () => {
                         },
                       ].map(stat => (
                         <div key={stat.label} title={stat.tooltip} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0.875rem', textAlign: 'center' }}>
-                          <div style={{ fontSize: '1.1rem', fontWeight: '800', color: stat.color, fontFamily: "'Outfit', sans-serif" }}>{stat.value}</div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: '800', color: stat.color, fontFamily: "'Space Grotesk', sans-serif" }}>{stat.value}</div>
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', marginTop: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</div>
                         </div>
                       ))}
@@ -628,7 +684,7 @@ const Home = () => {
 
                     {/* Tips */}
                     {analysisSections && analysisSections.tips.length > 0 && (
-                      <div style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
+                      <div style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(34,192,142,0.2)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.875rem', color: 'var(--primary-light)' }}>
                           <Lightbulb size={16} /><h3 style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Actionable Tips</h3>
                         </div>

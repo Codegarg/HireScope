@@ -18,12 +18,37 @@ const Step2JD = ({ data, updateData, setNextDisabled, onAnalyze, triggerAction }
         }
     }, [triggerAction]);
 
+    const [isDragging, setIsDragging] = useState(false);
+
     const handleJdFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
             updateData({ jdFile: file, jdText: '' });
             setError('');
         }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            updateData({ jdFile: file, jdText: '' });
+            setError('');
+        }
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
     };
 
     const handleTextChange = (e) => {
@@ -80,13 +105,13 @@ const Step2JD = ({ data, updateData, setNextDisabled, onAnalyze, triggerAction }
 
     const zoneHover = (e, on) => {
         e.currentTarget.style.borderColor = on ? 'var(--secondary)' : 'var(--border)';
-        e.currentTarget.style.background = on ? 'rgba(79,70,229,0.05)' : 'var(--bg-card)';
-        e.currentTarget.style.boxShadow = on ? '0 0 20px rgba(79,70,229,0.15)' : 'none';
+        e.currentTarget.style.background = on ? 'rgba(46,155,214,0.05)' : 'var(--bg-card)';
+        e.currentTarget.style.boxShadow = on ? '0 0 20px rgba(46,155,214,0.15)' : 'none';
     };
 
     return (
         <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '1rem', fontFamily: "'Outfit', sans-serif" }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '1rem', fontFamily: "'Space Grotesk', sans-serif" }}>
                 Target Job Description
             </h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '3rem', fontSize: '1.1rem' }}>
@@ -106,7 +131,7 @@ const Step2JD = ({ data, updateData, setNextDisabled, onAnalyze, triggerAction }
                 }}
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                    <div style={{ width: '42px', height: '42px', background: 'rgba(79,70,229,0.12)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>
+                    <div style={{ width: '42px', height: '42px', background: 'rgba(46,155,214,0.12)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>
                         <Briefcase size={20} />
                     </div>
                     <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)' }}>Job Description</h3>
@@ -114,18 +139,28 @@ const Step2JD = ({ data, updateData, setNextDisabled, onAnalyze, triggerAction }
 
                 <div
                     className="upload-zone"
-                    style={{ marginBottom: '1.5rem', padding: '1.5rem', border: '2px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', textAlign: 'center' }}
+                    style={{
+                        marginBottom: '1.5rem', padding: '1.5rem',
+                        border: `2px dashed ${isDragging ? 'var(--secondary)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-sm)', cursor: 'pointer', textAlign: 'center',
+                        background: isDragging ? 'rgba(46,155,214,0.05)' : 'transparent',
+                        boxShadow: isDragging ? '0 0 20px rgba(46,155,214,0.15)' : 'none',
+                        transition: 'all 0.2s'
+                    }}
                     onMouseOver={(e) => zoneHover(e, true)}
                     onMouseOut={(e) => zoneHover(e, false)}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
                     onClick={(e) => { e.stopPropagation(); document.getElementById('jd-wizard-upload').click(); }}
                 >
                     <input type="file" id="jd-wizard-upload" hidden onChange={handleJdFileChange} accept=".pdf,.doc,.docx" />
-                    <FileUp size={28} style={{ color: 'var(--text-muted)', display: 'block', margin: '0 auto 0.75rem' }} />
+                    <FileUp size={28} style={{ color: isDragging ? 'var(--secondary)' : 'var(--text-muted)', display: 'block', margin: '0 auto 0.75rem', transition: 'color 0.2s' }} />
                     <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                         {data.jdFile ? (
                             <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{data.jdFile.name}</span>
                         ) : (
-                            "Upload Target JD File"
+                            isDragging ? "Drop JD file here" : "Upload or drag & drop Target JD File"
                         )}
                     </p>
                 </div>

@@ -61,16 +61,29 @@ const Login = () => {
         <div className="auth-brand-panel">
           {/* Decorative orb */}
           <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '350px', height: '350px', borderRadius: '50%', background: 'radial-gradient(circle, var(--primary-glow) 0%, transparent 70%)', filter: 'blur(40px)', pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: '-5%', left: '-5%', width: '250px', height: '250px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(79,70,229,0.2) 0%, transparent 70%)', filter: 'blur(40px)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: '-5%', left: '-5%', width: '250px', height: '250px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(46,155,214,0.2) 0%, transparent 70%)', filter: 'blur(40px)', pointerEvents: 'none' }} />
 
           <div style={{ position: 'relative', zIndex: 1, maxWidth: '420px' }}>
             {/* Brand mark */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '3rem' }}>
-              <div style={{ width: '44px', height: '44px', background: 'var(--gradient-primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '800', color: 'white', fontFamily: "'Outfit', sans-serif", boxShadow: '0 8px 20px var(--primary-glow)' }}>H</div>
-              <span style={{ fontSize: '1.6rem', fontWeight: '800', fontFamily: "'Outfit', sans-serif", background: 'var(--gradient-text)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>HireScope</span>
+              <div style={{
+                position: 'relative', width: '44px', height: '44px', background: 'transparent',
+                border: '1.5px solid var(--primary)', borderRadius: '4px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1.4rem', fontWeight: '800', color: 'var(--primary)',
+                fontFamily: "'JetBrains Mono', monospace", flexShrink: 0
+              }}>
+                H
+                <div style={{
+                  position: 'absolute', top: '-5px', right: '-5px',
+                  width: '10px', height: '10px', borderRadius: '50%',
+                  background: 'var(--success-light)', boxShadow: '0 0 12px var(--success)'
+                }} />
+              </div>
+              <span style={{ fontSize: '1.6rem', fontWeight: '800', fontFamily: "'Space Grotesk', sans-serif", background: 'var(--gradient-text)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>HireScope</span>
             </div>
 
-            <h2 style={{ fontSize: 'clamp(2rem, 3.5vw, 2.75rem)', fontWeight: '800', lineHeight: '1.15', marginBottom: '1.25rem', fontFamily: "'Outfit', sans-serif", color: 'var(--text-main)' }}>
+            <h2 style={{ fontSize: 'clamp(2rem, 3.5vw, 2.75rem)', fontWeight: '800', lineHeight: '1.15', marginBottom: '1.25rem', fontFamily: "'Space Grotesk', sans-serif", color: 'var(--text-main)' }}>
               Refine your resume.<br />
               <span style={{ background: 'var(--gradient-hero)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Land the interview.</span>
             </h2>
@@ -107,7 +120,7 @@ const Login = () => {
             style={{ width: '100%', maxWidth: '400px' }}
           >
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <h2 style={{ fontSize: '1.9rem', fontWeight: '800', marginBottom: '0.4rem', fontFamily: "'Outfit', sans-serif" }}>
+              <h2 style={{ fontSize: '1.9rem', fontWeight: '800', marginBottom: '0.4rem', fontFamily: "'Space Grotesk', sans-serif" }}>
                 Welcome back
               </h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Continue your career journey</p>

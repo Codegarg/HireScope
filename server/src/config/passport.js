@@ -25,11 +25,16 @@ passport.use(
 
                 if (!user) {
                     user = await User.create({
-                        username: profile.displayName || email.split('@')[0], // Use username instead of name
+                        username: profile.displayName || email.split('@')[0],
                         email: email,
-                        password: "oauth-user-" + Math.random().toString(36).slice(-8), // Dummy password
-                        googleId: profile.id
+                        password: "oauth-user-" + Math.random().toString(36).slice(-8),
+                        googleId: profile.id,
+                        lastLoginAt: new Date()
                     });
+                } else {
+                    user.lastLoginAt = new Date();
+                    if (!user.googleId) user.googleId = profile.id;
+                    await user.save({ validateModifiedOnly: true });
                 }
                 return done(null, user);
             } catch (error) {
@@ -60,10 +65,16 @@ passport.use(
 
                 if (!user) {
                     user = await User.create({
-                        username: profile.username || profile.displayName || email.split('@')[0], // Use username
+                        username: profile.username || profile.displayName || email.split('@')[0],
                         email: email,
-                        password: "oauth-user-" + Math.random().toString(36).slice(-8)
+                        password: "oauth-user-" + Math.random().toString(36).slice(-8),
+                        githubId: profile.id,
+                        lastLoginAt: new Date()
                     });
+                } else {
+                    user.lastLoginAt = new Date();
+                    if (!user.githubId) user.githubId = profile.id;
+                    await user.save({ validateModifiedOnly: true });
                 }
                 return done(null, user);
             } catch (error) {
