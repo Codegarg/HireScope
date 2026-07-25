@@ -212,7 +212,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
             {!wizardMode && <div style={{ height: '88px', flexShrink: 0 }} />}
 
             {/* Top toolbar */}
-            <div style={{
+            <div className="responsive-padding" style={{
                 flexShrink: 0, zIndex: 50,
                 background: wizardMode ? 'transparent' : 'var(--nav-bg)', backdropFilter: wizardMode ? 'none' : 'var(--blur)',
                 WebkitBackdropFilter: wizardMode ? 'none' : 'var(--blur)',
@@ -302,11 +302,11 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
 
             {/* Main scrollable layout */}
             <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-                <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '100%', width: '100%' }}>
-                    <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start', flexDirection: showATS ? 'row' : 'column', justifyContent: 'center' }}>
+                <div className="responsive-padding" style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '100%', width: '100%' }}>
+                    <div className="stack-on-mobile" style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start', flexDirection: showATS ? 'row' : 'column', justifyContent: 'center' }}>
                         
                         {/* ── Inline Editable Resume HTML ───────────────────── */}
-                        <main style={{ flex: showATS ? '1' : '0 1 850px', minWidth: 0, position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
+                        <main className="responsive-panel" style={{ flex: showATS ? '1' : '0 1 850px', minWidth: 0, position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
                             {isExtractingStructure ? (
                                 <div style={{ padding: '4rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', background: 'white', borderRadius: '4px', width: '100%', maxWidth: '850px' }}>
                                     <Loader2 className="animate-spin" size={32} color="#3b82f6" />
@@ -330,6 +330,7 @@ const ResumeEditor = ({ wizardMode = false, passedId = null, initialContent = nu
                         <AnimatePresence>
                             {showATS && (
                                 <motion.aside
+                                    className="responsive-panel"
                                     initial={{ x: 300, opacity: 0, width: 0 }}
                                     animate={{ x: 0, opacity: 1, width: '450px' }}
                                     exit={{ x: 300, opacity: 0, width: 0 }}

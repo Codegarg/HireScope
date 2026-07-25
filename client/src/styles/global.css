@@ -320,3 +320,43 @@ button[class*="btn"] {
     white-space: nowrap;
     border: 0;
 }
+
+/* ================================================================
+   MOBILE LAYOUT UTILITIES (Added for fully responsive app)
+   ================================================================ */
+@media (max-width: 1024px) {
+    .stack-on-mobile {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    
+    .stack-on-mobile > * {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: none !important;
+    }
+    
+    .responsive-modal {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+        height: 100% !important;
+        max-height: 100vh !important;
+    }
+    
+    .responsive-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .responsive-padding {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+    
+    .hide-on-mobile {
+        display: none !important;
+    }
+}

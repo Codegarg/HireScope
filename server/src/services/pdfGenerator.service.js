@@ -56,9 +56,9 @@ export const generateResumePDF = async (resume) => {
                         ${content.personalInfo?.email && content.personalInfo?.phone ? `<span style="margin: 0;">|</span>` : ''}
                         ${content.personalInfo?.phone ? `<span>${escapeHTML(content.personalInfo.phone)}</span>` : ''}
                         ${(content.personalInfo?.email || content.personalInfo?.phone) && content.personalInfo?.linkedin ? `<span style="margin: 0;">|</span>` : ''}
-                        ${content.personalInfo?.linkedin ? `<a href="${escapeHTML(content.personalInfo.linkedin.startsWith('http') ? content.personalInfo.linkedin : `https://${content.personalInfo.linkedin}`)}" style="color: inherit; text-decoration: none;" target="_blank">LinkedIn: ${escapeHTML(content.personalInfo.linkedin.replace(/^https?:\\/\\//, ''))}</a>` : ''}
+                        ${content.personalInfo?.linkedin ? `<a href="${escapeHTML(content.personalInfo.linkedin.startsWith('http') ? content.personalInfo.linkedin : `https://${content.personalInfo.linkedin}`)}" style="color: inherit; text-decoration: none;" target="_blank">LinkedIn: ${escapeHTML(content.personalInfo.linkedin.replace(/^https?:\/\//, ''))}</a>` : ''}
                         ${(content.personalInfo?.email || content.personalInfo?.phone || content.personalInfo?.linkedin) && content.personalInfo?.github ? `<span style="margin: 0;">|</span>` : ''}
-                        ${content.personalInfo?.github ? `<a href="${escapeHTML(content.personalInfo.github.startsWith('http') ? content.personalInfo.github : `https://${content.personalInfo.github}`)}" style="color: inherit; text-decoration: none;" target="_blank">GitHub: ${escapeHTML(content.personalInfo.github.replace(/^https?:\\/\\//, ''))}</a>` : ''}
+                        ${content.personalInfo?.github ? `<a href="${escapeHTML(content.personalInfo.github.startsWith('http') ? content.personalInfo.github : `https://${content.personalInfo.github}`)}" style="color: inherit; text-decoration: none;" target="_blank">GitHub: ${escapeHTML(content.personalInfo.github.replace(/^https?:\/\//, ''))}</a>` : ''}
                     </div>
                 </div>
 

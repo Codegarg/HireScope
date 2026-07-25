@@ -107,8 +107,9 @@ const GlobalAIPanel = () => {
                         style={{
                             position: 'fixed',
                             bottom: '5.5rem',
-                            right: '2rem',
-                            width: '420px',
+                            right: 'max(1rem, 2rem)',
+                            width: 'calc(100vw - 2rem)',
+                            maxWidth: '420px',
                             height: 'min(640px, 80vh)',
                             background: 'var(--nav-bg)',
                             backdropFilter: 'var(--blur)',
