@@ -169,7 +169,7 @@ const Navbar = () => {
 
                     {/* Auth section */}
                     {user ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             {/* User Avatar */}
                             <Link to="/profile" style={{ textDecoration: 'none' }}>
                                 <motion.div
@@ -211,7 +211,7 @@ const Navbar = () => {
                         </div>
                     ) : (
                         !isAuth && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                 <Link to="/login" style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '0.875rem', fontWeight: '600', transition: 'color 0.2s' }}
                                     onMouseEnter={e => e.target.style.color = 'var(--text-main)'}
                                     onMouseLeave={e => e.target.style.color = 'var(--text-muted)'}
@@ -237,7 +237,7 @@ const Navbar = () => {
                         <button
                             className="show-mobile"
                             onClick={() => setMobileOpen(!mobileOpen)}
-                            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '0.4rem', color: 'var(--text-muted)', cursor: 'pointer', display: 'none' }}
+                            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '0.4rem', color: 'var(--text-muted)', cursor: 'pointer' }}
                         >
                             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
                         </button>
@@ -286,9 +286,19 @@ const Navbar = () => {
                                 </Link>
                             ))}
                             {user ? (
-                                <button onClick={() => { logout(); navigate('/login'); setMobileOpen(false); }} style={{ marginTop: '0.5rem', padding: '0.875rem', borderRadius: 'var(--radius-sm)', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontWeight: '600', cursor: 'pointer' }}>
-                                    Logout
-                                </button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                    <Link to="/profile" onClick={() => setMobileOpen(false)} style={{
+                                        display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)',
+                                        background: location.pathname === '/profile' ? 'var(--bg-elevated)' : 'transparent',
+                                        color: location.pathname === '/profile' ? 'var(--text-main)' : 'var(--text-muted)',
+                                        textDecoration: 'none', fontWeight: '600', fontSize: '0.95rem'
+                                    }}>
+                                        <User size={16} />Profile
+                                    </Link>
+                                    <button onClick={() => { logout(); navigate('/login'); setMobileOpen(false); }} style={{ padding: '0.875rem', borderRadius: 'var(--radius-sm)', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontWeight: '600', cursor: 'pointer' }}>
+                                        Logout
+                                    </button>
+                                </div>
                             ) : (
                                 <Link to="/login" onClick={() => setMobileOpen(false)} style={{ marginTop: '0.5rem', display: 'block', padding: '0.875rem', borderRadius: 'var(--radius-sm)', background: 'var(--gradient-primary)', color: 'white', textDecoration: 'none', fontWeight: '700', textAlign: 'center' }}>
                                     Login

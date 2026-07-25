@@ -380,6 +380,11 @@ const AIAssistant = ({ context, hideHeader = false }) => {
             </form>
             {/* Markdown styling */}
             <style>{`
+                .markdown-body {
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    overflow-x: auto;
+                }
                 .markdown-body p { margin-bottom: 0.75rem; }
                 .markdown-body p:last-child { margin-bottom: 0; }
                 .markdown-body ul, .markdown-body ol { margin-bottom: 0.75rem; padding-left: 1.25rem; }
@@ -392,6 +397,17 @@ const AIAssistant = ({ context, hideHeader = false }) => {
                     border-radius: 4px; 
                     font-family: monospace;
                     font-size: 0.85rem;
+                }
+                .markdown-body pre {
+                    overflow-x: auto;
+                    background: rgba(0,0,0,0.2);
+                    padding: 0.75rem;
+                    border-radius: 6px;
+                }
+                .markdown-body table {
+                    width: 100%;
+                    overflow-x: auto;
+                    display: block;
                 }
             `}</style>
         </div>
